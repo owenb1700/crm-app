@@ -9,9 +9,15 @@ export default function Dashboard() {
 
   const [customer, setCustomer] = useState("");
   const [contact, setContact] = useState("");
-  const [nextCheckIn, setNextCheckIn] = useState("");
+  const [lastContact, setLastContact] = useState("");
 
   const col = collection(db, "customers");
+
+  const addDays = (dateStr, days) => {
+    const date = new Date(dateStr);
+    date.setDate(date.getDate() + days);
+    return date.toISOString().split("T")[0];
+  };
 
   const loadCustomers = async () => {
     const snap = await getDocs(col);
@@ -25,16 +31,21 @@ export default function Dashboard() {
   const addCustomer = async () => {
     if (!customer) return;
 
+    // default reminder = 7 days after last contact (or today if empty)
+    const baseDate = lastContact || new Date().toISOString().split("T")[0];
+    const nextCheckIn = addDays(baseDate, 7);
+
     await addDoc(col, {
       customer,
       contact,
+      lastContact: baseDate,
       nextCheckIn,
       createdAt: new Date().toISOString()
     });
 
     setCustomer("");
     setContact("");
-    setNextCheckIn("");
+    setLastContact("");
 
     loadCustomers();
   };
@@ -43,7 +54,7 @@ export default function Dashboard() {
     <div style={{ padding: 20, fontFamily: "Arial" }}>
       <h1>CRM Dashboard</h1>
 
-      {/* INPUT FORM */}
+      {/* FORM */}
       <div style={{ marginBottom: 20, display: "flex", gap: 10 }}>
         <input
           placeholder="Customer name"
@@ -52,18 +63,18 @@ export default function Dashboard() {
         />
 
         <input
-          placeholder="Contact info (email/phone)"
+          placeholder="Contact (email/phone)"
           value={contact}
           onChange={(e) => setContact(e.target.value)}
         />
 
         <input
           type="date"
-          value={nextCheckIn}
-          onChange={(e) => setNextCheckIn(e.target.value)}
+          value={lastContact}
+          onChange={(e) => setLastContact(e.target.value)}
         />
 
-        <button onClick={addCustomer}>Add</button>
+        <button onClick={addCustomer}>Add Customer</button>
       </div>
 
       {/* LIST */}
@@ -71,7 +82,8 @@ export default function Dashboard() {
         <div key={c.id} style={{ border: "1px solid #ddd", padding: 10, marginBottom: 10 }}>
           <b>{c.customer}</b>
           <div>Contact: {c.contact}</div>
-          <div>Next Check-In: {c.nextCheckIn}</div>
+          <div>Last Contact: {c.lastContact}</div>
+          <div><b>Next Check-In: {c.nextCheckIn}</b></div>
         </div>
       ))}
     </div>
