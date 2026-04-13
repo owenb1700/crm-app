@@ -7,6 +7,7 @@ import { collection, addDoc, getDocs } from "firebase/firestore";
 export default function Dashboard() {
   const [customers, setCustomers] = useState([]);
 
+  // FULL FORM FIELDS
   const [customer, setCustomer] = useState("");
   const [contact, setContact] = useState("");
   const [lastContact, setLastContact] = useState("");
@@ -29,20 +30,23 @@ export default function Dashboard() {
   }, []);
 
   const addCustomer = async () => {
-    if (!customer) return;
+    // 🚨 FORM VALIDATION (forces full input)
+    if (!customer || !contact || !lastContact) {
+      alert("Please fill out ALL fields before adding a customer.");
+      return;
+    }
 
-    // default reminder = 7 days after last contact (or today if empty)
-    const baseDate = lastContact || new Date().toISOString().split("T")[0];
-    const nextCheckIn = addDays(baseDate, 7);
+    const nextCheckIn = addDays(lastContact, 7);
 
     await addDoc(col, {
       customer,
       contact,
-      lastContact: baseDate,
+      lastContact,
       nextCheckIn,
       createdAt: new Date().toISOString()
     });
 
+    // reset form
     setCustomer("");
     setContact("");
     setLastContact("");
@@ -54,16 +58,16 @@ export default function Dashboard() {
     <div style={{ padding: 20, fontFamily: "Arial" }}>
       <h1>CRM Dashboard</h1>
 
-      {/* FORM */}
-      <div style={{ marginBottom: 20, display: "flex", gap: 10 }}>
+      {/* FULL FORM */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
         <input
-          placeholder="Customer name"
+          placeholder="Customer Name"
           value={customer}
           onChange={(e) => setCustomer(e.target.value)}
         />
 
         <input
-          placeholder="Contact (email/phone)"
+          placeholder="Contact (email or phone)"
           value={contact}
           onChange={(e) => setContact(e.target.value)}
         />
