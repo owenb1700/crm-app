@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState, useMemo } from "react";
 import { db } from "../../lib/firebase";
 import { collection, addDoc, getDocs } from "firebase/firestore";
@@ -12,9 +10,10 @@ export default function Dashboard() {
   const [contact, setContact] = useState("");
   const [lastContact, setLastContact] = useState("");
 
-  // SEARCH + FILTERS
+  // UI CONTROLS
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("nextCheckIn");
+  const [view, setView] = useState("all"); // 👈 NEW
 
   const col = collection(db, "customers");
 
@@ -23,6 +22,8 @@ export default function Dashboard() {
     date.setDate(date.getDate() + days);
     return date.toISOString().split("T")[0];
   };
+
+  const today = new Date().toISOString().split("T")[0];
 
   const loadCustomers = async () => {
     const snap = await getDocs(col);
@@ -56,11 +57,16 @@ export default function Dashboard() {
     loadCustomers();
   };
 
-  // 🔎 FILTER + SEARCH + SORT LOGIC
+  // 🔎 FILTER + SORT + VIEW LOGIC
   const filteredCustomers = useMemo(() => {
     let data = [...customers];
 
-    // SEARCH (customer or contact)
+    // 🔔 DUE TODAY FILTER
+    if (view === "due") {
+      data = data.filter(c => c.nextCheckIn && c.nextCheckIn <= today);
+    }
+
+    // SEARCH
     if (search) {
       data = data.filter(c =>
         (c.customer || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -68,7 +74,7 @@ export default function Dashboard() {
       );
     }
 
-    // SORTING
+    // SORT
     data.sort((a, b) => {
       if (sortBy === "customer") {
         return (a.customer || "").localeCompare(b.customer || "");
@@ -86,11 +92,19 @@ export default function Dashboard() {
     });
 
     return data;
-  }, [customers, search, sortBy]);
+  }, [customers, search, sortBy, view, today]);
 
   return (
     <div style={{ padding: 20, fontFamily: "Arial" }}>
       <h1>CRM Dashboard</h1>
+
+      {/* VIEW SWITCHER */}
+      <div style={{ marginBottom: 10 }}>
+        <button onClick={() => setView("all")}>All Customers</button>
+        <button onClick={() => setView("due")} style={{ marginLeft: 10 }}>
+          🔔 Due Today
+        </button>
+      </div>
 
       {/* FORM */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
@@ -115,10 +129,10 @@ export default function Dashboard() {
         <button onClick={addCustomer}>Add</button>
       </div>
 
-      {/* SEARCH + SORT CONTROLS */}
+      {/* SEARCH + SORT */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
         <input
-          placeholder="Search customer or contact..."
+          placeholder="Search..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -126,7 +140,7 @@ export default function Dashboard() {
         <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
           <option value="nextCheckIn">Sort: Next Check-In</option>
           <option value="lastContact">Sort: Last Contact</option>
-          <option value="customer">Sort: A–Z Customer</option>
+          <option value="customer">Sort: A–Z</option>
         </select>
       </div>
 
@@ -136,7 +150,12 @@ export default function Dashboard() {
           <b>{c.customer}</b>
           <div>Contact: {c.contact}</div>
           <div>Last Contact: {c.lastContact}</div>
-          <div><b>Next Check-In: {c.nextCheckIn}</b></div>
+          <div>
+            <b>
+              Next Check-In: {c.nextCheckIn}
+              {c.nextCheckIn <= today && " 🔔 DUE"}
+            </b>
+          </div>
         </div>
       ))}
     </div>
