@@ -6,47 +6,72 @@ import { collection, addDoc, getDocs } from "firebase/firestore";
 
 export default function Dashboard() {
   const [customers, setCustomers] = useState([]);
-  const [name, setName] = useState("");
+
+  const [customer, setCustomer] = useState("");
+  const [contact, setContact] = useState("");
+  const [nextCheckIn, setNextCheckIn] = useState("");
 
   const col = collection(db, "customers");
 
-  const load = async () => {
+  const loadCustomers = async () => {
     const snap = await getDocs(col);
     setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   };
 
   useEffect(() => {
-    load();
+    loadCustomers();
   }, []);
 
   const addCustomer = async () => {
+    if (!customer) return;
+
     await addDoc(col, {
-      name,
-      email: "",
-      status: "Lead",
-      nextCheckIn: ""
+      customer,
+      contact,
+      nextCheckIn,
+      createdAt: new Date().toISOString()
     });
 
-    setName("");
-    load();
+    setCustomer("");
+    setContact("");
+    setNextCheckIn("");
+
+    loadCustomers();
   };
 
   return (
-    <div style={{ padding: 20 }}>
+    <div style={{ padding: 20, fontFamily: "Arial" }}>
       <h1>CRM Dashboard</h1>
 
-      <input
-        placeholder="Customer name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
-      <button onClick={addCustomer}>Add</button>
+      {/* INPUT FORM */}
+      <div style={{ marginBottom: 20, display: "flex", gap: 10 }}>
+        <input
+          placeholder="Customer name"
+          value={customer}
+          onChange={(e) => setCustomer(e.target.value)}
+        />
 
-      {customers.map(c => (
-        <div key={c.id} style={{ border: "1px solid #ddd", marginTop: 10, padding: 10 }}>
-          <div><b>{c.name}</b></div>
-          <div>{c.email}</div>
-          <div>{c.status}</div>
+        <input
+          placeholder="Contact info (email/phone)"
+          value={contact}
+          onChange={(e) => setContact(e.target.value)}
+        />
+
+        <input
+          type="date"
+          value={nextCheckIn}
+          onChange={(e) => setNextCheckIn(e.target.value)}
+        />
+
+        <button onClick={addCustomer}>Add</button>
+      </div>
+
+      {/* LIST */}
+      {customers.map((c) => (
+        <div key={c.id} style={{ border: "1px solid #ddd", padding: 10, marginBottom: 10 }}>
+          <b>{c.customer}</b>
+          <div>Contact: {c.contact}</div>
+          <div>Next Check-In: {c.nextCheckIn}</div>
         </div>
       ))}
     </div>
