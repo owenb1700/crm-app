@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { db } from "../../lib/firebase";
 import { collection, addDoc, getDocs } from "firebase/firestore";
 
 export default function Dashboard() {
   const [customers, setCustomers] = useState([]);
 
-  // FULL FORM FIELDS
+  // FORM
   const [customer, setCustomer] = useState("");
   const [contact, setContact] = useState("");
   const [lastContact, setLastContact] = useState("");
+
+  // SEARCH + FILTERS
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("nextCheckIn");
 
   const col = collection(db, "customers");
 
@@ -30,9 +34,8 @@ export default function Dashboard() {
   }, []);
 
   const addCustomer = async () => {
-    // 🚨 FORM VALIDATION (forces full input)
     if (!customer || !contact || !lastContact) {
-      alert("Please fill out ALL fields before adding a customer.");
+      alert("Please fill all fields");
       return;
     }
 
@@ -46,7 +49,6 @@ export default function Dashboard() {
       createdAt: new Date().toISOString()
     });
 
-    // reset form
     setCustomer("");
     setContact("");
     setLastContact("");
@@ -54,20 +56,52 @@ export default function Dashboard() {
     loadCustomers();
   };
 
+  // 🔎 FILTER + SEARCH + SORT LOGIC
+  const filteredCustomers = useMemo(() => {
+    let data = [...customers];
+
+    // SEARCH (customer or contact)
+    if (search) {
+      data = data.filter(c =>
+        (c.customer || "").toLowerCase().includes(search.toLowerCase()) ||
+        (c.contact || "").toLowerCase().includes(search.toLowerCase())
+      );
+    }
+
+    // SORTING
+    data.sort((a, b) => {
+      if (sortBy === "customer") {
+        return (a.customer || "").localeCompare(b.customer || "");
+      }
+
+      if (sortBy === "lastContact") {
+        return new Date(b.lastContact || 0) - new Date(a.lastContact || 0);
+      }
+
+      if (sortBy === "nextCheckIn") {
+        return new Date(a.nextCheckIn || 0) - new Date(b.nextCheckIn || 0);
+      }
+
+      return 0;
+    });
+
+    return data;
+  }, [customers, search, sortBy]);
+
   return (
     <div style={{ padding: 20, fontFamily: "Arial" }}>
       <h1>CRM Dashboard</h1>
 
-      {/* FULL FORM */}
+      {/* FORM */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
         <input
-          placeholder="Customer Name"
+          placeholder="Customer"
           value={customer}
           onChange={(e) => setCustomer(e.target.value)}
         />
 
         <input
-          placeholder="Contact (email or phone)"
+          placeholder="Contact"
           value={contact}
           onChange={(e) => setContact(e.target.value)}
         />
@@ -78,11 +112,26 @@ export default function Dashboard() {
           onChange={(e) => setLastContact(e.target.value)}
         />
 
-        <button onClick={addCustomer}>Add Customer</button>
+        <button onClick={addCustomer}>Add</button>
+      </div>
+
+      {/* SEARCH + SORT CONTROLS */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        <input
+          placeholder="Search customer or contact..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+          <option value="nextCheckIn">Sort: Next Check-In</option>
+          <option value="lastContact">Sort: Last Contact</option>
+          <option value="customer">Sort: A–Z Customer</option>
+        </select>
       </div>
 
       {/* LIST */}
-      {customers.map((c) => (
+      {filteredCustomers.map((c) => (
         <div key={c.id} style={{ border: "1px solid #ddd", padding: 10, marginBottom: 10 }}>
           <b>{c.customer}</b>
           <div>Contact: {c.contact}</div>
