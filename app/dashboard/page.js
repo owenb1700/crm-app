@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState, useMemo } from "react";
 import { db } from "../../lib/firebase";
 import { collection, addDoc, getDocs } from "firebase/firestore";
