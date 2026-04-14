@@ -14,6 +14,7 @@ import {
 export default function Dashboard() {
   const [customers, setCustomers] = useState([]);
 
+  // FORM
   const [company, setCompany] = useState("");
   const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
@@ -22,6 +23,7 @@ export default function Dashboard() {
   const [notes, setNotes] = useState("");
 
   const [addOpen, setAddOpen] = useState(false);
+
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
 
@@ -31,13 +33,16 @@ export default function Dashboard() {
   const [completedTarget, setCompletedTarget] = useState(null);
   const [contactMethod, setContactMethod] = useState("phone");
 
+  const [toast, setToast] = useState("");
+
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const col = collection(db, "customers");
 
   const showToast = (msg) => {
-    setTimeout(() => alert(msg), 0);
+    setToast(msg);
+    setTimeout(() => setToast(""), 5000);
   };
 
   const formatPhone = (phone) => {
@@ -105,6 +110,7 @@ export default function Dashboard() {
     setPhone("");
     setNextDate("");
     setNotes("");
+
     setAddOpen(false);
 
     showToast("Customer added");
@@ -189,12 +195,24 @@ export default function Dashboard() {
     setModalNotes(c.notes || "");
   };
 
+  const closeModal = () => setSelected(null);
+
   const saveModalNotes = async () => {
+    const original = selected.notes || "";
+    const changed = original !== modalNotes;
+
     const ref = doc(db, "customers", selected.id);
+
+    const newHistory = changed
+      ? [
+          ...(selected.notesHistory || []),
+          { text: original, date: new Date().toISOString() }
+        ]
+      : selected.notesHistory || [];
 
     await updateDoc(ref, {
       notes: modalNotes,
-      notesHistory: selected.notesHistory || []
+      notesHistory: newHistory
     });
 
     setSelected(null);
@@ -210,6 +228,7 @@ export default function Dashboard() {
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
+
       list = list.filter(c =>
         (c.company || "").toLowerCase().includes(q) ||
         (c.contact || "").toLowerCase().includes(q) ||
@@ -222,52 +241,61 @@ export default function Dashboard() {
 
   return (
     <div style={{
-      padding: 32,
-      fontFamily: "Inter, system-ui, Arial",
-      background: "#eef2f7",
+      padding: 30,
+      fontFamily: "Inter, Arial",
+      background: "#cfd5dd",
       minHeight: "100vh"
     }}>
 
-      <h1 style={{
-        fontSize: 28,
-        fontWeight: 700,
-        marginBottom: 18
-      }}>
-        CRM Dashboard
-      </h1>
+      <h1>CRM Dashboard</h1>
 
-      {/* ADD BUTTON */}
-      <button
-        onClick={() => setAddOpen(true)}
-        style={{
-          background: "#2563eb",
-          color: "white",
-          padding: "10px 14px",
-          borderRadius: 10,
-          border: "none",
-          cursor: "pointer",
-          marginBottom: 15,
-          fontWeight: 600
-        }}
-      >
-        + ADD ENTRY
-      </button>
+      <div style={{ marginBottom: 20 }}>
+        <button onClick={() => setAddOpen(true)}>+ ADD ENTRY</button>
+      </div>
+
+      {/* ADD MODAL */}
+      {addOpen && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center"
+        }}>
+          <div style={{ background: "white", padding: 20, borderRadius: 12, width: 400 }}>
+            <button onClick={() => setAddOpen(false)} style={{ float: "right" }}>✕</button>
+
+            <h3>Add Customer</h3>
+
+            <input placeholder="Company" value={company} onChange={e => setCompany(e.target.value)} />
+            <input placeholder="Contact" value={contact} onChange={e => setContact(e.target.value)} />
+            <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+            <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
+            <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
+
+            <textarea
+              placeholder="Notes"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              style={{ width: "100%", height: 120 }}
+            />
+
+            <button onClick={addCustomer}>Add</button>
+          </div>
+        </div>
+      )}
 
       {/* SEARCH */}
-      <div style={{ marginBottom: 15 }}>
+      <div style={{ marginBottom: 15, display: "flex", gap: 10, alignItems: "center" }}>
         <button onClick={() => setSearchOpen(!searchOpen)}>🔍</button>
 
         {searchOpen && (
           <input
-            placeholder="Search company, contact, or phone..."
+            placeholder="Search company or contact..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            style={{
-              marginLeft: 10,
-              padding: 8,
-              borderRadius: 8,
-              border: "1px solid #ccc"
-            }}
+            style={{ flex: 1 }}
           />
         )}
       </div>
@@ -286,13 +314,12 @@ export default function Dashboard() {
             onClick={(e) => openModal(c, e)}
             style={{
               background: "white",
-              padding: 14,
-              borderRadius: 14,
+              padding: 15,
+              borderRadius: 12,
               marginBottom: 10,
               display: "flex",
               justifyContent: "space-between",
               borderLeft: `6px solid ${bar}`,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
               cursor: "pointer"
             }}
           >
@@ -304,16 +331,22 @@ export default function Dashboard() {
                   <input value={editData.contact} onChange={e => setEditData({ ...editData, contact: e.target.value })} />
                   <input value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} />
                   <input value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
+
+                  <div style={{ fontSize: 10, marginTop: 6 }}>Next Date</div>
                   <input type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
+
+                  <div style={{ fontSize: 10, marginTop: 6 }}>Last Contact</div>
                   <input type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
                 </>
               ) : (
                 <>
-                  <b style={{ fontSize: 15 }}>{c.company}</b>
-                  <div style={{ fontSize: 13, color: "#555" }}>{c.contact}</div>
-                  <div style={{ fontSize: 11, color: "#888" }}>
+                  <b>{c.company}</b>
+                  <div style={{ fontSize: 14, color: "#666" }}>{c.contact}</div>
+                  <div style={{ fontSize: 10, color: "#888" }}>
                     {c.email || ""} | {formatPhone(c.phone)}
                   </div>
+                  <div style={{ fontSize: 12 }}>Next: {formatDate(c.nextCheckIn)}</div>
+                  <div style={{ fontSize: 12 }}>Last: {formatDate(c.lastContact)}</div>
                 </>
               )}
             </div>
@@ -321,23 +354,31 @@ export default function Dashboard() {
             <div style={{
               flex: 1,
               margin: "0 15px",
-              background: "#f8fafc",
-              padding: 12,
-              borderRadius: 10,
-              border: "1px solid #e5e7eb"
+              background: "#f3f5f7",
+              padding: 10,
+              borderRadius: 8
             }}>
-              <div style={{ fontSize: 12 }}>{c.notes}</div>
+              <div style={{ fontSize: 11 }}>{c.notes}</div>
             </div>
 
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button onClick={() => handleFollowUp(c)}>Follow</button>
-              <button onClick={() => openCompletedPopup(c)}>Done</button>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
+                <label>
+                  <input type="checkbox" onChange={() => handleFollowUp(c)} />
+                  Follow Up
+                </label>
+
+                <label>
+                  <input type="checkbox" onChange={() => openCompletedPopup(c)} />
+                  Completed
+                </label>
+              </div>
 
               {editingId === c.id ? (
                 <>
                   <button onClick={saveEdit}>Save</button>
                   <button onClick={() => setEditingId(null)}>Cancel</button>
-                  <button onClick={() => deleteCustomer(c.id)}>Delete</button>
+                  <button onClick={() => deleteCustomer(c.id)} style={{ color: "red" }}>Delete</button>
                 </>
               ) : (
                 <button onClick={() => startEdit(c)}>Edit</button>
