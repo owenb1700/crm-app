@@ -86,10 +86,10 @@ export default function Dashboard() {
     loadCustomers();
   }, []);
 
-  // ✅ ONLY CHANGE IS HERE
+  // ✅ UPDATED ADD LOGIC
   const addCustomer = async () => {
-    if (!company && !contact && !email && !phone && !nextDate && !notes) {
-      return alert("Please enter at least one field");
+    if (!company && !contact) {
+      return alert("Please enter at least a company or contact name");
     }
 
     await addDoc(col, {
@@ -274,7 +274,14 @@ export default function Dashboard() {
             <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
             <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
             <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
-            <input placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
+
+            {/* ✅ LARGER NOTES */}
+            <textarea
+              placeholder="Notes"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              style={{ width: "100%", height: 120 }}
+            />
 
             <button onClick={addCustomer}>Add</button>
           </div>
