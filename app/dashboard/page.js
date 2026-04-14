@@ -125,57 +125,131 @@ export default function Dashboard() {
     return data;
   }, [customers, search, sortBy, view, todayValue]);
 
-  return (
-    <div style={{ padding: 20, fontFamily: "Arial" }}>
-      <h1>CRM Dashboard</h1>
+ return (
+  <div style={{ 
+    padding: 30, 
+    fontFamily: "Segoe UI, Arial", 
+    background: "#f5f7fb",
+    minHeight: "100vh"
+  }}>
 
-      {/* VIEW SWITCH */}
-      <div style={{ marginBottom: 10 }}>
-        <button onClick={() => setView("all")}>All Customers</button>
-        <button onClick={() => setView("due")} style={{ marginLeft: 10 }}>
-          🔔 Due Today
-        </button>
-      </div>
+    {/* HEADER */}
+    <div style={{ marginBottom: 30 }}>
+      <h1 style={{ margin: 0 }}>CRM Dashboard</h1>
+      <p style={{ color: "#666" }}>Manage customers and follow-ups</p>
+    </div>
 
-      {/* FORM */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+    {/* VIEW SWITCH */}
+    <div style={{ marginBottom: 20 }}>
+      <button
+        onClick={() => setView("all")}
+        style={{
+          padding: "8px 14px",
+          borderRadius: 6,
+          border: "none",
+          background: view === "all" ? "#0070f3" : "#ddd",
+          color: view === "all" ? "white" : "#333",
+          cursor: "pointer"
+        }}
+      >
+        All Customers
+      </button>
+
+      <button
+        onClick={() => setView("due")}
+        style={{
+          padding: "8px 14px",
+          marginLeft: 10,
+          borderRadius: 6,
+          border: "none",
+          background: view === "due" ? "#0070f3" : "#ddd",
+          color: view === "due" ? "white" : "#333",
+          cursor: "pointer"
+        }}
+      >
+        🔔 Due Today
+      </button>
+    </div>
+
+    {/* FORM CARD */}
+    <div style={{
+      background: "white",
+      padding: 20,
+      borderRadius: 10,
+      marginBottom: 25,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+    }}>
+      <h3>Add Customer</h3>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <input
           placeholder="Customer"
           value={customer}
           onChange={(e) => setCustomer(e.target.value)}
+          style={{ padding: 8, borderRadius: 6, border: "1px solid #ccc" }}
         />
 
         <input
           placeholder="Contact"
           value={contact}
           onChange={(e) => setContact(e.target.value)}
+          style={{ padding: 8, borderRadius: 6, border: "1px solid #ccc" }}
         />
 
         <input
           type="date"
           value={lastContact}
           onChange={(e) => setLastContact(e.target.value)}
+          style={{ padding: 8, borderRadius: 6, border: "1px solid #ccc" }}
         />
 
-        <button onClick={addCustomer}>Add</button>
+        <button
+          onClick={addCustomer}
+          style={{
+            background: "#0070f3",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            padding: "8px 16px",
+            cursor: "pointer"
+          }}
+        >
+          Add
+        </button>
       </div>
+    </div>
 
-      {/* SEARCH + SORT */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-        <input
-          placeholder="Search..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+    {/* SEARCH + SORT */}
+    <div style={{
+      background: "white",
+      padding: 20,
+      borderRadius: 10,
+      marginBottom: 25,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+      display: "flex",
+      gap: 10,
+      flexWrap: "wrap"
+    }}>
+      <input
+        placeholder="Search..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        style={{ padding: 8, borderRadius: 6, border: "1px solid #ccc" }}
+      />
 
-        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-          <option value="nextCheckIn">Sort: Next Check-In</option>
-          <option value="lastContact">Sort: Last Contact</option>
-          <option value="customer">Sort: A–Z</option>
-        </select>
-      </div>
+      <select
+        value={sortBy}
+        onChange={(e) => setSortBy(e.target.value)}
+        style={{ padding: 8, borderRadius: 6 }}
+      >
+        <option value="nextCheckIn">Next Check-In</option>
+        <option value="lastContact">Last Contact</option>
+        <option value="customer">Customer A–Z</option>
+      </select>
+    </div>
 
-      {/* LIST */}
+    {/* CUSTOMER LIST */}
+    <div style={{ display: "grid", gap: 15 }}>
       {filteredCustomers.map((c) => {
         const isDue = getDateValue(c.nextCheckIn) <= todayValue;
 
@@ -183,24 +257,36 @@ export default function Dashboard() {
           <div
             key={c.id}
             style={{
-              border: "1px solid #ddd",
-              padding: 10,
-              marginBottom: 10,
-              background: isDue ? "#fff3cd" : "white"
+              background: "white",
+              padding: 18,
+              borderRadius: 10,
+              boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
+              borderLeft: isDue ? "6px solid #ff4d4f" : "6px solid transparent"
             }}
           >
-            <b>{c.customer}</b>
-            <div>Contact: {c.contact}</div>
-            <div>Last Contact: {formatDate(c.lastContact)}</div>
-            <div>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>
+              {c.customer}
+            </div>
+
+            <div style={{ color: "#555", marginTop: 5 }}>
+              {c.contact}
+            </div>
+
+            <div style={{ marginTop: 10, fontSize: 14 }}>
+              Last Contact: {formatDate(c.lastContact)}
+            </div>
+
+            <div style={{ marginTop: 5, fontSize: 14 }}>
               <b>
                 Next Check-In: {formatDate(c.nextCheckIn)}
-                {isDue && " 🔔 DUE"}
+                {isDue && " 🔔"}
               </b>
             </div>
           </div>
         );
       })}
     </div>
-  );
+
+  </div>
+);
 }
