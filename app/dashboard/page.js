@@ -14,10 +14,10 @@ import {
 export default function Dashboard() {
   const [customers, setCustomers] = useState([]);
 
-  // FORM
+  // FORM (UPDATED)
   const [customer, setCustomer] = useState("");
   const [contact, setContact] = useState("");
-  const [lastContact, setLastContact] = useState("");
+  const [nextDate, setNextDate] = useState("");
   const [notes, setNotes] = useState("");
 
   // EDIT STATE
@@ -55,12 +55,12 @@ export default function Dashboard() {
     return adjustWeekend(date);
   };
 
+  const today = new Date().toISOString().split("T")[0];
+
   const todayValue = new Date().getTime();
 
-  // DIFFERENCE IN DAYS
-  const diffDays = (date) => {
-    return (getDateValue(date) - todayValue) / (1000 * 60 * 60 * 24);
-  };
+  const diffDays = (date) =>
+    (getDateValue(date) - todayValue) / (1000 * 60 * 60 * 24);
 
   // LOAD
   const loadCustomers = async () => {
@@ -72,26 +72,24 @@ export default function Dashboard() {
     loadCustomers();
   }, []);
 
-  // ADD
+  // ADD (UPDATED LOGIC)
   const addCustomer = async () => {
-    if (!customer || !contact || !lastContact) {
+    if (!customer || !contact || !nextDate) {
       return alert("Fill all fields");
     }
-
-    const nextCheckIn = addDays(lastContact, 7);
 
     await addDoc(col, {
       customer,
       contact,
-      lastContact,
-      nextCheckIn,
+      nextCheckIn: adjustWeekend(nextDate), // NEXT DATE FROM INPUT
+      lastContact: new Date().toISOString().split("T")[0], // AUTO TODAY
       notes,
       createdAt: new Date().toISOString()
     });
 
     setCustomer("");
     setContact("");
-    setLastContact("");
+    setNextDate("");
     setNotes("");
 
     loadCustomers();
@@ -103,8 +101,8 @@ export default function Dashboard() {
     setEditData({
       customer: c.customer || "",
       contact: c.contact || "",
-      lastContact: formatDate(c.lastContact),
       nextCheckIn: formatDate(c.nextCheckIn),
+      lastContact: formatDate(c.lastContact),
       notes: c.notes || ""
     });
   };
@@ -161,22 +159,68 @@ export default function Dashboard() {
 
       <h1 style={{ marginBottom: 20 }}>CRM Dashboard</h1>
 
-      {/* ADD */}
+      {/* ===================== */}
+      {/* FORM (IMPROVED UI) */}
+      {/* ===================== */}
       <div style={{
         background: "white",
-        padding: 20,
+        padding: 22,
         borderRadius: 12,
         marginBottom: 20,
         boxShadow: "0 2px 10px rgba(0,0,0,0.06)"
       }}>
-        <input placeholder="Customer" value={customer} onChange={e => setCustomer(e.target.value)} />
-        <input placeholder="Contact" value={contact} onChange={e => setContact(e.target.value)} />
-        <input type="date" value={lastContact} onChange={e => setLastContact(e.target.value)} />
-        <input placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
-        <button onClick={addCustomer}>Add</button>
+
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 12
+        }}>
+          <div>
+            <label>Customer</label>
+            <input
+              style={{ width: "100%" }}
+              value={customer}
+              onChange={e => setCustomer(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Contact</label>
+            <input
+              style={{ width: "100%" }}
+              value={contact}
+              onChange={e => setContact(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Next Follow-Up Date</label>
+            <input
+              type="date"
+              style={{ width: "100%" }}
+              value={nextDate}
+              onChange={e => setNextDate(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Notes</label>
+            <input
+              style={{ width: "100%" }}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <button style={{ marginTop: 12 }} onClick={addCustomer}>
+          Add Customer
+        </button>
       </div>
 
+      {/* ===================== */}
       {/* LIST */}
+      {/* ===================== */}
       <div>
         {filteredCustomers.map(c => {
           const days = diffDays(c.nextCheckIn);
@@ -202,18 +246,24 @@ export default function Dashboard() {
                 {editingId === c.id ? (
                   <>
                     <input
-                      style={{ width: "100%", marginBottom: 5 }}
+                      style={{ width: "100%", marginBottom: 6 }}
                       value={editData.customer}
                       onChange={e => setEditData({ ...editData, customer: e.target.value })}
                     />
                     <input
-                      style={{ width: "100%", marginBottom: 5 }}
+                      style={{ width: "100%", marginBottom: 6 }}
                       value={editData.contact}
                       onChange={e => setEditData({ ...editData, contact: e.target.value })}
                     />
                     <input
-                      style={{ width: "100%" }}
                       type="date"
+                      style={{ width: "100%", marginBottom: 6 }}
+                      value={editData.nextCheckIn}
+                      onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })}
+                    />
+                    <input
+                      type="date"
+                      style={{ width: "100%" }}
                       value={editData.lastContact}
                       onChange={e => setEditData({ ...editData, lastContact: e.target.value })}
                     />
@@ -222,8 +272,13 @@ export default function Dashboard() {
                   <>
                     <b>{c.customer}</b>
                     <div style={{ color: "#555" }}>{c.contact}</div>
-                    <div style={{ fontSize: 12 }}>
+
+                    <div style={{ fontSize: 12, marginTop: 6 }}>
                       Next: {formatDate(c.nextCheckIn)}
+                    </div>
+
+                    <div style={{ fontSize: 12 }}>
+                      Last Contacted: {formatDate(c.lastContact)}
                     </div>
                   </>
                 )}
@@ -240,7 +295,7 @@ export default function Dashboard() {
               }}>
                 {editingId === c.id ? (
                   <textarea
-                    style={{ width: "100%", height: 60 }}
+                    style={{ width: "100%", height: 70 }}
                     value={editData.notes}
                     onChange={e => setEditData({ ...editData, notes: e.target.value })}
                   />
