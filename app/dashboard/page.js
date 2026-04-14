@@ -15,9 +15,31 @@ export default function Dashboard() {
   // UI CONTROLS
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("nextCheckIn");
-  const [view, setView] = useState("all"); // 👈 NEW
+  const [view, setView] = useState("all");
 
   const col = collection(db, "customers");
+
+  // ✅ FORMAT FIREBASE DATES SAFELY (FIXES YOUR CRASH)
+  const formatDate = (date) => {
+    if (!date) return "";
+
+    if (date.seconds) {
+      return new Date(date.seconds * 1000).toISOString().split("T")[0];
+    }
+
+    return date;
+  };
+
+  // ✅ SAFE DATE FOR SORTING / FILTERING
+  const getDateValue = (date) => {
+    if (!date) return 0;
+
+    if (date.seconds) {
+      return date.seconds * 1000;
+    }
+
+    return new Date(date).getTime();
+  };
 
   const addDays = (dateStr, days) => {
     const date = new Date(dateStr);
@@ -26,10 +48,17 @@ export default function Dashboard() {
   };
 
   const today = new Date().toISOString().split("T")[0];
+  const todayValue = new Date(today).getTime();
 
+  // ✅ SAFE LOAD (prevents crashes)
   const loadCustomers = async () => {
-    const snap = await getDocs(col);
-    setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    try {
+      const snap = await getDocs(col);
+      setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error("Firestore error:", err);
+      setCustomers([]);
+    }
   };
 
   useEffect(() => {
@@ -59,13 +88,13 @@ export default function Dashboard() {
     loadCustomers();
   };
 
-  // 🔎 FILTER + SORT + VIEW LOGIC
+  // 🔎 FILTER + SORT + VIEW
   const filteredCustomers = useMemo(() => {
     let data = [...customers];
 
-    // 🔔 DUE TODAY FILTER
+    // 🔔 DUE TODAY
     if (view === "due") {
-      data = data.filter(c => c.nextCheckIn && c.nextCheckIn <= today);
+      data = data.filter(c => getDateValue(c.nextCheckIn) <= todayValue);
     }
 
     // SEARCH
@@ -83,24 +112,24 @@ export default function Dashboard() {
       }
 
       if (sortBy === "lastContact") {
-        return new Date(b.lastContact || 0) - new Date(a.lastContact || 0);
+        return getDateValue(b.lastContact) - getDateValue(a.lastContact);
       }
 
       if (sortBy === "nextCheckIn") {
-        return new Date(a.nextCheckIn || 0) - new Date(b.nextCheckIn || 0);
+        return getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn);
       }
 
       return 0;
     });
 
     return data;
-  }, [customers, search, sortBy, view, today]);
+  }, [customers, search, sortBy, view, todayValue]);
 
   return (
     <div style={{ padding: 20, fontFamily: "Arial" }}>
       <h1>CRM Dashboard</h1>
 
-      {/* VIEW SWITCHER */}
+      {/* VIEW SWITCH */}
       <div style={{ marginBottom: 10 }}>
         <button onClick={() => setView("all")}>All Customers</button>
         <button onClick={() => setView("due")} style={{ marginLeft: 10 }}>
@@ -147,19 +176,32 @@ export default function Dashboard() {
       </div>
 
       {/* LIST */}
-      {filteredCustomers.map((c) => (
-        <div key={c.id} style={{ border: "1px solid #ddd", padding: 10, marginBottom: 10 }}>
-          <b>{c.customer}</b>
-          <div>Contact: {c.contact}</div>
-          <div>Last Contact: {c.lastContact}</div>
-          <div>
-            <b>
-              Next Check-In: {c.nextCheckIn}
-              {c.nextCheckIn <= today && " 🔔 DUE"}
-            </b>
+      {filteredCustomers.map((c) => {
+        const isDue = getDateValue(c.nextCheckIn) <= todayValue;
+
+        return (
+          <div
+            key={c.id}
+            style={{
+              border: "1px solid #ddd",
+              padding: 10,
+              marginBottom: 10,
+              background: isDue ? "#fff3cd" : "white"
+            }}
+          >
+            <b>{c.customer}</b>
+            <div>Contact: {c.contact}</div>
+            <div>Last Contact: {formatDate(c.lastContact)}</div>
+            <div>
+              <b>
+                Next Check-In: {formatDate(c.nextCheckIn)}
+                {isDue && " 🔔 DUE"}
+              </b>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
+}
 }
