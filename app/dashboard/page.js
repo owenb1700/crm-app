@@ -24,11 +24,6 @@ export default function Dashboard() {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
 
-  // UI CONTROLS
-  const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("nextCheckIn");
-  const [view, setView] = useState("all");
-
   const col = collection(db, "customers");
 
   // DATE HELPERS
@@ -62,6 +57,11 @@ export default function Dashboard() {
 
   const todayValue = new Date().getTime();
 
+  // DIFFERENCE IN DAYS
+  const diffDays = (date) => {
+    return (getDateValue(date) - todayValue) / (1000 * 60 * 60 * 24);
+  };
+
   // LOAD
   const loadCustomers = async () => {
     const snap = await getDocs(col);
@@ -74,7 +74,9 @@ export default function Dashboard() {
 
   // ADD
   const addCustomer = async () => {
-    if (!customer || !contact || !lastContact) return alert("Fill all fields");
+    if (!customer || !contact || !lastContact) {
+      return alert("Fill all fields");
+    }
 
     const nextCheckIn = addDays(lastContact, 7);
 
@@ -108,19 +110,14 @@ export default function Dashboard() {
   };
 
   const saveEdit = async () => {
-    const ref = doc(db, "customers", editingId);
-    await updateDoc(ref, editData);
+    await updateDoc(doc(db, "customers", editingId), editData);
     setEditingId(null);
     setEditData({});
     loadCustomers();
   };
 
   const deleteCustomer = async (id) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this customer?"
-    );
-    if (!confirmDelete) return;
-
+    if (!window.confirm("Delete this customer?")) return;
     await deleteDoc(doc(db, "customers", id));
     setEditingId(null);
     loadCustomers();
@@ -149,108 +146,111 @@ export default function Dashboard() {
 
   // FILTER
   const filteredCustomers = useMemo(() => {
-    let data = [...customers];
-
-    if (search) {
-      data = data.filter(c =>
-        (c.customer || "").toLowerCase().includes(search.toLowerCase()) ||
-        (c.contact || "").toLowerCase().includes(search.toLowerCase()) ||
-        (c.notes || "").toLowerCase().includes(search.toLowerCase())
-      );
-    }
-
-    data.sort((a, b) =>
-      getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
+    return [...customers].sort(
+      (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
     );
-
-    return data;
-  }, [customers, search]);
+  }, [customers]);
 
   return (
     <div style={{
       padding: 30,
       fontFamily: "Inter, Segoe UI, Arial",
-      background: "#eef0f3",
+      background: "#d9dde3",
       minHeight: "100vh"
     }}>
 
-      {/* HEADER */}
-      <div style={{ marginBottom: 25 }}>
-        <h1 style={{ margin: 0 }}>CRM Dashboard</h1>
-        <p style={{ color: "#666" }}>Clean customer follow-up system</p>
-      </div>
+      <h1 style={{ marginBottom: 20 }}>CRM Dashboard</h1>
 
-      {/* ADD FORM */}
+      {/* ADD */}
       <div style={{
         background: "white",
         padding: 20,
-        borderRadius: 10,
+        borderRadius: 12,
         marginBottom: 20,
-        boxShadow: "0 2px 10px rgba(0,0,0,0.05)"
+        boxShadow: "0 2px 10px rgba(0,0,0,0.06)"
       }}>
         <input placeholder="Customer" value={customer} onChange={e => setCustomer(e.target.value)} />
         <input placeholder="Contact" value={contact} onChange={e => setContact(e.target.value)} />
         <input type="date" value={lastContact} onChange={e => setLastContact(e.target.value)} />
         <input placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
-        <button onClick={addCustomer}>Add Customer</button>
+        <button onClick={addCustomer}>Add</button>
       </div>
 
-      {/* SEARCH */}
-      <input
-        placeholder="Search customers..."
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        style={{ marginBottom: 20 }}
-      />
-
-      {/* CARDS */}
+      {/* LIST */}
       <div>
-        {filteredCustomers.map((c) => {
-          const isDue = getDateValue(c.nextCheckIn) <= todayValue;
+        {filteredCustomers.map(c => {
+          const days = diffDays(c.nextCheckIn);
+
+          let barColor = "transparent";
+          if (days <= 0) barColor = "#e74c3c";
+          else if (days <= 2) barColor = "#f1c40f";
 
           return (
             <div key={c.id} style={{
               background: "white",
               borderRadius: 12,
-              padding: 18,
               marginBottom: 12,
+              padding: 16,
               display: "flex",
               justifyContent: "space-between",
               boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
-              borderLeft: isDue ? "5px solid #e74c3c" : "5px solid transparent"
+              borderLeft: `6px solid ${barColor}`
             }}>
 
-              {/* LEFT: INFO */}
+              {/* LEFT */}
               <div style={{ width: "25%" }}>
-                <b style={{ fontSize: 16 }}>{c.customer}</b>
-                <div style={{ color: "#555" }}>{c.contact}</div>
-                <div style={{ fontSize: 12, marginTop: 6 }}>
-                  Last: {formatDate(c.lastContact)}
-                </div>
-                <div style={{ fontSize: 12 }}>
-                  Next: {formatDate(c.nextCheckIn)} {isDue && "🔔"}
-                </div>
+                {editingId === c.id ? (
+                  <>
+                    <input
+                      style={{ width: "100%", marginBottom: 5 }}
+                      value={editData.customer}
+                      onChange={e => setEditData({ ...editData, customer: e.target.value })}
+                    />
+                    <input
+                      style={{ width: "100%", marginBottom: 5 }}
+                      value={editData.contact}
+                      onChange={e => setEditData({ ...editData, contact: e.target.value })}
+                    />
+                    <input
+                      style={{ width: "100%" }}
+                      type="date"
+                      value={editData.lastContact}
+                      onChange={e => setEditData({ ...editData, lastContact: e.target.value })}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <b>{c.customer}</b>
+                    <div style={{ color: "#555" }}>{c.contact}</div>
+                    <div style={{ fontSize: 12 }}>
+                      Next: {formatDate(c.nextCheckIn)}
+                    </div>
+                  </>
+                )}
               </div>
 
-              {/* MIDDLE: NOTES */}
+              {/* MIDDLE */}
               <div style={{
                 flex: 1,
                 margin: "0 15px",
-                background: "#f7f8fa",
-                padding: 10,
+                background: "#f4f6f8",
                 borderRadius: 8,
-                fontSize: 13,
-                color: "#444"
+                padding: 10,
+                fontSize: 13
               }}>
-                {c.notes || "No notes"}
+                {editingId === c.id ? (
+                  <textarea
+                    style={{ width: "100%", height: 60 }}
+                    value={editData.notes}
+                    onChange={e => setEditData({ ...editData, notes: e.target.value })}
+                  />
+                ) : (
+                  c.notes || "No notes"
+                )}
               </div>
 
-              {/* RIGHT: ACTIONS */}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10
-              }}>
+              {/* RIGHT */}
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
 
                 {editingId === c.id ? (
                   <>
@@ -265,15 +265,14 @@ export default function Dashboard() {
                   </>
                 ) : (
                   <>
-                    {/* CHECKBOXES */}
                     <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
                       <label>
                         <input type="checkbox" onChange={() => handleFollowUp(c)} />
-                        Follow
+                        Follow Up
                       </label>
                       <label>
                         <input type="checkbox" onChange={() => handleCompleted(c)} />
-                        Done
+                        Completed
                       </label>
                     </div>
 
@@ -281,6 +280,7 @@ export default function Dashboard() {
                   </>
                 )}
               </div>
+
             </div>
           );
         })}
