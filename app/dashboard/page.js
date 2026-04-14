@@ -30,14 +30,14 @@ export default function Dashboard() {
   const [selected, setSelected] = useState(null);
   const [modalNotes, setModalNotes] = useState("");
 
-  // COMPLETED POPUP STATE
+  // COMPLETED POPUP
   const [completedTarget, setCompletedTarget] = useState(null);
   const [contactMethod, setContactMethod] = useState("phone");
 
   const col = collection(db, "customers");
 
   // =====================
-  // DATE HELPERS
+  // HELPERS
   // =====================
   const formatDate = (date) => {
     if (!date) return "";
@@ -108,7 +108,7 @@ export default function Dashboard() {
   };
 
   // =====================
-  // INLINE EDIT (FIXED SAVE)
+  // INLINE EDIT (IMPROVED UX)
   // =====================
   const startEdit = (c) => {
     setEditingId(c.id);
@@ -124,10 +124,8 @@ export default function Dashboard() {
   };
 
   const saveEdit = async () => {
-    const ref = doc(db, "customers", editingId);
-
-    await updateDoc(ref, {
-      ...editData // ✅ FIX: ensures ALL fields persist correctly
+    await updateDoc(doc(db, "customers", editingId), {
+      ...editData
     });
 
     setEditingId(null);
@@ -157,31 +155,25 @@ export default function Dashboard() {
   };
 
   // =====================
-  // COMPLETED FLOW (NEW)
+  // COMPLETED FLOW
   // =====================
-  const openCompletedPopup = (c) => {
-    setCompletedTarget(c);
-  };
+  const openCompletedPopup = (c) => setCompletedTarget(c);
 
   const confirmCompleted = async () => {
-    if (!completedTarget) return;
-
     const d = new Date();
     d.setMonth(d.getMonth() + 6);
 
-    const activityEntry = {
+    const entry = {
       type: "completed",
       method: contactMethod,
       timestamp: new Date().toISOString()
     };
 
-    const ref = doc(db, "customers", completedTarget.id);
-
-    await updateDoc(ref, {
+    await updateDoc(doc(db, "customers", completedTarget.id), {
       nextCheckIn: adjustWeekend(d.toISOString()),
       activityLog: [
         ...(completedTarget.activityLog || []),
-        activityEntry
+        entry
       ]
     });
 
@@ -191,37 +183,46 @@ export default function Dashboard() {
   };
 
   // =====================
-  // MODAL NOTES SAVE (WITH HISTORY)
+  // MODAL NOTES (NO DUPLICATES IN HISTORY)
   // =====================
   const saveModalNotes = async () => {
+    const original = selected.notes || "";
+    const changed = original !== modalNotes;
+
     const ref = doc(db, "customers", selected.id);
 
-    const historyEntry = {
-      text: selected.notes || "",
-      date: new Date().toISOString()
-    };
+    const newHistory = changed
+      ? [
+          ...(selected.notesHistory || []),
+          {
+            text: original,
+            date: new Date().toISOString()
+          }
+        ]
+      : selected.notesHistory || [];
 
     await updateDoc(ref, {
       notes: modalNotes,
-      notesHistory: [
-        ...(selected.notesHistory || []),
-        historyEntry
-      ]
+      notesHistory: newHistory
     });
 
-    setSelected(null);
-    setModalNotes("");
+    closeModal();
     loadCustomers();
   };
 
   // =====================
-  // OPEN MODAL (ANY CLICK EXCEPT BUTTONS)
+  // MODAL CONTROL
   // =====================
   const openModal = (c, e) => {
     if (e?.target?.tagName === "BUTTON" || e?.target?.tagName === "INPUT") return;
 
     setSelected(c);
     setModalNotes(c.notes || "");
+  };
+
+  const closeModal = () => {
+    setSelected(null);
+    setModalNotes("");
   };
 
   // =====================
@@ -287,16 +288,44 @@ export default function Dashboard() {
             }}
           >
 
-            {/* LEFT */}
+            {/* LEFT (EDIT IMPROVED UX) */}
             <div style={{ width: "30%" }}>
               {editingId === c.id ? (
                 <>
-                  <input value={editData.company} onChange={e => setEditData({ ...editData, company: e.target.value })} />
-                  <input value={editData.contact} onChange={e => setEditData({ ...editData, contact: e.target.value })} />
-                  <input value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} />
-                  <input value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
-                  <input type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
-                  <input type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
+                  <input
+                    value={editData.company || ""}
+                    placeholder={editData.company ? "" : "(Company)"}
+                    onChange={e => setEditData({ ...editData, company: e.target.value })}
+                  />
+                  <input
+                    value={editData.contact || ""}
+                    placeholder={editData.contact ? "" : "(Contact)"}
+                    onChange={e => setEditData({ ...editData, contact: e.target.value })}
+                  />
+                  <input
+                    value={editData.email || ""}
+                    placeholder={editData.email ? "" : "(Email)"}
+                    onChange={e => setEditData({ ...editData, email: e.target.value })}
+                  />
+                  <input
+                    value={editData.phone || ""}
+                    placeholder={editData.phone ? "" : "(Phone)"}
+                    onChange={e => setEditData({ ...editData, phone: e.target.value })}
+                  />
+
+                  <input
+                    type="date"
+                    value={editData.nextCheckIn}
+                    onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })}
+                  />
+                  <div style={{ fontSize: 10, color: "#777" }}>Next Date</div>
+
+                  <input
+                    type="date"
+                    value={editData.lastContact}
+                    onChange={e => setEditData({ ...editData, lastContact: e.target.value })}
+                  />
+                  <div style={{ fontSize: 10, color: "#777" }}>Last Contact</div>
                 </>
               ) : (
                 <>
@@ -364,27 +393,22 @@ export default function Dashboard() {
           alignItems: "center"
         }}>
           <div style={{ background: "white", padding: 20, borderRadius: 12 }}>
-            <h3>How was this contact made?</h3>
+            <h3>Contact Method</h3>
 
-            <select
-              value={contactMethod}
-              onChange={e => setContactMethod(e.target.value)}
-            >
+            <select value={contactMethod} onChange={e => setContactMethod(e.target.value)}>
               <option value="phone">Phone</option>
               <option value="email">Email</option>
             </select>
 
             <div style={{ marginTop: 10 }}>
               <button onClick={confirmCompleted}>Confirm</button>
-              <button onClick={() => setCompletedTarget(null)} style={{ marginLeft: 10 }}>
-                Cancel
-              </button>
+              <button onClick={() => setCompletedTarget(null)}>Cancel</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* NOTES HISTORY IN MODAL */}
+      {/* MODAL */}
       {selected && (
         <div style={{
           position: "fixed",
@@ -394,7 +418,24 @@ export default function Dashboard() {
           justifyContent: "center",
           alignItems: "center"
         }}>
-          <div style={{ background: "white", width: 600, padding: 20, borderRadius: 12 }}>
+          <div style={{ background: "white", width: 600, padding: 20, borderRadius: 12, position: "relative" }}>
+
+            {/* X CLOSE */}
+            <button
+              onClick={closeModal}
+              style={{
+                position: "absolute",
+                top: 10,
+                right: 10,
+                fontSize: 18,
+                background: "transparent",
+                border: "none",
+                cursor: "pointer"
+              }}
+            >
+              ✕
+            </button>
+
             <h2>{selected.company}</h2>
 
             <p>{selected.contact}</p>
