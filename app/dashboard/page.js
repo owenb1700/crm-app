@@ -39,17 +39,11 @@ export default function Dashboard() {
 
   const col = collection(db, "customers");
 
-  // =====================
-  // TOAST
-  // =====================
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 5000);
   };
 
-  // =====================
-  // HELPERS
-  // =====================
   const formatPhone = (phone) => {
     if (!phone) return "";
     const digits = phone.replace(/\D/g, "");
@@ -82,9 +76,6 @@ export default function Dashboard() {
   const diffDays = (date) =>
     (getDateValue(date) - todayValue) / (1000 * 60 * 60 * 24);
 
-  // =====================
-  // LOAD
-  // =====================
   const loadCustomers = async () => {
     const snap = await getDocs(col);
     setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -94,9 +85,6 @@ export default function Dashboard() {
     loadCustomers();
   }, []);
 
-  // =====================
-  // ADD
-  // =====================
   const addCustomer = async () => {
     if (!company || !contact || !nextDate) {
       return alert("Please fill required fields");
@@ -126,9 +114,6 @@ export default function Dashboard() {
     loadCustomers();
   };
 
-  // =====================
-  // EDIT
-  // =====================
   const startEdit = (c) => {
     setEditingId(c.id);
     setEditData({
@@ -161,9 +146,6 @@ export default function Dashboard() {
     loadCustomers();
   };
 
-  // =====================
-  // FOLLOW UP (RESET AFTER CLICK)
-  // =====================
   const handleFollowUp = async (c) => {
     const next = new Date();
     next.setDate(next.getDate() + 7);
@@ -173,14 +155,9 @@ export default function Dashboard() {
     });
 
     showToast("Follow-up scheduled");
-
-    // force visual reset by reloading state
     loadCustomers();
   };
 
-  // =====================
-  // COMPLETED (RESET AFTER CLICK)
-  // =====================
   const openCompletedPopup = (c) => {
     setCompletedTarget(c);
   };
@@ -210,9 +187,6 @@ export default function Dashboard() {
     loadCustomers();
   };
 
-  // =====================
-  // MODAL
-  // =====================
   const openModal = (c, e) => {
     if (e?.target?.tagName === "BUTTON" || e?.target?.tagName === "INPUT") return;
     setSelected(c);
@@ -245,18 +219,12 @@ export default function Dashboard() {
     loadCustomers();
   };
 
-  // =====================
-  // FILTER
-  // =====================
   const filteredCustomers = useMemo(() => {
     return [...customers].sort(
       (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
     );
   }, [customers]);
 
-  // =====================
-  // UI
-  // =====================
   return (
     <div style={{
       padding: 30,
@@ -306,56 +274,26 @@ export default function Dashboard() {
             <div style={{ width: "35%" }}>
               {editingId === c.id ? (
                 <>
-                  <input
-                    value={editData.company}
-                    placeholder={editData.company ? "" : "(Company)"}
-                    onChange={e => setEditData({ ...editData, company: e.target.value })}
-                  />
-
-                  <input
-                    value={editData.contact}
-                    placeholder={editData.contact ? "" : "(Contact)"}
-                    onChange={e => setEditData({ ...editData, contact: e.target.value })}
-                  />
-
-                  <input
-                    value={editData.email}
-                    placeholder={editData.email ? "" : "(Email)"}
-                    onChange={e => setEditData({ ...editData, email: e.target.value })}
-                  />
-
-                  <input
-                    value={editData.phone}
-                    placeholder={editData.phone ? "" : "(Phone)"}
-                    onChange={e => setEditData({ ...editData, phone: e.target.value })}
-                  />
-
-                  <input
-                    type="date"
-                    value={editData.nextCheckIn}
-                    onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })}
-                  />
+                  <input value={editData.company} onChange={e => setEditData({ ...editData, company: e.target.value })} />
+                  <input value={editData.contact} onChange={e => setEditData({ ...editData, contact: e.target.value })} />
+                  <input value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} />
+                  <input value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
+                  <input type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
                   <div style={{ fontSize: 10 }}>Next Date</div>
 
-                  <input
-                    type="date"
-                    value={editData.lastContact}
-                    onChange={e => setEditData({ ...editData, lastContact: e.target.value })}
-                  />
+                  <input type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
                   <div style={{ fontSize: 10 }}>Last Contact</div>
                 </>
               ) : (
                 <>
                   <b>{c.company}</b>
 
-                  <div style={{ fontSize: 11, color: "#666" }}>
+                  <div style={{ fontSize: 14, color: "#666" }}>
                     {c.contact}
                   </div>
 
                   <div style={{ fontSize: 10, color: "#888" }}>
-                    {c.email || ""}
-                    {" | "}
-                    {formatPhone(c.phone)}
+                    {c.email || ""} | {formatPhone(c.phone)}
                   </div>
 
                   <div style={{ fontSize: 12 }}>Next: {formatDate(c.nextCheckIn)}</div>
@@ -372,7 +310,9 @@ export default function Dashboard() {
               padding: 10,
               borderRadius: 8
             }}>
-              {c.notes}
+              <div style={{ fontSize: 11 }}>
+                {c.notes}
+              </div>
             </div>
 
             {/* RIGHT */}
