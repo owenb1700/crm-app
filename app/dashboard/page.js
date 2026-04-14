@@ -14,7 +14,6 @@ import {
 export default function Dashboard() {
   const [customers, setCustomers] = useState([]);
 
-  // FORM
   const [company, setCompany] = useState("");
   const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
@@ -23,18 +22,13 @@ export default function Dashboard() {
   const [notes, setNotes] = useState("");
 
   const [addOpen, setAddOpen] = useState(false);
-
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
-
   const [selected, setSelected] = useState(null);
   const [modalNotes, setModalNotes] = useState("");
-
   const [completedTarget, setCompletedTarget] = useState(null);
   const [contactMethod, setContactMethod] = useState("phone");
-
   const [toast, setToast] = useState("");
-
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -86,7 +80,6 @@ export default function Dashboard() {
     loadCustomers();
   }, []);
 
-  // ✅ UPDATED ADD LOGIC
   const addCustomer = async () => {
     if (!company && !contact) {
       return alert("Please enter at least a company or contact name");
@@ -111,7 +104,6 @@ export default function Dashboard() {
     setPhone("");
     setNextDate("");
     setNotes("");
-
     setAddOpen(false);
 
     showToast("Customer added");
@@ -177,10 +169,7 @@ export default function Dashboard() {
 
     await updateDoc(doc(db, "customers", completedTarget.id), {
       nextCheckIn: adjustWeekend(d.toISOString()),
-      activityLog: [
-        ...(completedTarget.activityLog || []),
-        entry
-      ]
+      activityLog: [...(completedTarget.activityLog || []), entry]
     });
 
     setCompletedTarget(null);
@@ -205,10 +194,7 @@ export default function Dashboard() {
     const ref = doc(db, "customers", selected.id);
 
     const newHistory = changed
-      ? [
-          ...(selected.notesHistory || []),
-          { text: original, date: new Date().toISOString() }
-        ]
+      ? [...(selected.notesHistory || []), { text: original, date: new Date().toISOString() }]
       : selected.notesHistory || [];
 
     await updateDoc(ref, {
@@ -229,7 +215,6 @@ export default function Dashboard() {
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-
       list = list.filter(c =>
         (c.company || "").toLowerCase().includes(q) ||
         (c.contact || "").toLowerCase().includes(q) ||
@@ -242,16 +227,35 @@ export default function Dashboard() {
 
   return (
     <div style={{
-      padding: 30,
-      fontFamily: "Inter, Arial",
-      background: "#cfd5dd",
+      padding: 40,
+      fontFamily: "Inter, system-ui",
+      background: "linear-gradient(135deg,#eef2f7,#d9e2ec)",
       minHeight: "100vh"
     }}>
 
-      <h1>CRM Dashboard</h1>
+      {/* HEADER */}
+      <h1 style={{
+        fontSize: 28,
+        fontWeight: 700,
+        marginBottom: 20
+      }}>
+        CRM Dashboard
+      </h1>
 
+      {/* ADD BUTTON */}
       <div style={{ marginBottom: 20 }}>
-        <button onClick={() => setAddOpen(true)}>+ ADD ENTRY</button>
+        <button style={{
+          padding: "10px 14px",
+          borderRadius: 10,
+          border: "none",
+          background: "#1f6feb",
+          color: "white",
+          fontWeight: 600,
+          cursor: "pointer",
+          boxShadow: "0 4px 10px rgba(0,0,0,0.08)"
+        }} onClick={() => setAddOpen(true)}>
+          + ADD ENTRY
+        </button>
       </div>
 
       {/* ADD MODAL */}
@@ -259,31 +263,81 @@ export default function Dashboard() {
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.5)",
+          background: "rgba(0,0,0,0.55)",
           display: "flex",
           justifyContent: "center",
           alignItems: "center"
         }}>
-          <div style={{ background: "white", padding: 20, borderRadius: 12, width: 400 }}>
+          <div style={{
+            background: "white",
+            padding: 22,
+            borderRadius: 14,
+            width: 420,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.25)"
+          }}>
             <button onClick={() => setAddOpen(false)} style={{ float: "right" }}>✕</button>
 
-            <h3>Add Customer</h3>
+            <h3 style={{ marginBottom: 12 }}>Add Customer</h3>
 
-            <input placeholder="Company" value={company} onChange={e => setCompany(e.target.value)} />
-            <input placeholder="Contact" value={contact} onChange={e => setContact(e.target.value)} />
-            <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-            <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
-            <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
+            {[
+              [company, setCompany, "Company"],
+              [contact, setContact, "Contact"],
+              [email, setEmail, "Email"],
+              [phone, setPhone, "Phone"]
+            ].map(([val, setVal, ph], i) => (
+              <input
+                key={i}
+                placeholder={ph}
+                value={val}
+                onChange={e => setVal(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  marginBottom: 8,
+                  borderRadius: 8,
+                  border: "1px solid #ddd"
+                }}
+              />
+            ))}
 
-            {/* ✅ LARGER NOTES */}
+            <input
+              type="date"
+              value={nextDate}
+              onChange={e => setNextDate(e.target.value)}
+              style={{
+                width: "100%",
+                padding: 10,
+                marginBottom: 8,
+                borderRadius: 8,
+                border: "1px solid #ddd"
+              }}
+            />
+
             <textarea
               placeholder="Notes"
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              style={{ width: "100%", height: 120 }}
+              style={{
+                width: "100%",
+                height: 140,
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #ddd"
+              }}
             />
 
-            <button onClick={addCustomer}>Add</button>
+            <button style={{
+              marginTop: 10,
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+              border: "none",
+              background: "#1f6feb",
+              color: "white",
+              fontWeight: 600
+            }} onClick={addCustomer}>
+              Add
+            </button>
           </div>
         </div>
       )}
@@ -294,10 +348,15 @@ export default function Dashboard() {
 
         {searchOpen && (
           <input
-            placeholder="Search company or contact..."
+            placeholder="Search..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            style={{ flex: 1 }}
+            style={{
+              flex: 1,
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #ccc"
+            }}
           />
         )}
       </div>
@@ -316,16 +375,18 @@ export default function Dashboard() {
             onClick={(e) => openModal(c, e)}
             style={{
               background: "white",
-              padding: 15,
-              borderRadius: 12,
-              marginBottom: 10,
+              padding: 16,
+              borderRadius: 14,
+              marginBottom: 12,
               display: "flex",
               justifyContent: "space-between",
               borderLeft: `6px solid ${bar}`,
+              boxShadow: "0 6px 18px rgba(0,0,0,0.06)",
               cursor: "pointer"
             }}
           >
 
+            {/* LEFT */}
             <div style={{ width: "35%" }}>
               {editingId === c.id ? (
                 <>
@@ -342,9 +403,9 @@ export default function Dashboard() {
                 </>
               ) : (
                 <>
-                  <b>{c.company}</b>
-                  <div style={{ fontSize: 14, color: "#666" }}>{c.contact}</div>
-                  <div style={{ fontSize: 10, color: "#888" }}>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{c.company}</div>
+                  <div style={{ fontSize: 13, color: "#555" }}>{c.contact}</div>
+                  <div style={{ fontSize: 11, color: "#888" }}>
                     {c.email || ""} | {formatPhone(c.phone)}
                   </div>
                   <div style={{ fontSize: 12 }}>Next: {formatDate(c.nextCheckIn)}</div>
@@ -353,37 +414,35 @@ export default function Dashboard() {
               )}
             </div>
 
+            {/* MIDDLE */}
             <div style={{
               flex: 1,
               margin: "0 15px",
-              background: "#f3f5f7",
-              padding: 10,
-              borderRadius: 8
+              background: "#f8fafc",
+              padding: 12,
+              borderRadius: 10,
+              border: "1px solid #eef2f7"
             }}>
-              <div style={{ fontSize: 11 }}>{c.notes}</div>
+              <div style={{ fontSize: 12, color: "#444" }}>
+                {c.notes}
+              </div>
             </div>
 
+            {/* RIGHT */}
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
-                <label>
-                  <input type="checkbox" onChange={() => handleFollowUp(c)} />
-                  Follow Up
-                </label>
-
-                <label>
-                  <input type="checkbox" onChange={() => openCompletedPopup(c)} />
-                  Completed
-                </label>
+                <label><input type="checkbox" onChange={() => handleFollowUp(c)} /> Follow Up</label>
+                <label><input type="checkbox" onChange={() => openCompletedPopup(c)} /> Completed</label>
               </div>
 
               {editingId === c.id ? (
                 <>
-                  <button onClick={saveEdit}>Save</button>
-                  <button onClick={() => setEditingId(null)}>Cancel</button>
-                  <button onClick={() => deleteCustomer(c.id)} style={{ color: "red" }}>Delete</button>
+                  <button>Save</button>
+                  <button>Cancel</button>
+                  <button style={{ color: "red" }}>Delete</button>
                 </>
               ) : (
-                <button onClick={() => startEdit(c)}>Edit</button>
+                <button>Edit</button>
               )}
             </div>
           </div>
