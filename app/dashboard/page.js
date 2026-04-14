@@ -86,7 +86,7 @@ export default function Dashboard() {
     loadCustomers();
   }, []);
 
-  // ✅ UPDATED ADD (only require company OR contact)
+  // ✅ UPDATED ADD LOGIC
   const addCustomer = async () => {
     if (!company && !contact) {
       return alert("Please enter at least a company or contact name");
@@ -275,7 +275,7 @@ export default function Dashboard() {
             <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
             <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
 
-            {/* ✅ LARGER NOTES FIELD */}
+            {/* ✅ LARGER NOTES */}
             <textarea
               placeholder="Notes"
               value={notes}
@@ -288,7 +288,7 @@ export default function Dashboard() {
         </div>
       )}
 
-        {/* SEARCH */}
+      {/* SEARCH */}
       <div style={{ marginBottom: 15, display: "flex", gap: 10, alignItems: "center" }}>
         <button onClick={() => setSearchOpen(!searchOpen)}>🔍</button>
 
@@ -321,12 +321,11 @@ export default function Dashboard() {
               marginBottom: 10,
               display: "flex",
               justifyContent: "space-between",
-              borderLeft: 6px solid ${bar},
+              borderLeft: `6px solid ${bar}`,
               cursor: "pointer"
             }}
           >
 
-            {/* LEFT */}
             <div style={{ width: "35%" }}>
               {editingId === c.id ? (
                 <>
@@ -344,22 +343,16 @@ export default function Dashboard() {
               ) : (
                 <>
                   <b>{c.company}</b>
-
-                  <div style={{ fontSize: 14, color: "#666" }}>
-                    {c.contact}
-                  </div>
-
+                  <div style={{ fontSize: 14, color: "#666" }}>{c.contact}</div>
                   <div style={{ fontSize: 10, color: "#888" }}>
                     {c.email || ""} | {formatPhone(c.phone)}
                   </div>
-
                   <div style={{ fontSize: 12 }}>Next: {formatDate(c.nextCheckIn)}</div>
                   <div style={{ fontSize: 12 }}>Last: {formatDate(c.lastContact)}</div>
                 </>
               )}
             </div>
 
-            {/* MIDDLE */}
             <div style={{
               flex: 1,
               margin: "0 15px",
@@ -367,12 +360,9 @@ export default function Dashboard() {
               padding: 10,
               borderRadius: 8
             }}>
-              <div style={{ fontSize: 11 }}>
-                {c.notes}
-              </div>
+              <div style={{ fontSize: 11 }}>{c.notes}</div>
             </div>
 
-            {/* RIGHT */}
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
                 <label>
@@ -390,9 +380,7 @@ export default function Dashboard() {
                 <>
                   <button onClick={saveEdit}>Save</button>
                   <button onClick={() => setEditingId(null)}>Cancel</button>
-                  <button onClick={() => deleteCustomer(c.id)} style={{ color: "red" }}>
-                    Delete
-                  </button>
+                  <button onClick={() => deleteCustomer(c.id)} style={{ color: "red" }}>Delete</button>
                 </>
               ) : (
                 <button onClick={() => startEdit(c)}>Edit</button>
@@ -401,8 +389,6 @@ export default function Dashboard() {
           </div>
         );
       })}
-
-      {/* COMPLETED + MODAL sections unchanged */}
     </div>
   );
 }
