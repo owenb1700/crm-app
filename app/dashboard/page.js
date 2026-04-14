@@ -39,10 +39,21 @@ export default function Dashboard() {
     return new Date(date).getTime();
   };
 
+  // ✅ WEEKEND SAFE DATE SHIFT
+  const adjustWeekend = (date) => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 Sun, 6 Sat
+
+    if (day === 6) d.setDate(d.getDate() + 2); // Sat → Mon
+    if (day === 0) d.setDate(d.getDate() + 1); // Sun → Mon
+
+    return d.toISOString().split("T")[0];
+  };
+
   const addDays = (dateStr, days) => {
     const date = new Date(dateStr);
     date.setDate(date.getDate() + days);
-    return date.toISOString().split("T")[0];
+    return adjustWeekend(date);
   };
 
   const today = new Date().toISOString().split("T")[0];
@@ -115,6 +126,33 @@ export default function Dashboard() {
     }
   };
 
+  // ✅ FOLLOW UP (NEXT WEEK)
+  const handleFollowUp = async (c) => {
+    const next = addDays(new Date(), 7);
+
+    const ref = doc(db, "customers", c.id);
+    await updateDoc(ref, {
+      nextCheckIn: next
+    });
+
+    loadCustomers();
+  };
+
+  // ✅ COMPLETED (6 MONTHS OUT)
+  const handleCompleted = async (c) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() + 6);
+
+    const adjusted = adjustWeekend(date);
+
+    const ref = doc(db, "customers", c.id);
+    await updateDoc(ref, {
+      nextCheckIn: adjusted
+    });
+
+    loadCustomers();
+  };
+
   // FILTER / SORT
   const filteredCustomers = useMemo(() => {
     let data = [...customers];
@@ -151,12 +189,17 @@ export default function Dashboard() {
   }, [customers, search, sortBy, view, todayValue]);
 
   return (
-    <div style={{ padding: 30, fontFamily: "Segoe UI, Arial", background: "#f5f7fb", minHeight: "100vh" }}>
+    <div style={{
+      padding: 30,
+      fontFamily: "Segoe UI, Arial",
+      background: "#2b2b2b",
+      minHeight: "100vh"
+    }}>
 
       {/* HEADER */}
-      <div style={{ marginBottom: 30 }}>
+      <div style={{ marginBottom: 30, color: "white" }}>
         <h1 style={{ margin: 0 }}>CRM Dashboard</h1>
-        <p style={{ color: "#666" }}>Manage customers and follow-ups</p>
+        <p style={{ color: "#bbb" }}>Manage customers and follow-ups</p>
       </div>
 
       {/* VIEW SWITCH */}
@@ -189,37 +232,57 @@ export default function Dashboard() {
               background: "white",
               padding: 15,
               marginBottom: 10,
+              borderRadius: 6,
+              position: "relative",
               borderLeft: isDue ? "5px solid red" : "5px solid transparent",
-              position: "relative"
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start"
             }}>
-              {editingId === c.id ? (
-                <>
-                  <input value={editData.customer} onChange={e => setEditData({ ...editData, customer: e.target.value })} />
-                  <input value={editData.contact} onChange={e => setEditData({ ...editData, contact: e.target.value })} />
-                  <input type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
-                  <input type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
-                  <textarea value={editData.notes} onChange={e => setEditData({ ...editData, notes: e.target.value })} />
-                  <button onClick={saveEdit}>Save</button>
-                  <button onClick={() => setEditingId(null)}>Cancel</button>
-                </>
-              ) : (
-                <>
-                  <b>{c.customer}</b>
-                  <div>{c.contact}</div>
-                  <div>Last: {formatDate(c.lastContact)}</div>
-                  <div>
-                    Next: {formatDate(c.nextCheckIn)} {isDue && "🔔"}
-                  </div>
-                  {c.notes && <div>📝 {c.notes}</div>}
 
-                  <button
-                    onClick={() => startEdit(c)}
-                    style={{ position: "absolute", top: 10, right: 10 }}
-                  >
-                    Edit
-                  </button>
-                </>
-              )}
+              {/* LEFT CHECKBOX COLUMN */}
+              <div style={{ display: "flex", flexDirection: "column", marginRight: 10 }}>
+                <label style={{ fontSize: 12 }}>
+                  <input type="checkbox" onChange={() => handleFollowUp(c)} />
+                  {" "}Follow Up
+                </label>
+
+                <label style={{ fontSize: 12 }}>
+                  <input type="checkbox" onChange={() => handleCompleted(c)} />
+                  {" "}Completed
+                </label>
+              </div>
+
+              {/* MAIN CONTENT */}
+              <div style={{ flex: 1 }}>
+                {editingId === c.id ? (
+                  <>
+                    <input value={editData.customer} onChange={e => setEditData({ ...editData, customer: e.target.value })} />
+                    <input value={editData.contact} onChange={e => setEditData({ ...editData, contact: e.target.value })} />
+                    <input type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
+                    <input type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
+                    <textarea value={editData.notes} onChange={e => setEditData({ ...editData, notes: e.target.value })} />
+                    <button onClick={saveEdit}>Save</button>
+                    <button onClick={() => setEditingId(null)}>Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    <b>{c.customer}</b>
+                    <div>{c.contact}</div>
+                    <div>Last: {formatDate(c.lastContact)}</div>
+                    <div>Next: {formatDate(c.nextCheckIn)} {isDue && "🔔"}</div>
+                    {c.notes && <div>📝 {c.notes}</div>}
+                  </>
+                )}
+              </div>
+
+              {/* EDIT BUTTON */}
+              <button
+                onClick={() => startEdit(c)}
+                style={{ marginLeft: 10 }}
+              >
+                Edit
+              </button>
             </div>
           );
         })}
