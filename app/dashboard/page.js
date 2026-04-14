@@ -14,6 +14,12 @@ import {
 export default function Dashboard() {
   const [customers, setCustomers] = useState([]);
 
+  // SEARCH
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // ADD MODAL
+  const [showAddModal, setShowAddModal] = useState(false);
+
   // FORM
   const [company, setCompany] = useState("");
   const [contact, setContact] = useState("");
@@ -34,15 +40,7 @@ export default function Dashboard() {
   const [completedTarget, setCompletedTarget] = useState(null);
   const [contactMethod, setContactMethod] = useState("phone");
 
-  // TOAST
-  const [toast, setToast] = useState("");
-
   const col = collection(db, "customers");
-
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 5000);
-  };
 
   // =====================
   // HELPERS
@@ -74,10 +72,8 @@ export default function Dashboard() {
     return d.toISOString().split("T")[0];
   };
 
-  const todayValue = new Date().getTime();
-
   const diffDays = (date) =>
-    (getDateValue(date) - todayValue) / (1000 * 60 * 60 * 24);
+    (getDateValue(date) - new Date().getTime()) / (1000 * 60 * 60 * 24);
 
   // =====================
   // LOAD
@@ -92,12 +88,10 @@ export default function Dashboard() {
   }, []);
 
   // =====================
-  // ADD
+  // ADD CUSTOMER
   // =====================
   const addCustomer = async () => {
-    if (!company || !contact || !nextDate) {
-      return alert("Please fill required fields");
-    }
+    if (!company || !contact || !nextDate) return;
 
     await addDoc(col, {
       company,
@@ -118,8 +112,8 @@ export default function Dashboard() {
     setPhone("");
     setNextDate("");
     setNotes("");
+    setShowAddModal(false);
 
-    showToast("Customer added");
     loadCustomers();
   };
 
@@ -146,7 +140,6 @@ export default function Dashboard() {
 
     setEditingId(null);
     setEditData({});
-    showToast("Changes saved");
     loadCustomers();
   };
 
@@ -154,7 +147,6 @@ export default function Dashboard() {
     if (!window.confirm("Delete this contact?")) return;
     await deleteDoc(doc(db, "customers", id));
     setSelected(null);
-    showToast("Deleted");
     loadCustomers();
   };
 
@@ -170,45 +162,37 @@ export default function Dashboard() {
     });
 
     if (e?.target) e.target.checked = false;
-
-    showToast("Follow-up scheduled");
     loadCustomers();
   };
 
   // =====================
   // COMPLETED
   // =====================
-  const openCompletedPopup = (c) => {
-    setCompletedTarget(c);
-  };
+  const openCompletedPopup = (c) => setCompletedTarget(c);
 
   const confirmCompleted = async () => {
     const d = new Date();
     d.setMonth(d.getMonth() + 6);
 
-    const entry = {
-      type: "completed",
-      method: contactMethod,
-      timestamp: new Date().toISOString()
-    };
-
     await updateDoc(doc(db, "customers", completedTarget.id), {
       nextCheckIn: adjustWeekend(d.toISOString()),
       activityLog: [
         ...(completedTarget.activityLog || []),
-        entry
+        {
+          type: "completed",
+          method: contactMethod,
+          timestamp: new Date().toISOString()
+        }
       ]
     });
 
     setCompletedTarget(null);
     setContactMethod("phone");
-
-    showToast("Marked completed");
     loadCustomers();
   };
 
   // =====================
-  // MODAL (FIXED NOTES HISTORY - NO OVERWRITE)
+  // MODAL
   // =====================
   const openModal = (c, e) => {
     if (e?.target?.tagName === "BUTTON" || e?.target?.tagName === "INPUT") return;
@@ -222,45 +206,62 @@ export default function Dashboard() {
     const original = selected.notes || "";
     const changed = original !== modalNotes;
 
-    const entry = {
-      text: modalNotes,
-      date: new Date().toISOString()
-    };
+    const newHistory = changed
+      ? [
+          ...(selected.notesHistory || []),
+          { text: modalNotes, date: new Date().toISOString() }
+        ]
+      : selected.notesHistory || [];
 
     await updateDoc(doc(db, "customers", selected.id), {
       notes: modalNotes,
-      notesHistory: changed
-        ? [...(selected.notesHistory || []), entry]
-        : (selected.notesHistory || [])
+      notesHistory: newHistory
     });
 
     setSelected(null);
     setModalNotes("");
-
     loadCustomers();
   };
 
   // =====================
-  // FILTER
+  // SEARCH FILTER
   // =====================
   const filteredCustomers = useMemo(() => {
-    return [...customers].sort(
+    let data = [...customers];
+
+    if (searchTerm.trim()) {
+      const s = searchTerm.toLowerCase();
+      data = data.filter(c =>
+        (c.company || "").toLowerCase().includes(s) ||
+        (c.contact || "").toLowerCase().includes(s) ||
+        (c.email || "").toLowerCase().includes(s)
+      );
+    }
+
+    return data.sort(
       (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
     );
-  }, [customers]);
+  }, [customers, searchTerm]);
 
   // =====================
   // UI
   // =====================
   return (
-    <div style={{
-      padding: 30,
-      fontFamily: "Inter, Arial",
-      background: "#cfd5dd",
-      minHeight: "100vh"
-    }}>
-
+    <div style={{ padding: 30, fontFamily: "Inter, Arial", background: "#cfd5dd", minHeight: "100vh" }}>
       <h1>CRM Dashboard</h1>
+
+      {/* SEARCH */}
+      <input
+        placeholder="Search customers..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        style={{ marginBottom: 15 }}
+      />
+
+      {/* ADD BUTTON */}
+      <button onClick={() => setShowAddModal(true)}>
+        + Add Customer
+      </button>
 
       {/* LIST */}
       {filteredCustomers.map(c => {
@@ -290,8 +291,8 @@ export default function Dashboard() {
             <div style={{ width: "35%" }}>
               <b>{c.company}</b>
 
-              {/* CONTACT (slightly bigger than before, still smaller than company) */}
-              <div style={{ fontSize: 13, color: "#444" }}>
+              {/* CONTACT (slightly bigger) */}
+              <div style={{ fontSize: 13, color: "#666" }}>
                 {c.contact}
               </div>
 
@@ -303,14 +304,13 @@ export default function Dashboard() {
               <div style={{ fontSize: 12 }}>Last: {formatDate(c.lastContact)}</div>
             </div>
 
-            {/* MIDDLE (NOTES SMALLER) */}
+            {/* MIDDLE */}
             <div style={{
               flex: 1,
               margin: "0 15px",
               background: "#f3f5f7",
               padding: 10,
-              borderRadius: 8,
-              fontSize: 10
+              borderRadius: 8
             }}>
               {c.notes}
             </div>
@@ -319,10 +319,7 @@ export default function Dashboard() {
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
                 <label>
-                  <input
-                    type="checkbox"
-                    onChange={(e) => handleFollowUp(c, e)}
-                  />
+                  <input type="checkbox" onChange={(e) => handleFollowUp(c, e)} />
                   Follow Up
                 </label>
 
@@ -338,8 +335,8 @@ export default function Dashboard() {
         );
       })}
 
-      {/* MODAL */}
-      {selected && (
+      {/* ADD MODAL */}
+      {showAddModal && (
         <div style={{
           position: "fixed",
           inset: 0,
@@ -348,33 +345,17 @@ export default function Dashboard() {
           justifyContent: "center",
           alignItems: "center"
         }}>
-          <div style={{ background: "white", width: 600, padding: 20, borderRadius: 12 }}>
+          <div style={{ background: "white", padding: 20, borderRadius: 12 }}>
+            <button onClick={() => setShowAddModal(false)}>X</button>
 
-            <button onClick={closeModal} style={{ float: "right" }}>✕</button>
+            <input placeholder="Company" value={company} onChange={e => setCompany(e.target.value)} />
+            <input placeholder="Contact" value={contact} onChange={e => setContact(e.target.value)} />
+            <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+            <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
+            <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
+            <input placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
 
-            <h2>{selected.company}</h2>
-
-            <p>{selected.contact}</p>
-            <p>{selected.email}</p>
-            <p>{formatPhone(selected.phone)}</p>
-
-            <h4>Notes</h4>
-            <textarea
-              style={{ width: "100%", height: 80 }}
-              value={modalNotes}
-              onChange={e => setModalNotes(e.target.value)}
-            />
-
-            <button onClick={saveModalNotes}>Save Notes</button>
-
-            {/* HISTORY (NEVER DELETED) */}
-            <h4>Notes History</h4>
-            {(selected.notesHistory || []).map((h, i) => (
-              <div key={i} style={{ fontSize: 12, marginTop: 5 }}>
-                <div>{h.text}</div>
-                <div style={{ color: "#777" }}>{h.date}</div>
-              </div>
-            ))}
+            <button onClick={addCustomer}>+COMPLETED</button>
           </div>
         </div>
       )}
@@ -391,20 +372,16 @@ export default function Dashboard() {
         }}>
           <div style={{ background: "white", padding: 20, borderRadius: 12 }}>
             <h3>Contact Method</h3>
-
             <select value={contactMethod} onChange={e => setContactMethod(e.target.value)}>
               <option value="phone">Phone</option>
               <option value="email">Email</option>
             </select>
 
-            <div style={{ marginTop: 10 }}>
-              <button onClick={confirmCompleted}>Confirm</button>
-              <button onClick={() => setCompletedTarget(null)}>Cancel</button>
-            </div>
+            <button onClick={confirmCompleted}>Confirm</button>
+            <button onClick={() => setCompletedTarget(null)}>Cancel</button>
           </div>
         </div>
       )}
-
     </div>
   );
 }
