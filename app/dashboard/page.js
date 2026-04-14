@@ -36,7 +36,9 @@ export default function Dashboard() {
 
   const col = collection(db, "customers");
 
-  const showToast = (msg) => alert(msg);
+  const showToast = (msg) => {
+    setTimeout(() => alert(msg), 0);
+  };
 
   const formatPhone = (phone) => {
     if (!phone) return "";
@@ -79,7 +81,6 @@ export default function Dashboard() {
     loadCustomers();
   }, []);
 
-  // ADD (UNCHANGED LOGIC)
   const addCustomer = async () => {
     if (!company && !contact) {
       return alert("Please enter at least a company or contact name");
@@ -153,7 +154,9 @@ export default function Dashboard() {
     loadCustomers();
   };
 
-  const openCompletedPopup = (c) => setCompletedTarget(c);
+  const openCompletedPopup = (c) => {
+    setCompletedTarget(c);
+  };
 
   const confirmCompleted = async () => {
     const d = new Date();
@@ -167,7 +170,10 @@ export default function Dashboard() {
 
     await updateDoc(doc(db, "customers", completedTarget.id), {
       nextCheckIn: adjustWeekend(d.toISOString()),
-      activityLog: [...(completedTarget.activityLog || []), entry]
+      activityLog: [
+        ...(completedTarget.activityLog || []),
+        entry
+      ]
     });
 
     setCompletedTarget(null);
@@ -216,27 +222,32 @@ export default function Dashboard() {
 
   return (
     <div style={{
-      padding: 30,
-      fontFamily: "Inter, Arial",
+      padding: 32,
+      fontFamily: "Inter, system-ui, Arial",
       background: "#eef2f7",
       minHeight: "100vh"
     }}>
 
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 20 }}>
+      <h1 style={{
+        fontSize: 28,
+        fontWeight: 700,
+        marginBottom: 18
+      }}>
         CRM Dashboard
       </h1>
 
-      {/* ADD */}
+      {/* ADD BUTTON */}
       <button
         onClick={() => setAddOpen(true)}
         style={{
-          padding: "10px 14px",
           background: "#2563eb",
           color: "white",
+          padding: "10px 14px",
+          borderRadius: 10,
           border: "none",
-          borderRadius: 8,
+          cursor: "pointer",
           marginBottom: 15,
-          cursor: "pointer"
+          fontWeight: 600
         }}
       >
         + ADD ENTRY
@@ -245,12 +256,18 @@ export default function Dashboard() {
       {/* SEARCH */}
       <div style={{ marginBottom: 15 }}>
         <button onClick={() => setSearchOpen(!searchOpen)}>🔍</button>
+
         {searchOpen && (
           <input
-            style={{ marginLeft: 10, padding: 8 }}
-            placeholder="Search..."
+            placeholder="Search company, contact, or phone..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
+            style={{
+              marginLeft: 10,
+              padding: 8,
+              borderRadius: 8,
+              border: "1px solid #ccc"
+            }}
           />
         )}
       </div>
@@ -258,7 +275,10 @@ export default function Dashboard() {
       {/* LIST */}
       {filteredCustomers.map(c => {
         const days = diffDays(c.nextCheckIn);
-        let bar = days <= 0 ? "#e74c3c" : days <= 2 ? "#f1c40f" : "transparent";
+
+        let bar = "transparent";
+        if (days <= 0) bar = "#e74c3c";
+        else if (days <= 2) bar = "#f1c40f";
 
         return (
           <div
@@ -266,13 +286,13 @@ export default function Dashboard() {
             onClick={(e) => openModal(c, e)}
             style={{
               background: "white",
-              padding: 15,
-              borderRadius: 12,
+              padding: 14,
+              borderRadius: 14,
               marginBottom: 10,
               display: "flex",
               justifyContent: "space-between",
               borderLeft: `6px solid ${bar}`,
-              boxShadow: "0 3px 10px rgba(0,0,0,0.05)",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
               cursor: "pointer"
             }}
           >
@@ -284,25 +304,33 @@ export default function Dashboard() {
                   <input value={editData.contact} onChange={e => setEditData({ ...editData, contact: e.target.value })} />
                   <input value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} />
                   <input value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
-
                   <input type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
                   <input type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
                 </>
               ) : (
                 <>
-                  <b>{c.company}</b>
-                  <div>{c.contact}</div>
-                  <div style={{ fontSize: 12 }}>{formatPhone(c.phone)}</div>
+                  <b style={{ fontSize: 15 }}>{c.company}</b>
+                  <div style={{ fontSize: 13, color: "#555" }}>{c.contact}</div>
+                  <div style={{ fontSize: 11, color: "#888" }}>
+                    {c.email || ""} | {formatPhone(c.phone)}
+                  </div>
                 </>
               )}
             </div>
 
-            <div style={{ flex: 1, margin: "0 15px" }}>
-              {c.notes}
+            <div style={{
+              flex: 1,
+              margin: "0 15px",
+              background: "#f8fafc",
+              padding: 12,
+              borderRadius: 10,
+              border: "1px solid #e5e7eb"
+            }}>
+              <div style={{ fontSize: 12 }}>{c.notes}</div>
             </div>
 
-            <div>
-              <button onClick={() => handleFollowUp(c)}>Follow Up</button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button onClick={() => handleFollowUp(c)}>Follow</button>
               <button onClick={() => openCompletedPopup(c)}>Done</button>
 
               {editingId === c.id ? (
