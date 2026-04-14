@@ -22,7 +22,7 @@ export default function Dashboard() {
   const [nextDate, setNextDate] = useState("");
   const [notes, setNotes] = useState("");
 
-  // INLINE EDIT
+  // EDIT
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
 
@@ -30,14 +30,35 @@ export default function Dashboard() {
   const [selected, setSelected] = useState(null);
   const [modalNotes, setModalNotes] = useState("");
 
-  // COMPLETED POPUP
+  // COMPLETED
   const [completedTarget, setCompletedTarget] = useState(null);
   const [contactMethod, setContactMethod] = useState("phone");
+
+  // TOAST
+  const [toast, setToast] = useState("");
 
   const col = collection(db, "customers");
 
   // =====================
-  // HELPERS
+  // TOAST HELPER
+  // =====================
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 5000);
+  };
+
+  // =====================
+  // PHONE FORMATTER
+  // =====================
+  const formatPhone = (phone) => {
+    if (!phone) return "";
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length !== 10) return phone;
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  };
+
+  // =====================
+  // DATE HELPERS
   // =====================
   const formatDate = (date) => {
     if (!date) return "";
@@ -104,11 +125,12 @@ export default function Dashboard() {
     setNextDate("");
     setNotes("");
 
+    showToast("Customer added");
     loadCustomers();
   };
 
   // =====================
-  // INLINE EDIT (IMPROVED UX)
+  // INLINE EDIT
   // =====================
   const startEdit = (c) => {
     setEditingId(c.id);
@@ -130,6 +152,7 @@ export default function Dashboard() {
 
     setEditingId(null);
     setEditData({});
+    showToast("Changes saved");
     loadCustomers();
   };
 
@@ -137,6 +160,7 @@ export default function Dashboard() {
     if (!window.confirm("Delete this contact?")) return;
     await deleteDoc(doc(db, "customers", id));
     setSelected(null);
+    showToast("Contact deleted");
     loadCustomers();
   };
 
@@ -151,6 +175,7 @@ export default function Dashboard() {
       nextCheckIn: adjustWeekend(next.toISOString())
     });
 
+    showToast("Follow-up scheduled");
     loadCustomers();
   };
 
@@ -179,11 +204,12 @@ export default function Dashboard() {
 
     setCompletedTarget(null);
     setContactMethod("phone");
+    showToast("Marked completed");
     loadCustomers();
   };
 
   // =====================
-  // MODAL NOTES (NO DUPLICATES IN HISTORY)
+  // MODAL NOTES
   // =====================
   const saveModalNotes = async () => {
     const original = selected.notes || "";
@@ -206,24 +232,22 @@ export default function Dashboard() {
       notesHistory: newHistory
     });
 
-    closeModal();
+    setSelected(null);
+    setModalNotes("");
+    showToast("Notes updated");
     loadCustomers();
   };
 
   // =====================
-  // MODAL CONTROL
+  // MODAL
   // =====================
   const openModal = (c, e) => {
     if (e?.target?.tagName === "BUTTON" || e?.target?.tagName === "INPUT") return;
-
     setSelected(c);
     setModalNotes(c.notes || "");
   };
 
-  const closeModal = () => {
-    setSelected(null);
-    setModalNotes("");
-  };
+  const closeModal = () => setSelected(null);
 
   // =====================
   // FILTER
@@ -248,20 +272,14 @@ export default function Dashboard() {
       <h1>CRM Dashboard</h1>
 
       {/* FORM */}
-      <div style={{
-        background: "white",
-        padding: 20,
-        borderRadius: 12,
-        marginBottom: 20
-      }}>
+      <div style={{ background: "white", padding: 20, borderRadius: 12, marginBottom: 20 }}>
         <input placeholder="Company" value={company} onChange={e => setCompany(e.target.value)} />
         <input placeholder="Contact" value={contact} onChange={e => setContact(e.target.value)} />
         <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
         <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
         <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
         <input placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
-
-        <button onClick={addCustomer}>Add Company</button>
+        <button onClick={addCustomer}>Add</button>
       </div>
 
       {/* LIST */}
@@ -288,51 +306,34 @@ export default function Dashboard() {
             }}
           >
 
-            {/* LEFT (EDIT IMPROVED UX) */}
-            <div style={{ width: "30%" }}>
+            {/* LEFT */}
+            <div style={{ width: "35%" }}>
               {editingId === c.id ? (
                 <>
-                  <input
-                    value={editData.company || ""}
-                    placeholder={editData.company ? "" : "(Company)"}
-                    onChange={e => setEditData({ ...editData, company: e.target.value })}
-                  />
-                  <input
-                    value={editData.contact || ""}
-                    placeholder={editData.contact ? "" : "(Contact)"}
-                    onChange={e => setEditData({ ...editData, contact: e.target.value })}
-                  />
-                  <input
-                    value={editData.email || ""}
-                    placeholder={editData.email ? "" : "(Email)"}
-                    onChange={e => setEditData({ ...editData, email: e.target.value })}
-                  />
-                  <input
-                    value={editData.phone || ""}
-                    placeholder={editData.phone ? "" : "(Phone)"}
-                    onChange={e => setEditData({ ...editData, phone: e.target.value })}
-                  />
+                  <input value={editData.company} onChange={e => setEditData({ ...editData, company: e.target.value })} />
+                  <input value={editData.contact} onChange={e => setEditData({ ...editData, contact: e.target.value })} />
+                  <input value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} />
+                  <input value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
 
-                  <input
-                    type="date"
-                    value={editData.nextCheckIn}
-                    onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })}
-                  />
-                  <div style={{ fontSize: 10, color: "#777" }}>Next Date</div>
+                  <input type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
+                  <div style={{ fontSize: 10 }}>Next Date</div>
 
-                  <input
-                    type="date"
-                    value={editData.lastContact}
-                    onChange={e => setEditData({ ...editData, lastContact: e.target.value })}
-                  />
-                  <div style={{ fontSize: 10, color: "#777" }}>Last Contact</div>
+                  <input type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
+                  <div style={{ fontSize: 10 }}>Last Contact</div>
                 </>
               ) : (
                 <>
                   <b>{c.company}</b>
-                  <div>{c.contact}</div>
-                  <div>{c.email}</div>
-                  <div>{c.phone}</div>
+
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <span style={{ fontSize: 11 }}>
+                      {c.contact}
+                    </span>
+                    <span style={{ fontSize: 10, color: "#666" }}>
+                      {c.email} | {formatPhone(c.phone)}
+                    </span>
+                  </div>
+
                   <div style={{ fontSize: 12 }}>Next: {formatDate(c.nextCheckIn)}</div>
                   <div style={{ fontSize: 12 }}>Last: {formatDate(c.lastContact)}</div>
                 </>
@@ -394,7 +395,6 @@ export default function Dashboard() {
         }}>
           <div style={{ background: "white", padding: 20, borderRadius: 12 }}>
             <h3>Contact Method</h3>
-
             <select value={contactMethod} onChange={e => setContactMethod(e.target.value)}>
               <option value="phone">Phone</option>
               <option value="email">Email</option>
@@ -418,23 +418,8 @@ export default function Dashboard() {
           justifyContent: "center",
           alignItems: "center"
         }}>
-          <div style={{ background: "white", width: 600, padding: 20, borderRadius: 12, position: "relative" }}>
-
-            {/* X CLOSE */}
-            <button
-              onClick={closeModal}
-              style={{
-                position: "absolute",
-                top: 10,
-                right: 10,
-                fontSize: 18,
-                background: "transparent",
-                border: "none",
-                cursor: "pointer"
-              }}
-            >
-              ✕
-            </button>
+          <div style={{ background: "white", width: 600, padding: 20, borderRadius: 12 }}>
+            <button onClick={closeModal} style={{ float: "right" }}>✕</button>
 
             <h2>{selected.company}</h2>
 
@@ -451,22 +436,32 @@ export default function Dashboard() {
 
             <button onClick={saveModalNotes}>Save Notes</button>
 
-            <h4 style={{ marginTop: 15 }}>History</h4>
-
+            <h4>History</h4>
             {(selected.notesHistory || []).map((h, i) => (
-              <div key={i} style={{
-                fontSize: 12,
-                background: "#f4f6f8",
-                marginTop: 5,
-                padding: 6,
-                borderRadius: 6
-              }}>
+              <div key={i} style={{ fontSize: 12, marginTop: 5 }}>
                 <div>{h.text}</div>
                 <div style={{ color: "#777" }}>{h.date}</div>
               </div>
             ))}
-
           </div>
+        </div>
+      )}
+
+      {/* TOAST */}
+      {toast && (
+        <div style={{
+          position: "fixed",
+          bottom: 20,
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "#222",
+          color: "white",
+          padding: "10px 16px",
+          borderRadius: 8,
+          fontSize: 12,
+          zIndex: 9999
+        }}>
+          {toast}
         </div>
       )}
 
