@@ -14,9 +14,7 @@ import {
 export default function Dashboard() {
   const [customers, setCustomers] = useState([]);
 
-  // ======================
-  // FORM STATE (NEW MODEL)
-  // ======================
+  // FORM
   const [company, setCompany] = useState("");
   const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
@@ -24,25 +22,19 @@ export default function Dashboard() {
   const [nextDate, setNextDate] = useState("");
   const [notes, setNotes] = useState("");
 
-  // ======================
-  // MODAL STATE
-  // ======================
-  const [selected, setSelected] = useState(null);
-  const [modalEdit, setModalEdit] = useState({});
-  const [modalNotes, setModalNotes] = useState("");
+  // EDIT INLINE STATE (UNCHANGED BEHAVIOR)
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({});
 
-  // ======================
-  // UI STATE
-  // ======================
-  const [search, setSearch] = useState("");
-  const [view, setView] = useState("all");
-  const [sortBy, setSortBy] = useState("nextCheckIn");
+  // MODAL STATE
+  const [selected, setSelected] = useState(null);
+  const [modalNotes, setModalNotes] = useState("");
 
   const col = collection(db, "customers");
 
-  // ======================
+  // =====================
   // DATE HELPERS
-  // ======================
+  // =====================
   const formatDate = (date) => {
     if (!date) return "";
     if (date?.seconds) return new Date(date.seconds * 1000).toISOString().split("T")[0];
@@ -63,20 +55,14 @@ export default function Dashboard() {
     return d.toISOString().split("T")[0];
   };
 
-  const addDays = (dateStr, days) => {
-    const d = new Date(dateStr);
-    d.setDate(d.getDate() + days);
-    return adjustWeekend(d);
-  };
-
   const todayValue = new Date().getTime();
 
   const diffDays = (date) =>
     (getDateValue(date) - todayValue) / (1000 * 60 * 60 * 24);
 
-  // ======================
-  // LOAD DATA
-  // ======================
+  // =====================
+  // LOAD
+  // =====================
   const loadCustomers = async () => {
     const snap = await getDocs(col);
     setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -86,9 +72,9 @@ export default function Dashboard() {
     loadCustomers();
   }, []);
 
-  // ======================
+  // =====================
   // ADD CUSTOMER
-  // ======================
+  // =====================
   const addCustomer = async () => {
     if (!company || !contact || !nextDate) {
       return alert("Please fill required fields");
@@ -116,70 +102,48 @@ export default function Dashboard() {
     loadCustomers();
   };
 
-  // ======================
-  // MODAL OPEN/CLOSE
-  // ======================
-  const openModal = (c) => {
-    setSelected(c);
-    setModalEdit({
+  // =====================
+  // INLINE EDIT (UNCHANGED)
+  // =====================
+  const startEdit = (c) => {
+    setEditingId(c.id);
+    setEditData({
       company: c.company,
       contact: c.contact,
       email: c.email,
       phone: c.phone,
       nextCheckIn: formatDate(c.nextCheckIn),
-      lastContact: formatDate(c.lastContact)
+      lastContact: formatDate(c.lastContact),
+      notes: c.notes
     });
-    setModalNotes(c.notes || "");
   };
 
-  const closeModal = () => {
-    setSelected(null);
-    setModalEdit({});
-    setModalNotes("");
-  };
-
-  // ======================
-  // SAVE FULL EDIT (MODAL)
-  // ======================
-  const saveModal = async () => {
-    const ref = doc(db, "customers", selected.id);
-
-    const newHistoryEntry = {
-      text: selected.notes || "",
-      date: new Date().toISOString()
-    };
-
-    await updateDoc(ref, {
-      ...modalEdit,
-      notes: modalNotes,
-      notesHistory: [
-        ...(selected.notesHistory || []),
-        newHistoryEntry
-      ]
-    });
-
-    closeModal();
+  const saveEdit = async () => {
+    await updateDoc(doc(db, "customers", editingId), editData);
+    setEditingId(null);
+    setEditData({});
     loadCustomers();
   };
 
-  // ======================
-  // DELETE
-  // ======================
   const deleteCustomer = async (id) => {
     if (!window.confirm("Delete this contact?")) return;
     await deleteDoc(doc(db, "customers", id));
-    closeModal();
+    setSelected(null);
     loadCustomers();
   };
 
-  // ======================
+  // =====================
   // FOLLOW UP / COMPLETED
-  // ======================
+  // =====================
   const handleFollowUp = async (c) => {
-    const next = addDays(new Date(), 7);
+    const next = new Date();
+    next.setDate(next.getDate() + 7);
+    const adjusted = adjustWeekend(next);
+
     await updateDoc(doc(db, "customers", c.id), {
-      nextCheckIn: next
+      nextCheckIn: adjusted
     });
+
     loadCustomers();
   };
 
@@ -195,39 +159,56 @@ export default function Dashboard() {
     loadCustomers();
   };
 
-  // ======================
-  // FILTER + SORT
-  // ======================
-  const filteredCustomers = useMemo(() => {
-    let data = [...customers];
+  // =====================
+  // MODAL OPEN (CLICK ANYWHERE EXCEPT BUTTONS/INPUTS)
+  // =====================
+  const openModal = (c, e) => {
+    if (e?.target?.tagName === "BUTTON" || e?.target?.tagName === "INPUT") return;
 
-    if (view === "due") {
-      data = data.filter(c => getDateValue(c.nextCheckIn) <= todayValue);
-    }
+    setSelected(c);
+    setModalNotes(c.notes || "");
+  };
 
-    if (search) {
-      data = data.filter(c =>
-        (c.company || "").toLowerCase().includes(search.toLowerCase()) ||
-        (c.contact || "").toLowerCase().includes(search.toLowerCase()) ||
-        (c.email || "").toLowerCase().includes(search.toLowerCase()) ||
-        (c.phone || "").toLowerCase().includes(search.toLowerCase()) ||
-        (c.notes || "").toLowerCase().includes(search.toLowerCase())
-      );
-    }
+  const closeModal = () => {
+    setSelected(null);
+    setModalNotes("");
+  };
 
-    data.sort((a, b) => {
-      if (sortBy === "customer") {
-        return (a.company || "").localeCompare(b.company || "");
-      }
-      return getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn);
+  // =====================
+  // SAVE NOTES + HISTORY WITH TIMESTAMP
+  // =====================
+  const saveModalNotes = async () => {
+    const ref = doc(db, "customers", selected.id);
+
+    const newHistoryItem = {
+      text: selected.notes || "",
+      date: new Date().toISOString() // last saved version timestamp
+    };
+
+    await updateDoc(ref, {
+      notes: modalNotes,
+      notesHistory: [
+        ...(selected.notesHistory || []),
+        newHistoryItem
+      ]
     });
 
-    return data;
-  }, [customers, search, view, sortBy]);
+    closeModal();
+    loadCustomers();
+  };
 
-  // ======================
+  // =====================
+  // FILTER / SORT
+  // =====================
+  const filteredCustomers = useMemo(() => {
+    return [...customers].sort(
+      (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
+    );
+  }, [customers]);
+
+  // =====================
   // UI
-  // ======================
+  // =====================
   return (
     <div style={{
       padding: 30,
@@ -238,35 +219,22 @@ export default function Dashboard() {
 
       <h1>CRM Dashboard</h1>
 
-      {/* ================= FORM ================= */}
+      {/* FORM */}
       <div style={{
         background: "white",
         padding: 20,
         borderRadius: 12,
-        marginBottom: 20,
-        boxShadow: "0 2px 10px rgba(0,0,0,0.06)"
+        marginBottom: 20
       }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <input placeholder="Company" value={company} onChange={e => setCompany(e.target.value)} />
-          <input placeholder="Contact" value={contact} onChange={e => setContact(e.target.value)} />
-          <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-          <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
-          <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
-          <input placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
-        </div>
+        <input placeholder="Company" value={company} onChange={e => setCompany(e.target.value)} />
+        <input placeholder="Contact" value={contact} onChange={e => setContact(e.target.value)} />
+        <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+        <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
+        <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
+        <input placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
 
-        <button onClick={addCustomer} style={{ marginTop: 10 }}>
-          Add Company
-        </button>
+        <button onClick={addCustomer}>Add Company</button>
       </div>
-
-      {/* SEARCH */}
-      <input
-        placeholder="Search..."
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        style={{ marginBottom: 15 }}
-      />
 
       {/* LIST */}
       {filteredCustomers.map(c => {
@@ -277,7 +245,9 @@ export default function Dashboard() {
         else if (days <= 2) bar = "#f1c40f";
 
         return (
-          <div key={c.id}
+          <div
+            key={c.id}
+            onClick={(e) => openModal(c, e)}
             style={{
               background: "white",
               padding: 15,
@@ -291,17 +261,26 @@ export default function Dashboard() {
           >
 
             {/* LEFT */}
-            <div style={{ width: "25%" }} onClick={() => openModal(c)}>
-              <b>{c.company}</b>
-              <div style={{ fontSize: 13 }}>{c.contact}</div>
-              <div style={{ fontSize: 12 }}>{c.email}</div>
-              <div style={{ fontSize: 12 }}>{c.phone}</div>
-              <div style={{ fontSize: 12 }}>
-                Next: {formatDate(c.nextCheckIn)}
-              </div>
-              <div style={{ fontSize: 12 }}>
-                Last: {formatDate(c.lastContact)}
-              </div>
+            <div style={{ width: "30%" }}>
+              {editingId === c.id ? (
+                <>
+                  <input value={editData.company} onChange={e => setEditData({ ...editData, company: e.target.value })} />
+                  <input value={editData.contact} onChange={e => setEditData({ ...editData, contact: e.target.value })} />
+                  <input value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} />
+                  <input value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
+                  <input type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
+                  <input type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
+                </>
+              ) : (
+                <>
+                  <b>{c.company}</b>
+                  <div>{c.contact}</div>
+                  <div>{c.email}</div>
+                  <div>{c.phone}</div>
+                  <div style={{ fontSize: 12 }}>Next: {formatDate(c.nextCheckIn)}</div>
+                  <div style={{ fontSize: 12 }}>Last: {formatDate(c.lastContact)}</div>
+                </>
+              )}
             </div>
 
             {/* MIDDLE */}
@@ -329,14 +308,24 @@ export default function Dashboard() {
                 </label>
               </div>
 
-              <button onClick={() => openModal(c)}>Open</button>
-            </div>
+              {editingId === c.id ? (
+                <>
+                  <button onClick={saveEdit}>Save</button>
+                  <button onClick={() => setEditingId(null)}>Cancel</button>
+                  <button onClick={() => deleteCustomer(c.id)} style={{ color: "red" }}>
+                    Delete
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => startEdit(c)}>Edit</button>
+              )}
 
+            </div>
           </div>
         );
       })}
 
-      {/* ================= MODAL ================= */}
+      {/* MODAL */}
       {selected && (
         <div style={{
           position: "fixed",
@@ -353,30 +342,11 @@ export default function Dashboard() {
             borderRadius: 12
           }}>
 
-            <h2>{modalEdit.company}</h2>
+            <h2>{selected.company}</h2>
 
-            <input
-              value={modalEdit.contact}
-              onChange={e => setModalEdit({ ...modalEdit, contact: e.target.value })}
-            />
-            <input
-              value={modalEdit.email}
-              onChange={e => setModalEdit({ ...modalEdit, email: e.target.value })}
-            />
-            <input
-              value={modalEdit.phone}
-              onChange={e => setModalEdit({ ...modalEdit, phone: e.target.value })}
-            />
-            <input
-              type="date"
-              value={modalEdit.nextCheckIn}
-              onChange={e => setModalEdit({ ...modalEdit, nextCheckIn: e.target.value })}
-            />
-            <input
-              type="date"
-              value={modalEdit.lastContact}
-              onChange={e => setModalEdit({ ...modalEdit, lastContact: e.target.value })}
-            />
+            <p>{selected.contact}</p>
+            <p>{selected.email}</p>
+            <p>{selected.phone}</p>
 
             <h4>Notes</h4>
             <textarea
@@ -385,30 +355,26 @@ export default function Dashboard() {
               onChange={e => setModalNotes(e.target.value)}
             />
 
-            <div style={{ marginTop: 10 }}>
-              <button onClick={saveModal}>Save</button>
-              <button onClick={closeModal}>Close</button>
-              <button onClick={() => deleteCustomer(selected.id)} style={{ color: "red" }}>
-                Delete
-              </button>
-            </div>
+            <button onClick={saveModalNotes}>Save Notes</button>
+            <button onClick={closeModal}>Close</button>
+            <button onClick={() => deleteCustomer(selected.id)} style={{ color: "red" }}>
+              Delete
+            </button>
 
-            {/* HISTORY */}
-            <div style={{ marginTop: 15 }}>
-              <h4>Notes History</h4>
-              {(selected.notesHistory || []).map((h, i) => (
-                <div key={i} style={{
-                  fontSize: 12,
-                  background: "#f4f6f8",
-                  marginTop: 5,
-                  padding: 6,
-                  borderRadius: 6
-                }}>
-                  <div>{h.text}</div>
-                  <div style={{ color: "#777" }}>{h.date}</div>
-                </div>
-              ))}
-            </div>
+            <h4 style={{ marginTop: 15 }}>Notes History</h4>
+
+            {(selected.notesHistory || []).map((h, i) => (
+              <div key={i} style={{
+                fontSize: 12,
+                background: "#f4f6f8",
+                padding: 6,
+                marginTop: 5,
+                borderRadius: 6
+              }}>
+                <div>{h.text}</div>
+                <div style={{ color: "#777" }}>{h.date}</div>
+              </div>
+            ))}
 
           </div>
         </div>
