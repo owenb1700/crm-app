@@ -127,8 +127,7 @@ export default function Dashboard() {
       email: c.email || "",
       phone: c.phone || "",
       nextCheckIn: formatDate(c.nextCheckIn),
-      lastContact: formatDate(c.lastContact),
-      notes: c.notes || ""
+      lastContact: formatDate(c.lastContact)
     });
   };
 
@@ -311,7 +310,6 @@ export default function Dashboard() {
                   <input value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} />
                   <input value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
 
-                  {/* FIXED LABEL PLACEMENT */}
                   <div style={{ fontSize: 10, marginTop: 6 }}>Next Date</div>
                   <input
                     type="date"
@@ -324,12 +322,6 @@ export default function Dashboard() {
                     type="date"
                     value={editData.lastContact}
                     onChange={e => setEditData({ ...editData, lastContact: e.target.value })}
-                  />
-
-                  <input
-                    value={editData.notes}
-                    onChange={e => setEditData({ ...editData, notes: e.target.value })}
-                    placeholder="Notes"
                   />
                 </>
               ) : (
