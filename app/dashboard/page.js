@@ -224,7 +224,7 @@ export default function Dashboard() {
     loadCustomers();
   };
 
-  // ✅ ONLY EDITED SECTION: SEARCH NOW INCLUDES PHONE, EXCLUDES NOTES
+  // SEARCH FILTER
   const filteredCustomers = useMemo(() => {
     let list = [...customers].sort(
       (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
@@ -264,11 +264,9 @@ export default function Dashboard() {
         <button onClick={addCustomer}>Add</button>
       </div>
 
-      {/* SEARCH ICON + INPUT (NEW FEATURE) */}
+      {/* SEARCH */}
       <div style={{ marginBottom: 15, display: "flex", gap: 10, alignItems: "center" }}>
-        <button onClick={() => setSearchOpen(!searchOpen)}>
-          🔍
-        </button>
+        <button onClick={() => setSearchOpen(!searchOpen)}>🔍</button>
 
         {searchOpen && (
           <input
@@ -312,11 +310,27 @@ export default function Dashboard() {
                   <input value={editData.contact} onChange={e => setEditData({ ...editData, contact: e.target.value })} />
                   <input value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} />
                   <input value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
-                  <input type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
-                  <div style={{ fontSize: 10 }}>Next Date</div>
 
-                  <input type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
-                  <div style={{ fontSize: 10 }}>Last Contact</div>
+                  {/* FIXED LABEL PLACEMENT */}
+                  <div style={{ fontSize: 10, marginTop: 6 }}>Next Date</div>
+                  <input
+                    type="date"
+                    value={editData.nextCheckIn}
+                    onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })}
+                  />
+
+                  <div style={{ fontSize: 10, marginTop: 6 }}>Last Contact</div>
+                  <input
+                    type="date"
+                    value={editData.lastContact}
+                    onChange={e => setEditData({ ...editData, lastContact: e.target.value })}
+                  />
+
+                  <input
+                    value={editData.notes}
+                    onChange={e => setEditData({ ...editData, notes: e.target.value })}
+                    placeholder="Notes"
+                  />
                 </>
               ) : (
                 <>
