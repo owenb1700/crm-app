@@ -14,13 +14,7 @@ import {
 export default function Dashboard() {
   const [customers, setCustomers] = useState([]);
 
-  // SEARCH
-  const [searchTerm, setSearchTerm] = useState("");
-
-  // ADD MODAL
-  const [showAddModal, setShowAddModal] = useState(false);
-
-  // FORM (ADD)
+  // FORM
   const [company, setCompany] = useState("");
   const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
@@ -50,7 +44,16 @@ export default function Dashboard() {
     setTimeout(() => setToast(""), 5000);
   };
 
+  // =====================
   // HELPERS
+  // =====================
+  const formatPhone = (phone) => {
+    if (!phone) return "";
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length !== 10) return phone;
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  };
+
   const formatDate = (date) => {
     if (!date) return "";
     if (date?.seconds) return new Date(date.seconds * 1000).toISOString().split("T")[0];
@@ -76,7 +79,9 @@ export default function Dashboard() {
   const diffDays = (date) =>
     (getDateValue(date) - todayValue) / (1000 * 60 * 60 * 24);
 
+  // =====================
   // LOAD
+  // =====================
   const loadCustomers = async () => {
     const snap = await getDocs(col);
     setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -86,7 +91,9 @@ export default function Dashboard() {
     loadCustomers();
   }, []);
 
-  // ADD CUSTOMER (kept same logic, now used in modal)
+  // =====================
+  // ADD
+  // =====================
   const addCustomer = async () => {
     if (!company || !contact || !nextDate) {
       return alert("Please fill required fields");
@@ -111,13 +118,14 @@ export default function Dashboard() {
     setPhone("");
     setNextDate("");
     setNotes("");
-    setShowAddModal(false);
 
     showToast("Customer added");
     loadCustomers();
   };
 
+  // =====================
   // EDIT
+  // =====================
   const startEdit = (c) => {
     setEditingId(c.id);
     setEditData({
@@ -150,7 +158,9 @@ export default function Dashboard() {
     loadCustomers();
   };
 
-  // FOLLOW UP (auto deselect checkbox)
+  // =====================
+  // FOLLOW UP (FIXED DESELECT)
+  // =====================
   const handleFollowUp = async (c, e) => {
     const next = new Date();
     next.setDate(next.getDate() + 7);
@@ -165,7 +175,9 @@ export default function Dashboard() {
     loadCustomers();
   };
 
+  // =====================
   // COMPLETED
+  // =====================
   const openCompletedPopup = (c) => {
     setCompletedTarget(c);
   };
@@ -195,7 +207,9 @@ export default function Dashboard() {
     loadCustomers();
   };
 
-  // MODAL
+  // =====================
+  // MODAL (FIXED NOTES HISTORY - NO OVERWRITE)
+  // =====================
   const openModal = (c, e) => {
     if (e?.target?.tagName === "BUTTON" || e?.target?.tagName === "INPUT") return;
     setSelected(c);
@@ -205,54 +219,48 @@ export default function Dashboard() {
   const closeModal = () => setSelected(null);
 
   const saveModalNotes = async () => {
-    const ref = doc(db, "customers", selected.id);
+    const original = selected.notes || "";
+    const changed = original !== modalNotes;
 
-    await updateDoc(ref, {
-      notes: modalNotes
+    const entry = {
+      text: modalNotes,
+      date: new Date().toISOString()
+    };
+
+    await updateDoc(doc(db, "customers", selected.id), {
+      notes: modalNotes,
+      notesHistory: changed
+        ? [...(selected.notesHistory || []), entry]
+        : (selected.notesHistory || [])
     });
 
     setSelected(null);
     setModalNotes("");
-    showToast("Notes updated");
+
     loadCustomers();
   };
 
-  // FILTER + SEARCH
+  // =====================
+  // FILTER
+  // =====================
   const filteredCustomers = useMemo(() => {
-    let data = [...customers];
-
-    if (searchTerm.trim()) {
-      const s = searchTerm.toLowerCase();
-      data = data.filter(c =>
-        (c.company || "").toLowerCase().includes(s) ||
-        (c.contact || "").toLowerCase().includes(s) ||
-        (c.email || "").toLowerCase().includes(s)
-      );
-    }
-
-    return data.sort(
+    return [...customers].sort(
       (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
     );
-  }, [customers, searchTerm]);
+  }, [customers]);
 
+  // =====================
+  // UI
+  // =====================
   return (
-    <div style={{ padding: 30, fontFamily: "Inter, Arial", background: "#cfd5dd", minHeight: "100vh" }}>
+    <div style={{
+      padding: 30,
+      fontFamily: "Inter, Arial",
+      background: "#cfd5dd",
+      minHeight: "100vh"
+    }}>
 
       <h1>CRM Dashboard</h1>
-
-      {/* SEARCH */}
-      <div style={{ marginBottom: 15 }}>
-        <input
-          placeholder="Search customers..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
-
-      {/* ADD BUTTON */}
-      <button onClick={() => setShowAddModal(true)} style={{ marginBottom: 20 }}>
-        + Add Customer
-      </button>
 
       {/* LIST */}
       {filteredCustomers.map(c => {
@@ -280,63 +288,30 @@ export default function Dashboard() {
 
             {/* LEFT */}
             <div style={{ width: "35%" }}>
-              {editingId === c.id ? (
-                <>
-                  <input
-                    value={editData.company}
-                    onChange={e => setEditData({ ...editData, company: e.target.value })}
-                  />
+              <b>{c.company}</b>
 
-                  <input
-                    value={editData.contact}
-                    onChange={e => setEditData({ ...editData, contact: e.target.value })}
-                    style={{ fontSize: 14 }}
-                  />
+              {/* CONTACT (slightly bigger than before, still smaller than company) */}
+              <div style={{ fontSize: 13, color: "#444" }}>
+                {c.contact}
+              </div>
 
-                  <input
-                    value={editData.email}
-                    onChange={e => setEditData({ ...editData, email: e.target.value })}
-                  />
+              <div style={{ fontSize: 10, color: "#888" }}>
+                {c.email || ""} | {formatPhone(c.phone)}
+              </div>
 
-                  <input
-                    value={editData.phone}
-                    onChange={e => setEditData({ ...editData, phone: e.target.value })}
-                  />
-
-                  <div style={{ fontSize: 11 }}>Next Date</div>
-                  <input
-                    type="date"
-                    value={editData.nextCheckIn}
-                    onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })}
-                  />
-
-                  <div style={{ fontSize: 11 }}>Last Contact</div>
-                  <input
-                    type="date"
-                    value={editData.lastContact}
-                    onChange={e => setEditData({ ...editData, lastContact: e.target.value })}
-                  />
-                </>
-              ) : (
-                <>
-                  <b>{c.company}</b>
-
-                  <div style={{ fontSize: 14, color: "#444" }}>
-                    {c.contact}
-                  </div>
-
-                  <div style={{ fontSize: 10, color: "#888" }}>
-                    {c.email || ""} | {c.phone || ""}
-                  </div>
-
-                  <div style={{ fontSize: 12 }}>Next: {formatDate(c.nextCheckIn)}</div>
-                  <div style={{ fontSize: 12 }}>Last: {formatDate(c.lastContact)}</div>
-                </>
-              )}
+              <div style={{ fontSize: 12 }}>Next: {formatDate(c.nextCheckIn)}</div>
+              <div style={{ fontSize: 12 }}>Last: {formatDate(c.lastContact)}</div>
             </div>
 
-            {/* MIDDLE */}
-            <div style={{ flex: 1, margin: "0 15px", background: "#f3f5f7", padding: 10, borderRadius: 8 }}>
+            {/* MIDDLE (NOTES SMALLER) */}
+            <div style={{
+              flex: 1,
+              margin: "0 15px",
+              background: "#f3f5f7",
+              padding: 10,
+              borderRadius: 8,
+              fontSize: 10
+            }}>
               {c.notes}
             </div>
 
@@ -344,7 +319,10 @@ export default function Dashboard() {
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
                 <label>
-                  <input type="checkbox" onChange={(e) => handleFollowUp(c, e)} />
+                  <input
+                    type="checkbox"
+                    onChange={(e) => handleFollowUp(c, e)}
+                  />
                   Follow Up
                 </label>
 
@@ -354,24 +332,14 @@ export default function Dashboard() {
                 </label>
               </div>
 
-              {editingId === c.id ? (
-                <>
-                  <button onClick={saveEdit}>Save</button>
-                  <button onClick={() => setEditingId(null)}>Cancel</button>
-                  <button onClick={() => deleteCustomer(c.id)} style={{ color: "red" }}>
-                    Delete
-                  </button>
-                </>
-              ) : (
-                <button onClick={() => startEdit(c)}>Edit</button>
-              )}
+              <button onClick={() => startEdit(c)}>Edit</button>
             </div>
           </div>
         );
       })}
 
-      {/* ADD MODAL */}
-      {showAddModal && (
+      {/* MODAL */}
+      {selected && (
         <div style={{
           position: "fixed",
           inset: 0,
@@ -380,21 +348,33 @@ export default function Dashboard() {
           justifyContent: "center",
           alignItems: "center"
         }}>
-          <div style={{ background: "white", padding: 20, borderRadius: 12, width: 400 }}>
-            <button onClick={() => setShowAddModal(false)} style={{ float: "right" }}>X</button>
+          <div style={{ background: "white", width: 600, padding: 20, borderRadius: 12 }}>
 
-            <h3>Add Customer</h3>
+            <button onClick={closeModal} style={{ float: "right" }}>✕</button>
 
-            <input placeholder="Company" value={company} onChange={e => setCompany(e.target.value)} />
-            <input placeholder="Contact" value={contact} onChange={e => setContact(e.target.value)} />
-            <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-            <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
-            <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
-            <input placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
+            <h2>{selected.company}</h2>
 
-            <button onClick={addCustomer} style={{ marginTop: 10 }}>
-              +COMPLETED
-            </button>
+            <p>{selected.contact}</p>
+            <p>{selected.email}</p>
+            <p>{formatPhone(selected.phone)}</p>
+
+            <h4>Notes</h4>
+            <textarea
+              style={{ width: "100%", height: 80 }}
+              value={modalNotes}
+              onChange={e => setModalNotes(e.target.value)}
+            />
+
+            <button onClick={saveModalNotes}>Save Notes</button>
+
+            {/* HISTORY (NEVER DELETED) */}
+            <h4>Notes History</h4>
+            {(selected.notesHistory || []).map((h, i) => (
+              <div key={i} style={{ fontSize: 12, marginTop: 5 }}>
+                <div>{h.text}</div>
+                <div style={{ color: "#777" }}>{h.date}</div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -425,36 +405,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* MODAL */}
-      {selected && (
-        <div style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.5)",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center"
-        }}>
-          <div style={{ background: "white", width: 600, padding: 20, borderRadius: 12 }}>
-            <button onClick={closeModal} style={{ float: "right" }}>✕</button>
-
-            <h2>{selected.company}</h2>
-
-            <p>{selected.contact}</p>
-            <p>{selected.email}</p>
-            <p>{selected.phone}</p>
-
-            <h4>Notes</h4>
-            <textarea
-              style={{ width: "100%", height: 80 }}
-              value={modalNotes}
-              onChange={e => setModalNotes(e.target.value)}
-            />
-
-            <button onClick={saveModalNotes}>Save Notes</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
