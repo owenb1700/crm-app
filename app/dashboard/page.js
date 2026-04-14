@@ -37,10 +37,6 @@ export default function Dashboard() {
   // TOAST
   const [toast, setToast] = useState("");
 
-  // NEW SEARCH FEATURE
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-
   const col = collection(db, "customers");
 
   const showToast = (msg) => {
@@ -224,17 +220,19 @@ export default function Dashboard() {
     loadCustomers();
   };
 
-  // SEARCH FILTER (NEW)
+  // ✅ ONLY CHANGE: SEARCH FILTER FIXED (NO NOTES SEARCH)
   const filteredCustomers = useMemo(() => {
     let list = [...customers].sort(
       (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
     );
 
-    if (searchQuery.trim()) {
+    if (searchQuery?.trim?.()) {
       const q = searchQuery.toLowerCase();
+
       list = list.filter(c =>
         (c.company || "").toLowerCase().includes(q) ||
-        (c.contact || "").toLowerCase().includes(q)
+        (c.contact || "").toLowerCase().includes(q) ||
+        (c.phone || "").toLowerCase().includes(q)
       );
     }
 
@@ -260,22 +258,6 @@ export default function Dashboard() {
         <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
         <input placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
         <button onClick={addCustomer}>Add</button>
-      </div>
-
-      {/* SEARCH ICON + INPUT (NEW FEATURE) */}
-      <div style={{ marginBottom: 15, display: "flex", gap: 10, alignItems: "center" }}>
-        <button onClick={() => setSearchOpen(!searchOpen)}>
-          🔍
-        </button>
-
-        {searchOpen && (
-          <input
-            placeholder="Search company or contact..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{ flex: 1 }}
-          />
-        )}
       </div>
 
       {/* LIST */}
