@@ -14,19 +14,13 @@ import {
 export default function Dashboard() {
   const [customers, setCustomers] = useState([]);
 
-  // SEARCH
-  const [search, setSearch] = useState("");
-
-  // ADD MODAL
-  const [addOpen, setAddOpen] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({
-    company: "",
-    contact: "",
-    email: "",
-    phone: "",
-    nextDate: "",
-    notes: ""
-  });
+  // FORM
+  const [company, setCompany] = useState("");
+  const [contact, setContact] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [nextDate, setNextDate] = useState("");
+  const [notes, setNotes] = useState("");
 
   // EDIT
   const [editingId, setEditingId] = useState(null);
@@ -83,8 +77,10 @@ export default function Dashboard() {
     return d.toISOString().split("T")[0];
   };
 
+  const todayValue = new Date().getTime();
+
   const diffDays = (date) =>
-    (getDateValue(date) - Date.now()) / (1000 * 60 * 60 * 24);
+    (getDateValue(date) - todayValue) / (1000 * 60 * 60 * 24);
 
   // =====================
   // LOAD
@@ -99,29 +95,32 @@ export default function Dashboard() {
   }, []);
 
   // =====================
-  // ADD CUSTOMER
+  // ADD
   // =====================
-  const submitNewCustomer = async () => {
-    if (!newCustomer.company || !newCustomer.contact || !newCustomer.nextDate) return;
+  const addCustomer = async () => {
+    if (!company || !contact || !nextDate) {
+      return alert("Please fill required fields");
+    }
 
     await addDoc(col, {
-      ...newCustomer,
-      nextCheckIn: adjustWeekend(newCustomer.nextDate),
+      company,
+      contact,
+      email,
+      phone,
+      nextCheckIn: adjustWeekend(nextDate),
       lastContact: new Date().toISOString().split("T")[0],
+      notes,
       notesHistory: [],
       activityLog: [],
       createdAt: new Date().toISOString()
     });
 
-    setAddOpen(false);
-    setNewCustomer({
-      company: "",
-      contact: "",
-      email: "",
-      phone: "",
-      nextDate: "",
-      notes: ""
-    });
+    setCompany("");
+    setContact("");
+    setEmail("");
+    setPhone("");
+    setNextDate("");
+    setNotes("");
 
     showToast("Customer added");
     loadCustomers();
@@ -149,18 +148,21 @@ export default function Dashboard() {
     });
 
     setEditingId(null);
-    showToast("Saved");
+    setEditData({});
+    showToast("Changes saved");
     loadCustomers();
   };
 
   const deleteCustomer = async (id) => {
-    if (!confirm("Delete contact?")) return;
+    if (!window.confirm("Delete this contact?")) return;
     await deleteDoc(doc(db, "customers", id));
+    setSelected(null);
+    showToast("Deleted");
     loadCustomers();
   };
 
   // =====================
-  // FOLLOW UP (FIXED RESET BEHAVIOR)
+  // FOLLOW UP (RESET AFTER CLICK)
   // =====================
   const handleFollowUp = async (c) => {
     const next = new Date();
@@ -170,69 +172,114 @@ export default function Dashboard() {
       nextCheckIn: adjustWeekend(next.toISOString())
     });
 
-    showToast("Follow-up set");
+    showToast("Follow-up scheduled");
 
-    // IMPORTANT: force UI reset (checkbox visually clears via re-render)
+    // force visual reset by reloading state
     loadCustomers();
   };
 
   // =====================
-  // COMPLETED
+  // COMPLETED (RESET AFTER CLICK)
   // =====================
+  const openCompletedPopup = (c) => {
+    setCompletedTarget(c);
+  };
+
   const confirmCompleted = async () => {
     const d = new Date();
     d.setMonth(d.getMonth() + 6);
+
+    const entry = {
+      type: "completed",
+      method: contactMethod,
+      timestamp: new Date().toISOString()
+    };
 
     await updateDoc(doc(db, "customers", completedTarget.id), {
       nextCheckIn: adjustWeekend(d.toISOString()),
       activityLog: [
         ...(completedTarget.activityLog || []),
-        {
-          type: "completed",
-          method: contactMethod,
-          timestamp: new Date().toISOString()
-        }
+        entry
       ]
     });
 
     setCompletedTarget(null);
-    showToast("Completed logged");
+    setContactMethod("phone");
+
+    showToast("Marked completed");
     loadCustomers();
   };
 
   // =====================
-  // SEARCH FILTER
+  // MODAL
   // =====================
-  const filtered = useMemo(() => {
-    if (!search) return customers;
+  const openModal = (c, e) => {
+    if (e?.target?.tagName === "BUTTON" || e?.target?.tagName === "INPUT") return;
+    setSelected(c);
+    setModalNotes(c.notes || "");
+  };
 
-    return customers.filter(c =>
-      (c.company || "").toLowerCase().includes(search.toLowerCase()) ||
-      (c.contact || "").toLowerCase().includes(search.toLowerCase()) ||
-      (c.email || "").toLowerCase().includes(search.toLowerCase())
+  const closeModal = () => setSelected(null);
+
+  const saveModalNotes = async () => {
+    const original = selected.notes || "";
+    const changed = original !== modalNotes;
+
+    const ref = doc(db, "customers", selected.id);
+
+    const newHistory = changed
+      ? [
+          ...(selected.notesHistory || []),
+          { text: original, date: new Date().toISOString() }
+        ]
+      : selected.notesHistory || [];
+
+    await updateDoc(ref, {
+      notes: modalNotes,
+      notesHistory: newHistory
+    });
+
+    setSelected(null);
+    setModalNotes("");
+    showToast("Notes updated");
+    loadCustomers();
+  };
+
+  // =====================
+  // FILTER
+  // =====================
+  const filteredCustomers = useMemo(() => {
+    return [...customers].sort(
+      (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
     );
-  }, [customers, search]);
+  }, [customers]);
 
   // =====================
   // UI
   // =====================
   return (
-    <div style={{ padding: 30, background: "#cfd5dd", minHeight: "100vh" }}>
+    <div style={{
+      padding: 30,
+      fontFamily: "Inter, Arial",
+      background: "#cfd5dd",
+      minHeight: "100vh"
+    }}>
 
-      {/* TOP BAR */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 15 }}>
-        <input
-          placeholder="Search..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ flex: 1 }}
-        />
+      <h1>CRM Dashboard</h1>
 
-        <button onClick={() => setAddOpen(true)}>+ Add Customer</button>
+      {/* FORM */}
+      <div style={{ background: "white", padding: 20, borderRadius: 12, marginBottom: 20 }}>
+        <input placeholder="Company" value={company} onChange={e => setCompany(e.target.value)} />
+        <input placeholder="Contact" value={contact} onChange={e => setContact(e.target.value)} />
+        <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+        <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
+        <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
+        <input placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
+        <button onClick={addCustomer}>Add</button>
       </div>
 
       {/* LIST */}
-      {filtered.map(c => {
+      {filteredCustomers.map(c => {
         const days = diffDays(c.nextCheckIn);
 
         let bar = "transparent";
@@ -242,14 +289,16 @@ export default function Dashboard() {
         return (
           <div
             key={c.id}
+            onClick={(e) => openModal(c, e)}
             style={{
               background: "white",
               padding: 15,
+              borderRadius: 12,
               marginBottom: 10,
-              borderRadius: 10,
-              borderLeft: `6px solid ${bar}`,
               display: "flex",
-              justifyContent: "space-between"
+              justifyContent: "space-between",
+              borderLeft: `6px solid ${bar}`,
+              cursor: "pointer"
             }}
           >
 
@@ -257,44 +306,56 @@ export default function Dashboard() {
             <div style={{ width: "35%" }}>
               {editingId === c.id ? (
                 <>
-                  <input value={editData.company} onChange={e => setEditData({ ...editData, company: e.target.value })} />
-                  <input value={editData.contact} onChange={e => setEditData({ ...editData, contact: e.target.value })} />
-                  <input value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} />
-                  <input value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
+                  <input
+                    value={editData.company}
+                    placeholder={editData.company ? "" : "(Company)"}
+                    onChange={e => setEditData({ ...editData, company: e.target.value })}
+                  />
 
-                  <div>
-                    <div style={{ fontSize: 10 }}>Next Date</div>
-                    <input
-                      type="date"
-                      value={editData.nextCheckIn}
-                      onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })}
-                    />
-                  </div>
+                  <input
+                    value={editData.contact}
+                    placeholder={editData.contact ? "" : "(Contact)"}
+                    onChange={e => setEditData({ ...editData, contact: e.target.value })}
+                  />
 
-                  <div>
-                    <div style={{ fontSize: 10 }}>Last Contact</div>
-                    <input
-                      type="date"
-                      value={editData.lastContact}
-                      onChange={e => setEditData({ ...editData, lastContact: e.target.value })}
-                    />
-                  </div>
+                  <input
+                    value={editData.email}
+                    placeholder={editData.email ? "" : "(Email)"}
+                    onChange={e => setEditData({ ...editData, email: e.target.value })}
+                  />
 
-                  <button onClick={saveEdit}>Save</button>
-                  <button onClick={() => setEditingId(null)}>Cancel</button>
+                  <input
+                    value={editData.phone}
+                    placeholder={editData.phone ? "" : "(Phone)"}
+                    onChange={e => setEditData({ ...editData, phone: e.target.value })}
+                  />
+
+                  <input
+                    type="date"
+                    value={editData.nextCheckIn}
+                    onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })}
+                  />
+                  <div style={{ fontSize: 10 }}>Next Date</div>
+
+                  <input
+                    type="date"
+                    value={editData.lastContact}
+                    onChange={e => setEditData({ ...editData, lastContact: e.target.value })}
+                  />
+                  <div style={{ fontSize: 10 }}>Last Contact</div>
                 </>
               ) : (
                 <>
-                  <div style={{ fontSize: 18, fontWeight: 600 }}>
-                    {c.company}
-                  </div>
+                  <b>{c.company}</b>
 
-                  <div style={{ fontSize: 14 }}>
+                  <div style={{ fontSize: 11, color: "#666" }}>
                     {c.contact}
                   </div>
 
-                  <div style={{ fontSize: 11, color: "#777" }}>
-                    {c.email} | {formatPhone(c.phone)}
+                  <div style={{ fontSize: 10, color: "#888" }}>
+                    {c.email || ""}
+                    {" | "}
+                    {formatPhone(c.phone)}
                   </div>
 
                   <div style={{ fontSize: 12 }}>Next: {formatDate(c.nextCheckIn)}</div>
@@ -304,62 +365,110 @@ export default function Dashboard() {
             </div>
 
             {/* MIDDLE */}
-            <div style={{ flex: 1, margin: "0 15px", background: "#f4f5f7", padding: 10 }}>
+            <div style={{
+              flex: 1,
+              margin: "0 15px",
+              background: "#f3f5f7",
+              padding: 10,
+              borderRadius: 8
+            }}>
               {c.notes}
             </div>
 
             {/* RIGHT */}
-            <div>
-              <label>
-                <input type="checkbox" onChange={() => handleFollowUp(c)} />
-                Follow Up
-              </label>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
+                <label>
+                  <input type="checkbox" onChange={() => handleFollowUp(c)} />
+                  Follow Up
+                </label>
 
-              <label>
-                <input type="checkbox" onChange={() => setCompletedTarget(c)} />
-                Completed
-              </label>
+                <label>
+                  <input type="checkbox" onChange={() => openCompletedPopup(c)} />
+                  Completed
+                </label>
+              </div>
 
-              <button onClick={() => startEdit(c)}>Edit</button>
-              <button onClick={() => deleteCustomer(c.id)}>Delete</button>
+              {editingId === c.id ? (
+                <>
+                  <button onClick={saveEdit}>Save</button>
+                  <button onClick={() => setEditingId(null)}>Cancel</button>
+                  <button onClick={() => deleteCustomer(c.id)} style={{ color: "red" }}>
+                    Delete
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => startEdit(c)}>Edit</button>
+              )}
             </div>
-
           </div>
         );
       })}
 
-      {/* ADD MODAL */}
-      {addOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)" }}>
-          <div style={{ background: "white", padding: 20, width: 400, margin: "10% auto" }}>
-            <button onClick={() => setAddOpen(false)}>X</button>
-
-            <input placeholder="Company" onChange={e => setNewCustomer({ ...newCustomer, company: e.target.value })} />
-            <input placeholder="Contact" onChange={e => setNewCustomer({ ...newCustomer, contact: e.target.value })} />
-            <input placeholder="Email" onChange={e => setNewCustomer({ ...newCustomer, email: e.target.value })} />
-            <input placeholder="Phone" onChange={e => setNewCustomer({ ...newCustomer, phone: e.target.value })} />
-            <input type="date" onChange={e => setNewCustomer({ ...newCustomer, nextDate: e.target.value })} />
-            <input placeholder="Notes" onChange={e => setNewCustomer({ ...newCustomer, notes: e.target.value })} />
-
-            <button onClick={submitNewCustomer}>+ COMPLETED</button>
-          </div>
-        </div>
-      )}
-
       {/* COMPLETED POPUP */}
       {completedTarget && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)" }}>
-          <div style={{ background: "white", padding: 20 }}>
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center"
+        }}>
+          <div style={{ background: "white", padding: 20, borderRadius: 12 }}>
+            <h3>Contact Method</h3>
+
             <select value={contactMethod} onChange={e => setContactMethod(e.target.value)}>
               <option value="phone">Phone</option>
               <option value="email">Email</option>
             </select>
 
-            <button onClick={confirmCompleted}>Confirm</button>
+            <div style={{ marginTop: 10 }}>
+              <button onClick={confirmCompleted}>Confirm</button>
+              <button onClick={() => setCompletedTarget(null)}>Cancel</button>
+            </div>
           </div>
         </div>
       )}
 
+      {/* MODAL */}
+      {selected && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center"
+        }}>
+          <div style={{ background: "white", width: 600, padding: 20, borderRadius: 12 }}>
+            <button onClick={closeModal} style={{ float: "right" }}>✕</button>
+
+            <h2>{selected.company}</h2>
+
+            <p>{selected.contact}</p>
+            <p>{selected.email}</p>
+            <p>{selected.phone}</p>
+
+            <h4>Notes</h4>
+            <textarea
+              style={{ width: "100%", height: 80 }}
+              value={modalNotes}
+              onChange={e => setModalNotes(e.target.value)}
+            />
+
+            <button onClick={saveModalNotes}>Save Notes</button>
+
+            <h4>History</h4>
+            {(selected.notesHistory || []).map((h, i) => (
+              <div key={i} style={{ fontSize: 12, marginTop: 5 }}>
+                <div>{h.text}</div>
+                <div style={{ color: "#777" }}>{h.date}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
