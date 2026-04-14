@@ -86,6 +86,7 @@ export default function Dashboard() {
     loadCustomers();
   }, []);
 
+  // ✅ UPDATED ADD LOGIC
   const addCustomer = async () => {
     if (!company && !contact) {
       return alert("Please enter at least a company or contact name");
@@ -274,6 +275,7 @@ export default function Dashboard() {
             <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
             <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
 
+            {/* ✅ LARGER NOTES */}
             <textarea
               placeholder="Notes"
               value={notes}
