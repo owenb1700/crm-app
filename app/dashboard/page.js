@@ -22,13 +22,17 @@ export default function Dashboard() {
   const [nextDate, setNextDate] = useState("");
   const [notes, setNotes] = useState("");
 
-  // EDIT INLINE STATE (UNCHANGED BEHAVIOR)
+  // INLINE EDIT
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
 
-  // MODAL STATE
+  // MODAL
   const [selected, setSelected] = useState(null);
   const [modalNotes, setModalNotes] = useState("");
+
+  // COMPLETED POPUP STATE
+  const [completedTarget, setCompletedTarget] = useState(null);
+  const [contactMethod, setContactMethod] = useState("phone");
 
   const col = collection(db, "customers");
 
@@ -73,7 +77,7 @@ export default function Dashboard() {
   }, []);
 
   // =====================
-  // ADD CUSTOMER
+  // ADD
   // =====================
   const addCustomer = async () => {
     if (!company || !contact || !nextDate) {
@@ -89,6 +93,7 @@ export default function Dashboard() {
       lastContact: new Date().toISOString().split("T")[0],
       notes,
       notesHistory: [],
+      activityLog: [],
       createdAt: new Date().toISOString()
     });
 
@@ -103,23 +108,28 @@ export default function Dashboard() {
   };
 
   // =====================
-  // INLINE EDIT (UNCHANGED)
+  // INLINE EDIT (FIXED SAVE)
   // =====================
   const startEdit = (c) => {
     setEditingId(c.id);
     setEditData({
-      company: c.company,
-      contact: c.contact,
-      email: c.email,
-      phone: c.phone,
+      company: c.company || "",
+      contact: c.contact || "",
+      email: c.email || "",
+      phone: c.phone || "",
       nextCheckIn: formatDate(c.nextCheckIn),
       lastContact: formatDate(c.lastContact),
-      notes: c.notes
+      notes: c.notes || ""
     });
   };
 
   const saveEdit = async () => {
-    await updateDoc(doc(db, "customers", editingId), editData);
+    const ref = doc(db, "customers", editingId);
+
+    await updateDoc(ref, {
+      ...editData // ✅ FIX: ensures ALL fields persist correctly
+    });
+
     setEditingId(null);
     setEditData({});
     loadCustomers();
@@ -133,34 +143,79 @@ export default function Dashboard() {
   };
 
   // =====================
-  // FOLLOW UP / COMPLETED
+  // FOLLOW UP
   // =====================
   const handleFollowUp = async (c) => {
     const next = new Date();
     next.setDate(next.getDate() + 7);
-    const adjusted = adjustWeekend(next);
 
     await updateDoc(doc(db, "customers", c.id), {
-      nextCheckIn: adjusted
-    });
-
-    loadCustomers();
-  };
-
-  const handleCompleted = async (c) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() + 6);
-    const adjusted = adjustWeekend(d);
-
-    await updateDoc(doc(db, "customers", c.id), {
-      nextCheckIn: adjusted
+      nextCheckIn: adjustWeekend(next.toISOString())
     });
 
     loadCustomers();
   };
 
   // =====================
-  // MODAL OPEN (CLICK ANYWHERE EXCEPT BUTTONS/INPUTS)
+  // COMPLETED FLOW (NEW)
+  // =====================
+  const openCompletedPopup = (c) => {
+    setCompletedTarget(c);
+  };
+
+  const confirmCompleted = async () => {
+    if (!completedTarget) return;
+
+    const d = new Date();
+    d.setMonth(d.getMonth() + 6);
+
+    const activityEntry = {
+      type: "completed",
+      method: contactMethod,
+      timestamp: new Date().toISOString()
+    };
+
+    const ref = doc(db, "customers", completedTarget.id);
+
+    await updateDoc(ref, {
+      nextCheckIn: adjustWeekend(d.toISOString()),
+      activityLog: [
+        ...(completedTarget.activityLog || []),
+        activityEntry
+      ]
+    });
+
+    setCompletedTarget(null);
+    setContactMethod("phone");
+    loadCustomers();
+  };
+
+  // =====================
+  // MODAL NOTES SAVE (WITH HISTORY)
+  // =====================
+  const saveModalNotes = async () => {
+    const ref = doc(db, "customers", selected.id);
+
+    const historyEntry = {
+      text: selected.notes || "",
+      date: new Date().toISOString()
+    };
+
+    await updateDoc(ref, {
+      notes: modalNotes,
+      notesHistory: [
+        ...(selected.notesHistory || []),
+        historyEntry
+      ]
+    });
+
+    setSelected(null);
+    setModalNotes("");
+    loadCustomers();
+  };
+
+  // =====================
+  // OPEN MODAL (ANY CLICK EXCEPT BUTTONS)
   // =====================
   const openModal = (c, e) => {
     if (e?.target?.tagName === "BUTTON" || e?.target?.tagName === "INPUT") return;
@@ -169,36 +224,8 @@ export default function Dashboard() {
     setModalNotes(c.notes || "");
   };
 
-  const closeModal = () => {
-    setSelected(null);
-    setModalNotes("");
-  };
-
   // =====================
-  // SAVE NOTES + HISTORY WITH TIMESTAMP
-  // =====================
-  const saveModalNotes = async () => {
-    const ref = doc(db, "customers", selected.id);
-
-    const newHistoryItem = {
-      text: selected.notes || "",
-      date: new Date().toISOString() // last saved version timestamp
-    };
-
-    await updateDoc(ref, {
-      notes: modalNotes,
-      notesHistory: [
-        ...(selected.notesHistory || []),
-        newHistoryItem
-      ]
-    });
-
-    closeModal();
-    loadCustomers();
-  };
-
-  // =====================
-  // FILTER / SORT
+  // FILTER
   // =====================
   const filteredCustomers = useMemo(() => {
     return [...customers].sort(
@@ -302,8 +329,9 @@ export default function Dashboard() {
                   <input type="checkbox" onChange={() => handleFollowUp(c)} />
                   Follow Up
                 </label>
+
                 <label>
-                  <input type="checkbox" onChange={() => handleCompleted(c)} />
+                  <input type="checkbox" onChange={() => openCompletedPopup(c)} />
                   Completed
                 </label>
               </div>
@@ -325,7 +353,38 @@ export default function Dashboard() {
         );
       })}
 
-      {/* MODAL */}
+      {/* COMPLETED POPUP */}
+      {completedTarget && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center"
+        }}>
+          <div style={{ background: "white", padding: 20, borderRadius: 12 }}>
+            <h3>How was this contact made?</h3>
+
+            <select
+              value={contactMethod}
+              onChange={e => setContactMethod(e.target.value)}
+            >
+              <option value="phone">Phone</option>
+              <option value="email">Email</option>
+            </select>
+
+            <div style={{ marginTop: 10 }}>
+              <button onClick={confirmCompleted}>Confirm</button>
+              <button onClick={() => setCompletedTarget(null)} style={{ marginLeft: 10 }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NOTES HISTORY IN MODAL */}
       {selected && (
         <div style={{
           position: "fixed",
@@ -335,13 +394,7 @@ export default function Dashboard() {
           justifyContent: "center",
           alignItems: "center"
         }}>
-          <div style={{
-            background: "white",
-            width: 600,
-            padding: 20,
-            borderRadius: 12
-          }}>
-
+          <div style={{ background: "white", width: 600, padding: 20, borderRadius: 12 }}>
             <h2>{selected.company}</h2>
 
             <p>{selected.contact}</p>
@@ -356,19 +409,15 @@ export default function Dashboard() {
             />
 
             <button onClick={saveModalNotes}>Save Notes</button>
-            <button onClick={closeModal}>Close</button>
-            <button onClick={() => deleteCustomer(selected.id)} style={{ color: "red" }}>
-              Delete
-            </button>
 
-            <h4 style={{ marginTop: 15 }}>Notes History</h4>
+            <h4 style={{ marginTop: 15 }}>History</h4>
 
             {(selected.notesHistory || []).map((h, i) => (
               <div key={i} style={{
                 fontSize: 12,
                 background: "#f4f6f8",
-                padding: 6,
                 marginTop: 5,
+                padding: 6,
                 borderRadius: 6
               }}>
                 <div>{h.text}</div>
