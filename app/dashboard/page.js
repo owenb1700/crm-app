@@ -86,11 +86,8 @@ export default function Dashboard() {
     loadCustomers();
   }, []);
 
-  // =====================
-  // UPDATED ONLY HERE
-  // =====================
+  // ✅ UPDATED ADD LOGIC
   const addCustomer = async () => {
-    // CHANGED: allow company OR contact
     if (!company && !contact) {
       return alert("Please enter at least a company or contact name");
     }
@@ -278,6 +275,7 @@ export default function Dashboard() {
             <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
             <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
 
+            {/* ✅ LARGER NOTES */}
             <textarea
               placeholder="Notes"
               value={notes}
@@ -304,7 +302,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* LIST (UNCHANGED) */}
+      {/* LIST */}
       {filteredCustomers.map(c => {
         const days = diffDays(c.nextCheckIn);
 
@@ -315,6 +313,7 @@ export default function Dashboard() {
         return (
           <div
             key={c.id}
+            onClick={(e) => openModal(c, e)}
             style={{
               background: "white",
               padding: 15,
@@ -326,14 +325,32 @@ export default function Dashboard() {
               cursor: "pointer"
             }}
           >
+
             <div style={{ width: "35%" }}>
-              <b>{c.company}</b>
-              <div style={{ fontSize: 14, color: "#666" }}>{c.contact}</div>
-              <div style={{ fontSize: 10, color: "#888" }}>
-                {c.email || ""} | {formatPhone(c.phone)}
-              </div>
-              <div style={{ fontSize: 12 }}>Next: {formatDate(c.nextCheckIn)}</div>
-              <div style={{ fontSize: 12 }}>Last: {formatDate(c.lastContact)}</div>
+              {editingId === c.id ? (
+                <>
+                  <input value={editData.company} onChange={e => setEditData({ ...editData, company: e.target.value })} />
+                  <input value={editData.contact} onChange={e => setEditData({ ...editData, contact: e.target.value })} />
+                  <input value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} />
+                  <input value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
+
+                  <div style={{ fontSize: 10, marginTop: 6 }}>Next Date</div>
+                  <input type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
+
+                  <div style={{ fontSize: 10, marginTop: 6 }}>Last Contact</div>
+                  <input type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
+                </>
+              ) : (
+                <>
+                  <b>{c.company}</b>
+                  <div style={{ fontSize: 14, color: "#666" }}>{c.contact}</div>
+                  <div style={{ fontSize: 10, color: "#888" }}>
+                    {c.email || ""} | {formatPhone(c.phone)}
+                  </div>
+                  <div style={{ fontSize: 12 }}>Next: {formatDate(c.nextCheckIn)}</div>
+                  <div style={{ fontSize: 12 }}>Last: {formatDate(c.lastContact)}</div>
+                </>
+              )}
             </div>
 
             <div style={{
@@ -346,9 +363,30 @@ export default function Dashboard() {
               <div style={{ fontSize: 11 }}>{c.notes}</div>
             </div>
 
-            <div style={{ display: "flex", gap: 10 }}>
-              <button>Edit</button>
-              <button>Delete</button>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
+                <label>
+                  <input type="checkbox" onChange={() => handleFollowUp(c)} />
+                  Follow Up
+                </label>
+
+                <label>
+                  <input type="checkbox" onChange={() => openCompletedPopup(c)} />
+                  Completed
+                </label>
+              </div>
+
+              {editingId === c.id ? (
+                <>
+                  <button onClick={saveEdit}>Save</button>
+                  <button onClick={() => setEditingId(null)}>Cancel</button>
+                  <button onClick={() => deleteCustomer(c.id)} style={{ color: "red" }}>
+                    Delete
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => startEdit(c)}>Edit</button>
+              )}
             </div>
           </div>
         );
@@ -356,4 +394,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
