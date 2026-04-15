@@ -38,6 +38,10 @@ export default function Dashboard() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // ✅ NEW: inline notes editing state
+  const [editingNotesId, setEditingNotesId] = useState(null);
+  const [editingNotesValue, setEditingNotesValue] = useState("");
+
   const col = collection(db, "customers");
 
   const showToast = (msg) => {
@@ -86,7 +90,6 @@ export default function Dashboard() {
     loadCustomers();
   }, []);
 
-  // ✅ UPDATED ADD LOGIC
   const addCustomer = async () => {
     if (!company && !contact) {
       return alert("Please enter at least a company or contact name");
@@ -222,6 +225,18 @@ export default function Dashboard() {
     loadCustomers();
   };
 
+  // ✅ NEW: save inline notes
+  const saveInlineNotes = async (c) => {
+    await updateDoc(doc(db, "customers", c.id), {
+      notes: editingNotesValue
+    });
+
+    setEditingNotesId(null);
+    setEditingNotesValue("");
+    showToast("Notes updated");
+    loadCustomers();
+  };
+
   const filteredCustomers = useMemo(() => {
     let list = [...customers].sort(
       (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
@@ -254,7 +269,6 @@ export default function Dashboard() {
         <button onClick={() => setAddOpen(true)}>+ ADD ENTRY</button>
       </div>
 
-      {/* ADD MODAL */}
       {addOpen && (
         <div style={{
           position: "fixed",
@@ -275,7 +289,6 @@ export default function Dashboard() {
             <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
             <input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
 
-            {/* ✅ LARGER NOTES */}
             <textarea
               placeholder="Notes"
               value={notes}
@@ -288,7 +301,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* SEARCH */}
       <div style={{ marginBottom: 15, display: "flex", gap: 10, alignItems: "center" }}>
         <button onClick={() => setSearchOpen(!searchOpen)}>🔍</button>
 
@@ -302,7 +314,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* LIST */}
       {filteredCustomers.map(c => {
         const days = diffDays(c.nextCheckIn);
 
@@ -327,66 +338,55 @@ export default function Dashboard() {
           >
 
             <div style={{ width: "35%" }}>
-              {editingId === c.id ? (
-                <>
-                  <input value={editData.company} onChange={e => setEditData({ ...editData, company: e.target.value })} />
-                  <input value={editData.contact} onChange={e => setEditData({ ...editData, contact: e.target.value })} />
-                  <input value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} />
-                  <input value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
-
-                  <div style={{ fontSize: 10, marginTop: 6 }}>Next Date</div>
-                  <input type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
-
-                  <div style={{ fontSize: 10, marginTop: 6 }}>Last Contact</div>
-                  <input type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
-                </>
-              ) : (
-                <>
-                  <b>{c.company}</b>
-                  <div style={{ fontSize: 14, color: "#666" }}>{c.contact}</div>
-                  <div style={{ fontSize: 10, color: "#888" }}>
-                    {c.email || ""} | {formatPhone(c.phone)}
-                  </div>
-                  <div style={{ fontSize: 12 }}>Next: {formatDate(c.nextCheckIn)}</div>
-                  <div style={{ fontSize: 12 }}>Last: {formatDate(c.lastContact)}</div>
-                </>
-              )}
+              <b>{c.company}</b>
+              <div style={{ fontSize: 14, color: "#666" }}>{c.contact}</div>
+              <div style={{ fontSize: 10, color: "#888" }}>
+                {c.email || ""} | {formatPhone(c.phone)}
+              </div>
+              <div style={{ fontSize: 12 }}>Next: {formatDate(c.nextCheckIn)}</div>
+              <div style={{ fontSize: 12 }}>Last: {formatDate(c.lastContact)}</div>
             </div>
 
-            <div style={{
-              flex: 1,
-              margin: "0 15px",
-              background: "#f3f5f7",
-              padding: 10,
-              borderRadius: 8
-            }}>
-              <div style={{ fontSize: 11 }}>{c.notes}</div>
+            {/* ✅ UPDATED NOTES CLICK TO EDIT */}
+            <div
+              style={{
+                flex: 1,
+                margin: "0 15px",
+                background: "#f3f5f7",
+                padding: 10,
+                borderRadius: 8
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingNotesId(c.id);
+                setEditingNotesValue(c.notes || "");
+              }}
+            >
+              {editingNotesId === c.id ? (
+                <textarea
+                  autoFocus
+                  value={editingNotesValue}
+                  onChange={(e) => setEditingNotesValue(e.target.value)}
+                  onBlur={() => saveInlineNotes(c)}
+                  style={{ width: "100%", fontSize: 11 }}
+                />
+              ) : (
+                <div style={{ fontSize: 11 }}>{c.notes}</div>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
-                <label>
-                  <input type="checkbox" onChange={() => handleFollowUp(c)} />
-                  Follow Up
-                </label>
+              <label>
+                <input type="checkbox" onChange={() => handleFollowUp(c)} />
+                Follow Up
+              </label>
 
-                <label>
-                  <input type="checkbox" onChange={() => openCompletedPopup(c)} />
-                  Completed
-                </label>
-              </div>
+              <label>
+                <input type="checkbox" onChange={() => openCompletedPopup(c)} />
+                Completed
+              </label>
 
-              {editingId === c.id ? (
-                <>
-                  <button onClick={saveEdit}>Save</button>
-                  <button onClick={() => setEditingId(null)}>Cancel</button>
-                  <button onClick={() => deleteCustomer(c.id)} style={{ color: "red" }}>
-                    Delete
-                  </button>
-                </>
-              ) : (
-                <button onClick={() => startEdit(c)}>Edit</button>
-              )}
+              <button onClick={() => startEdit(c)}>Edit</button>
             </div>
           </div>
         );
@@ -394,4 +394,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
