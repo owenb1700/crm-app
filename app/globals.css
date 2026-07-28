@@ -1,0 +1,684 @@
+:root {
+  --color-bg: #f4f6f9;
+  --color-surface: #ffffff;
+  --color-border: #e2e6ec;
+  --color-text: #1a2233;
+  --color-text-muted: #6b7280;
+  --color-primary: #2f5bea;
+  --color-primary-hover: #2447c0;
+  --color-danger: #e0433a;
+  --color-danger-bg: #fdecea;
+  --color-warning: #f1c40f;
+  --color-success: #1f9d55;
+  --radius: 10px;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.10);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.18);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+/* ---------- shared form controls ---------- */
+
+.field {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(47, 91, 234, 0.15);
+}
+
+.field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  margin: 10px 0 4px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.05s ease;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--color-primary-hover);
+}
+
+.btn-secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.btn-secondary:hover {
+  background: #f0f2f6;
+}
+
+.btn-danger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-color: #f6cfcb;
+}
+
+.btn-danger:hover {
+  background: #fbdbd7;
+}
+
+.btn-icon {
+  padding: 8px 10px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.btn-icon:hover {
+  background: #f0f2f6;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.link-muted {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.link-muted:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* ---------- login page ---------- */
+
+.auth-page {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  min-height: 100vh;
+}
+
+.auth-visual {
+  position: relative;
+  overflow: hidden;
+  background: #0d1424;
+}
+
+.auth-visual-content {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 48px;
+}
+
+.auth-logo {
+  width: 200px;
+  height: auto;
+  margin-bottom: 16px;
+}
+
+.auth-visual-tagline {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 15px;
+  max-width: 360px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.carousel {
+  position: absolute;
+  inset: 0;
+}
+
+.carousel-slide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+.carousel-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(13, 20, 36, 0.55) 0%, rgba(13, 20, 36, 0.85) 100%);
+  z-index: 1;
+}
+
+.auth-form-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--color-bg);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  padding: 32px 28px;
+}
+
+.auth-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.auth-subtitle {
+  margin: 0 0 24px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.auth-footer {
+  margin-top: 16px;
+  text-align: center;
+}
+
+@media (max-width: 860px) {
+  .auth-page {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-visual {
+    display: none;
+  }
+}
+
+/* ---------- modal ---------- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  z-index: 50;
+}
+
+.modal-card {
+  background: var(--color-surface);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+  width: 100%;
+  max-width: 420px;
+  position: relative;
+}
+
+.modal-card.modal-wide {
+  max-width: 620px;
+}
+
+.modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  background: #f0f2f6;
+  color: var(--color-text);
+}
+
+.modal-title {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.modal-subtitle {
+  margin: 0 0 16px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ---------- dashboard ---------- */
+
+.dashboard-page {
+  padding: 32px;
+  min-height: 100vh;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -32px -32px 24px;
+  padding: 18px 32px;
+  background: #0d1424;
+  box-shadow: var(--shadow-md);
+}
+
+.dashboard-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.dashboard-logo {
+  height: 28px;
+  width: auto;
+}
+
+.dashboard-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.dashboard-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar-menu {
+  position: relative;
+}
+
+.avatar-circle {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.avatar-circle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.avatar-dropdown {
+  display: none;
+  position: absolute;
+  /* Touches the trigger (no gap) so the hoverable hit area is continuous
+     between the circle and the panel -- the visual gap below comes from
+     padding-top instead, which (unlike a positional offset) is still part
+     of this element's hoverable box. */
+  top: 100%;
+  right: 0;
+  width: 220px;
+  padding-top: 8px;
+  z-index: 40;
+}
+
+.avatar-menu:hover .avatar-dropdown,
+.avatar-menu:focus-within .avatar-dropdown {
+  display: block;
+}
+
+.avatar-dropdown-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  padding: 14px;
+}
+
+.avatar-dropdown-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.avatar-dropdown-email {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  word-break: break-all;
+}
+
+.avatar-dropdown-role {
+  margin-top: 8px;
+  margin-bottom: 12px;
+}
+
+.view-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab-btn {
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  color: var(--color-text);
+}
+
+.tab-btn-active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.owner-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.private-note-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+}
+
+.collab-requests {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.collab-request-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.collab-request-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.admin-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 760px;
+}
+
+.admin-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.admin-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.admin-table-actions {
+  display: flex;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: #eef1f6;
+  color: var(--color-text-muted);
+}
+
+.role-badge-admin {
+  background: rgba(47, 91, 234, 0.12);
+  color: var(--color-primary);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.toolbar .field {
+  margin-bottom: 0;
+}
+
+.customer-card {
+  background: var(--color-surface);
+  padding: 18px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--color-border);
+  border-left-width: 5px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.05s ease;
+}
+
+.customer-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.customer-card-left {
+  width: 35%;
+  min-width: 0;
+}
+
+.customer-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.customer-contact {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.customer-meta {
+  font-size: 11px;
+  color: #98a2b3;
+  margin-top: 4px;
+}
+
+.customer-dates {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+}
+
+.customer-card-middle {
+  flex: 1;
+  background: #f6f7fa;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.customer-card-right {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge-bar-overdue {
+  border-left-color: var(--color-danger) !important;
+}
+
+.badge-bar-soon {
+  border-left-color: var(--color-warning) !important;
+}
+
+.badge-bar-ok {
+  border-left-color: transparent !important;
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a2233;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  box-shadow: var(--shadow-lg);
+  z-index: 60;
+}
+
+.notes-history-item {
+  font-size: 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.notes-history-date {
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}

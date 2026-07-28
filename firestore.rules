@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function customerData(customerId) {
+      return get(/databases/$(database)/documents/customers/$(customerId)).data;
+    }
+
+    function isOwner(customerId) {
+      return customerData(customerId).ownerId == request.auth.uid;
+    }
+
+    function isCollaborator(customerId) {
+      return request.auth.uid in customerData(customerId).get('collaboratorIds', []);
+    }
+
+    // Marks that the one-time bootstrap admin has been created, so no one
+    // else can self-assign the admin role after that point.
+    match /system/config {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && !exists(/databases/$(database)/documents/system/config);
+      allow update: if isAdmin();
+    }
+
+    // Publicly readable (no auth) so the forgot-password screen can refuse
+    // to send a reset email for a disabled account before anyone signs in.
+    // Exposes nothing but a boolean per email -- no names, roles, or uids.
+    match /disabledEmails/{email} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (request.auth.uid == userId && request.resource.data.role == 'member') ||
+        (request.auth.uid == userId && request.resource.data.role == 'admin' &&
+          !exists(/databases/$(database)/documents/system/config))
+      );
+
+      // Self-updates cannot change your own role or disabled status --
+      // only an existing admin can promote/demote or deactivate anyone.
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (request.auth.uid == userId &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.disabled == resource.data.disabled)
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /customers/{customerId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow delete: if isSignedIn() &&
+        (resource.data.ownerId == request.auth.uid || isAdmin());
+
+      // Owner/admin can change anything. A collaborator may ALSO update,
+      // but only to remove themselves from collaboratorIds -- nothing else
+      // about the entry, and they can't touch anyone else's access.
+      allow update: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        isAdmin() ||
+        (
+          request.auth.uid in resource.data.get('collaboratorIds', []) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['collaboratorIds']) &&
+          !(request.auth.uid in request.resource.data.get('collaboratorIds', []))
+        )
+      );
+
+      // Notes are visible to the owner, any approved collaborator, or any
+      // admin (read-only for admin -- they can see but not silently edit
+      // someone else's notes).
+      match /private/{doc} {
+        allow read: if isSignedIn() &&
+          (isOwner(customerId) || isCollaborator(customerId) || isAdmin());
+        allow write: if isSignedIn() &&
+          (isOwner(customerId) || isCollaborator(customerId));
+      }
+
+      // A teammate can request to collaborate on an entry they don't own.
+      // Only the owner (or the requester themselves, to cancel) can
+      // approve/deny by updating or deleting the request.
+      match /collabRequests/{requesterId} {
+        allow read: if isSignedIn() &&
+          (request.auth.uid == requesterId || isOwner(customerId) || isAdmin());
+        allow create: if isSignedIn() &&
+          request.auth.uid == requesterId && !isOwner(customerId);
+        allow update, delete: if isSignedIn() &&
+          (isOwner(customerId) || request.auth.uid == requesterId);
+      }
+    }
+  }
+}
