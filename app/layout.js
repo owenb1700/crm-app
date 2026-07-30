@@ -7,7 +7,12 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <footer className="site-footer">
+          © {new Date().getFullYear()} Bullock Logan. All rights reserved.
+        </footer>
+      </body>
     </html>
   );
 }

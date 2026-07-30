@@ -8,9 +8,11 @@
     "start": "next start"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.1098.0",
+    "firebase": "^10.0.0",
     "next": "latest",
+    "nodemailer": "^9.0.3",
     "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "firebase": "^10.0.0"
+    "react-dom": "18.2.0"
   }
 }

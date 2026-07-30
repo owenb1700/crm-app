@@ -25,6 +25,8 @@ import {
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
+const CATEGORY_OPTIONS = ["Pre-Bid", "Prospecting", "Ongoing Project", "Order", "Parts"];
+
 const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
 };
@@ -44,6 +46,10 @@ export default function Dashboard() {
   const [nameLast, setNameLast] = useState("");
   const [myProfile, setMyProfile] = useState(null);
   const [showUserSettings, setShowUserSettings] = useState(false);
+  const [notifySundayDigest, setNotifySundayDigest] = useState(true);
+  const [notifyWednesdayDigest, setNotifyWednesdayDigest] = useState(true);
+  const [notifyCollabRequest, setNotifyCollabRequest] = useState(true);
+  const [notifyCollabApproved, setNotifyCollabApproved] = useState(true);
 
   const [customers, setCustomers] = useState([]);
   const [notesById, setNotesById] = useState({});
@@ -62,6 +68,7 @@ export default function Dashboard() {
   const [phone, setPhone] = useState("");
   const [nextDate, setNextDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [category, setCategory] = useState("");
 
   // NEW MODAL STATE
   const [showAddModal, setShowAddModal] = useState(false);
@@ -91,6 +98,8 @@ export default function Dashboard() {
   // ADMIN: create user form
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserRole, setNewUserRole] = useState("member");
+  const [newUserFirstName, setNewUserFirstName] = useState("");
+  const [newUserLastName, setNewUserLastName] = useState("");
 
   const col = collection(db, "customers");
 
@@ -106,6 +115,7 @@ export default function Dashboard() {
     setPhone("");
     setNextDate("");
     setNotes("");
+    setCategory("");
   };
 
   const formatPhone = (phone) => {
@@ -230,14 +240,37 @@ export default function Dashboard() {
     setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   };
 
-  const requestCollaborate = async (customerId) => {
-    await setDoc(doc(db, "customers", customerId, "collabRequests", uid), {
+  const sendNotificationEmail = async (to, subject, html) => {
+    try {
+      await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, subject, html })
+      });
+    } catch {
+      // best-effort -- don't let a failed email break the actual action
+    }
+  };
+
+  const requestCollaborate = async (c) => {
+    const requesterName = myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email;
+
+    await setDoc(doc(db, "customers", c.id, "collabRequests", uid), {
       requesterId: uid,
-      requesterName: myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email,
+      requesterName,
       requestedAt: new Date().toISOString()
     });
-    setRequestedIds(prev => new Set(prev).add(customerId));
+    setRequestedIds(prev => new Set(prev).add(c.id));
     showToast("Collaboration requested");
+
+    const owner = users.find(u => u.id === c.ownerId);
+    if (owner?.email && owner.notifyCollabRequest !== false) {
+      sendNotificationEmail(
+        owner.email,
+        `${requesterName} wants to collaborate on ${c.company}`,
+        `<p>${requesterName} has requested to collaborate on <strong>${c.company}</strong>. Log in to your CRM dashboard to approve or deny.</p>`
+      );
+    }
   };
 
   const approveRequest = async (customerId, request) => {
@@ -246,6 +279,17 @@ export default function Dashboard() {
     });
     await deleteDoc(doc(db, "customers", customerId, "collabRequests", request.id));
     showToast(`${request.requesterName} can now collaborate on this entry`);
+
+    const requester = users.find(u => u.id === request.requesterId);
+    const c = customers.find(c => c.id === customerId);
+    if (requester?.email && requester.notifyCollabApproved !== false) {
+      sendNotificationEmail(
+        requester.email,
+        `You can now collaborate on ${c?.company || "an entry"}`,
+        `<p>Your request to collaborate on <strong>${c?.company || "this entry"}</strong> was approved. It now shows up in your My Dashboard.</p>`
+      );
+    }
+
     loadCustomers(uid, role === "admin");
   };
 
@@ -286,6 +330,18 @@ export default function Dashboard() {
     setMyProfile(prev => ({ ...(prev || {}), email: auth.currentUser?.email, role, firstName, lastName }));
     setNeedsName(false);
     await loadCustomers(uid, role === "admin");
+  };
+
+  const saveNotificationSettings = async () => {
+    await updateDoc(doc(db, "users", uid), {
+      notifySundayDigest,
+      notifyWednesdayDigest,
+      notifyCollabRequest,
+      notifyCollabApproved
+    });
+    setMyProfile(prev => ({ ...(prev || {}), notifySundayDigest, notifyWednesdayDigest, notifyCollabRequest, notifyCollabApproved }));
+    showToast("Notification settings saved");
+    setShowUserSettings(false);
   };
 
   const logout = async () => {
@@ -359,6 +415,10 @@ export default function Dashboard() {
           setNeedsName(true);
         } else {
           setMyProfile(profile);
+          setNotifySundayDigest(profile.notifySundayDigest !== false);
+          setNotifyWednesdayDigest(profile.notifyWednesdayDigest !== false);
+          setNotifyCollabRequest(profile.notifyCollabRequest !== false);
+          setNotifyCollabApproved(profile.notifyCollabApproved !== false);
           await loadCustomers(user.uid, profile.role === "admin");
         }
       } catch (err) {
@@ -389,6 +449,7 @@ export default function Dashboard() {
       contact,
       email,
       phone,
+      category: category || null,
       nextCheckIn: adjustWeekend(nextDate),
       lastContact: new Date().toISOString().split("T")[0],
       activityLog: [],
@@ -416,6 +477,7 @@ export default function Dashboard() {
       contact: c.contact || "",
       email: c.email || "",
       phone: c.phone || "",
+      category: c.category || "",
       nextCheckIn: formatDate(c.nextCheckIn),
       lastContact: formatDate(c.lastContact)
     });
@@ -525,6 +587,21 @@ export default function Dashboard() {
     loadCustomers(uid, role === "admin");
   };
 
+  const deleteHistoryEntry = async (customerId, index) => {
+    if (!window.confirm("Delete this note entry? This can't be undone.")) return;
+
+    const existing = notesById[customerId] || { notesHistory: [] };
+    const newHistory = (existing.notesHistory || []).filter((_, i) => i !== index);
+
+    await setDoc(doc(db, "customers", customerId, "private", "data"), {
+      ...existing,
+      notesHistory: newHistory
+    });
+
+    setNotesById(prev => ({ ...prev, [customerId]: { ...existing, notesHistory: newHistory } }));
+    showToast("Note entry deleted");
+  };
+
   const filteredCustomers = useMemo(() => {
     let list = customers.filter(c => c.ownerId === uid || (c.collaboratorIds || []).includes(uid));
     list = [...list].sort(
@@ -585,6 +662,8 @@ export default function Dashboard() {
       await setDoc(doc(db, "users", cred.user.uid), {
         email: newUserEmail,
         role: newUserRole,
+        firstName: newUserFirstName.trim() || null,
+        lastName: newUserLastName.trim() || null,
         disabled: false,
         createdAt: new Date().toISOString()
       });
@@ -592,9 +671,21 @@ export default function Dashboard() {
       await sendPasswordResetEmail(secondaryAuth, newUserEmail);
       await signOut(secondaryAuth);
 
+      try {
+        await fetch("/api/verify-ses-identity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: newUserEmail })
+        });
+      } catch {
+        // best-effort -- account creation already succeeded either way
+      }
+
       setNewUserEmail("");
       setNewUserRole("member");
-      showToast("Account created — setup email sent");
+      setNewUserFirstName("");
+      setNewUserLastName("");
+      showToast("Account created — setup email + SES verification email sent");
       loadUsers();
     } catch (err) {
       alert(err.message || "Could not create account");
@@ -716,7 +807,48 @@ export default function Dashboard() {
           <div className="modal-card">
             <button className="modal-close" onClick={() => setShowUserSettings(false)}>✕</button>
             <h3 className="modal-title">User Settings</h3>
-            <p className="modal-subtitle">More options coming soon.</p>
+
+            <h4 className="field-label" style={{ marginTop: 4 }}>Email Notifications</h4>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+              <input
+                type="checkbox"
+                checked={notifySundayDigest}
+                onChange={e => setNotifySundayDigest(e.target.checked)}
+              />
+              Sunday evening digest (due this week + overdue)
+            </label>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+              <input
+                type="checkbox"
+                checked={notifyWednesdayDigest}
+                onChange={e => setNotifyWednesdayDigest(e.target.checked)}
+              />
+              Wednesday morning digest (due by Monday + overdue)
+            </label>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+              <input
+                type="checkbox"
+                checked={notifyCollabRequest}
+                onChange={e => setNotifyCollabRequest(e.target.checked)}
+              />
+              Someone requests to collaborate on my entry
+            </label>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+              <input
+                type="checkbox"
+                checked={notifyCollabApproved}
+                onChange={e => setNotifyCollabApproved(e.target.checked)}
+              />
+              My collaboration request is approved
+            </label>
+
+            <button className="btn btn-primary btn-block" style={{ marginTop: 16 }} onClick={saveNotificationSettings}>
+              Save
+            </button>
           </div>
         </div>
       )}
@@ -757,6 +889,10 @@ export default function Dashboard() {
                 <input className="field" placeholder="Contact" value={contact} onChange={e => setContact(e.target.value)} />
                 <input className="field" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
                 <input className="field" placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
+                <select className="field" value={category} onChange={e => setCategory(e.target.value)}>
+                  <option value="">Select category...</option>
+                  {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
                 <input className="field" type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
                 <input className="field" placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
 
@@ -807,6 +943,12 @@ export default function Dashboard() {
                       <input className="field" value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} />
                       <input className="field" value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
 
+                      <div className="field-label">Category</div>
+                      <select className="field" value={editData.category} onChange={e => setEditData({ ...editData, category: e.target.value })}>
+                        <option value="">Select category...</option>
+                        {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+
                       <div className="field-label">Next Date</div>
                       <input
                         className="field"
@@ -834,6 +976,8 @@ export default function Dashboard() {
                       <div className="customer-meta">
                         {c.email || ""} | {formatPhone(c.phone)}
                       </div>
+
+                      {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
 
                       <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
                       <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>
@@ -963,9 +1107,12 @@ export default function Dashboard() {
 
                 <h4 className="field-label">History</h4>
                 {(notesById[selected.id]?.notesHistory || []).map((h, i) => (
-                  <div key={i} className="notes-history-item">
-                    <div>{h.text}</div>
-                    <div className="notes-history-date">{h.authorName || "Unknown"} · {h.date}</div>
+                  <div key={i} className="notes-history-item notes-history-row">
+                    <div>
+                      <div>{h.text}</div>
+                      <div className="notes-history-date">{h.authorName || "Unknown"} · {h.date}</div>
+                    </div>
+                    <button className="btn btn-danger" onClick={() => deleteHistoryEntry(selected.id, i)}>Delete</button>
                   </div>
                 ))}
               </div>
@@ -1026,6 +1173,7 @@ export default function Dashboard() {
                   <div className="customer-meta">
                     {c.email || ""} | {formatPhone(c.phone)}
                   </div>
+                  {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
                   <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
                   <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>
                 </div>
@@ -1046,7 +1194,7 @@ export default function Dashboard() {
                     <button
                       className="btn btn-secondary"
                       disabled={hasRequested}
-                      onClick={(e) => { e.stopPropagation(); requestCollaborate(c.id); }}
+                      onClick={(e) => { e.stopPropagation(); requestCollaborate(c); }}
                     >
                       {hasRequested ? "Requested" : "Request to Collaborate"}
                     </button>
@@ -1119,7 +1267,7 @@ export default function Dashboard() {
                     <button
                       className="btn btn-primary"
                       disabled={requestedIds.has(teamSelected.id)}
-                      onClick={() => requestCollaborate(teamSelected.id)}
+                      onClick={() => requestCollaborate(teamSelected)}
                     >
                       {requestedIds.has(teamSelected.id) ? "Requested" : "Request to Collaborate"}
                     </button>
@@ -1141,6 +1289,22 @@ export default function Dashboard() {
           <div className="admin-card">
             <h3 className="modal-title">Create Account</h3>
 
+            <label className="field-label">First Name (optional)</label>
+            <input
+              className="field"
+              placeholder="First name"
+              value={newUserFirstName}
+              onChange={e => setNewUserFirstName(e.target.value)}
+            />
+
+            <label className="field-label">Last Name (optional)</label>
+            <input
+              className="field"
+              placeholder="Last name"
+              value={newUserLastName}
+              onChange={e => setNewUserLastName(e.target.value)}
+            />
+
             <label className="field-label">Email</label>
             <input
               className="field"
@@ -1158,6 +1322,7 @@ export default function Dashboard() {
             <button className="btn btn-primary" onClick={createUser}>Create Account</button>
             <p className="modal-subtitle" style={{ marginTop: 10 }}>
               They'll get an email to set their own password.
+              {(!newUserFirstName || !newUserLastName) && " If you skip the name fields, they'll be asked for it on first login."}
             </p>
           </div>
 

@@ -35,6 +35,14 @@ button {
   font-family: inherit;
 }
 
+.site-footer {
+  text-align: center;
+  padding: 16px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+}
+
 input,
 select,
 textarea {
@@ -681,4 +689,11 @@ a {
 .notes-history-date {
   color: var(--color-text-muted);
   margin-top: 2px;
+}
+
+.notes-history-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
 }
