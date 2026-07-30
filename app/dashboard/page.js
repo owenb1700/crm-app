@@ -25,7 +25,7 @@ import {
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
-const CATEGORY_OPTIONS = ["Pre-Bid", "Prospecting", "Ongoing Project", "Order", "Parts"];
+const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
 
 const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
@@ -543,8 +543,7 @@ export default function Dashboard() {
     loadCustomers(uid, role === "admin");
   };
 
-  const openModal = async (c, e) => {
-    if (e?.target?.tagName === "BUTTON" || e?.target?.tagName === "INPUT") return;
+  const openModal = async (c) => {
     setSelected(c);
     const noteSnap = await getDoc(doc(db, "customers", c.id, "private", "data"));
     const data = noteSnap.exists() ? noteSnap.data() : { notes: "", notesHistory: [] };
@@ -929,7 +928,6 @@ export default function Dashboard() {
             return (
               <div
                 key={c.id}
-                onClick={(e) => openModal(c, e)}
                 className={`customer-card ${barClass}`}
               >
 
@@ -987,7 +985,7 @@ export default function Dashboard() {
 
                 {/* MIDDLE */}
                 <div className="customer-card-middle">
-                  <div>
+                  <div className="customer-notes-preview" onClick={() => openModal(c)}>
                     {notesById[c.id]?.notes}
                   </div>
 
@@ -1166,6 +1164,7 @@ export default function Dashboard() {
                 key={c.id}
                 onClick={() => openTeamModal(c)}
                 className={`customer-card ${barClass}`}
+                style={{ cursor: "pointer" }}
               >
                 <div className="customer-card-left">
                   <div className="customer-name">{c.company}</div>
