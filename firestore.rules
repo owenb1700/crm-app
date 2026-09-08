@@ -100,6 +100,60 @@ service cloud.firestore {
         allow update, delete: if isSignedIn() &&
           (isOwner(customerId) || request.auth.uid == requesterId);
       }
+
+      // Drawings are NOT private -- unlike notes, anyone signed in can see
+      // a project's uploaded PDFs (same "everyone can view" model as the
+      // rest of the project record). Only the owner/admin can upload or
+      // delete, matching who can edit the project itself.
+      match /drawings/{doc} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && (isOwner(customerId) || isAdmin());
+      }
+    }
+
+    // PIPELINE: pre-bid/bidding/design/budgeting opportunities, tracked
+    // separately from won projects. Same "everyone can view, owner+admin
+    // can edit" model as customers, without the collaboration workflow.
+    match /pipeline/{pipelineId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isSignedIn() &&
+        (resource.data.ownerId == request.auth.uid || isAdmin());
+
+      // Notes + files are private to the owner (read-only for admin).
+      match /private/{doc} {
+        allow read: if isSignedIn() &&
+          (get(/databases/$(database)/documents/pipeline/$(pipelineId)).data.ownerId == request.auth.uid || isAdmin());
+        allow write: if isSignedIn() &&
+          get(/databases/$(database)/documents/pipeline/$(pipelineId)).data.ownerId == request.auth.uid;
+      }
+    }
+
+    // DIRECTORY: shared company/contact reference data, built up
+    // automatically from projects and pipeline entries plus manual edits.
+    // Not owned by any one person -- any signed-in user can read, create,
+    // or update (so the whole team can enrich/correct shared records);
+    // only admins can delete, to guard against accidental data loss.
+    match /companies/{companyId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    match /contacts/{contactId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    // Tower models (manufacturer + model number) with their shared PDF
+    // drawings -- same shared-reference-data model as companies/contacts.
+    // Drawings live in the "drawings" array field directly on this doc,
+    // so no extra subcollection rule is needed for them.
+    match /towerModels/{modelId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
     }
   }
 }

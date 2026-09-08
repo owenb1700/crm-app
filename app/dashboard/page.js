@@ -22,10 +22,15 @@ import {
   arrayUnion,
   arrayRemove
 } from "firebase/firestore";
+import { ensureCompanyAndContact, ensureCompanyAndContactBatch } from "../../lib/directory";
+import { ensureTowerModel } from "../../lib/towerModels";
+import CompanyContactFields from "../components/CompanyContactFields";
+import AddressAutocomplete from "../components/AddressAutocomplete";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
+const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Design", "Budgeting"];
 
 const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
@@ -38,7 +43,8 @@ export default function Dashboard() {
   const [uid, setUid] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [role, setRole] = useState(null); // 'admin' | 'member' | null (loading)
-  const [view, setView] = useState("personal"); // 'personal' | 'team' | 'admin'
+  const [view, setView] = useState("home"); // 'home' | 'personal' | 'team' | 'admin'
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState(null); // null = "this week" panel
 
   // NAME COLLECTION (first login without a name on file)
   const [needsName, setNeedsName] = useState(false);
@@ -54,14 +60,19 @@ export default function Dashboard() {
   const [customers, setCustomers] = useState([]);
   const [notesById, setNotesById] = useState({});
   const [users, setUsers] = useState([]);
+  const [pipelineEntries, setPipelineEntries] = useState([]);
+  const [pipelineFilterOwner, setPipelineFilterOwner] = useState("all");
+  const [companies, setCompanies] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [towerModels, setTowerModels] = useState([]);
 
   // COLLABORATION
   const [requestsById, setRequestsById] = useState({}); // customerId -> pending requests on entries I own
   const [requestedIds, setRequestedIds] = useState(new Set()); // customerIds I've just requested (optimistic)
   const [teamFilterOwner, setTeamFilterOwner] = useState("all");
-  const [teamNotes, setTeamNotes] = useState(null); // admin-only: notes for the open team modal entry
 
   // FORM
+  const [projectName, setProjectName] = useState("");
   const [company, setCompany] = useState("");
   const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
@@ -69,6 +80,29 @@ export default function Dashboard() {
   const [nextDate, setNextDate] = useState("");
   const [notes, setNotes] = useState("");
   const [category, setCategory] = useState("");
+  const [projectValue, setProjectValue] = useState("");
+  const [equipmentType, setEquipmentType] = useState("");
+  const [towerManufacturer, setTowerManufacturer] = useState("");
+  const [modelNumber, setModelNumber] = useState("");
+  const [serialNumber, setSerialNumber] = useState("");
+  const [dateInstalled, setDateInstalled] = useState("");
+  const [projectAddress, setProjectAddress] = useState("");
+
+  // PIPELINE FORM
+  const [pipelineTitle, setPipelineTitle] = useState("");
+  const [pipelineStage, setPipelineStage] = useState("Pre-Bid");
+  const [pipelineBidDate, setPipelineBidDate] = useState("");
+  const [pipelineValue, setPipelineValue] = useState("");
+  const [pipelineCompany, setPipelineCompany] = useState("");
+  const [pipelineContact, setPipelineContact] = useState("");
+  const [pipelineEmail, setPipelineEmail] = useState("");
+  const [pipelinePhone, setPipelinePhone] = useState("");
+  const [pipelineNotes, setPipelineNotes] = useState("");
+  const [pipelineTowerManufacturer, setPipelineTowerManufacturer] = useState("");
+  const [pipelineModelNumber, setPipelineModelNumber] = useState("");
+  const [pipelineSerialNumber, setPipelineSerialNumber] = useState("");
+  const [biddingCompanies, setBiddingCompanies] = useState([]);
+  const [showAddPipelineModal, setShowAddPipelineModal] = useState(false);
 
   // NEW MODAL STATE
   const [showAddModal, setShowAddModal] = useState(false);
@@ -80,9 +114,6 @@ export default function Dashboard() {
   // MODAL
   const [selected, setSelected] = useState(null);
   const [modalNotes, setModalNotes] = useState("");
-
-  // TEAM MODAL
-  const [teamSelected, setTeamSelected] = useState(null);
 
   // COMPLETED
   const [completedTarget, setCompletedTarget] = useState(null);
@@ -109,6 +140,7 @@ export default function Dashboard() {
   };
 
   const clearForm = () => {
+    setProjectName("");
     setCompany("");
     setContact("");
     setEmail("");
@@ -116,6 +148,13 @@ export default function Dashboard() {
     setNextDate("");
     setNotes("");
     setCategory("");
+    setProjectValue("");
+    setEquipmentType("");
+    setTowerManufacturer("");
+    setModelNumber("");
+    setSerialNumber("");
+    setDateInstalled("");
+    setProjectAddress("");
   };
 
   const formatPhone = (phone) => {
@@ -240,6 +279,25 @@ export default function Dashboard() {
     setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   };
 
+  const loadPipeline = async () => {
+    const snap = await getDocs(collection(db, "pipeline"));
+    setPipelineEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  };
+
+  const loadDirectory = async () => {
+    const [companiesSnap, contactsSnap] = await Promise.all([
+      getDocs(collection(db, "companies")),
+      getDocs(collection(db, "contacts"))
+    ]);
+    setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+  };
+
+  const loadTowerModels = async () => {
+    const snap = await getDocs(collection(db, "towerModels"));
+    setTowerModels(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  };
+
   const sendNotificationEmail = async (to, subject, html) => {
     try {
       await fetch("/api/send-email", {
@@ -264,11 +322,12 @@ export default function Dashboard() {
     showToast("Collaboration requested");
 
     const owner = users.find(u => u.id === c.ownerId);
+    const projectLabel = c.projectName || c.company;
     if (owner?.email && owner.notifyCollabRequest !== false) {
       sendNotificationEmail(
         owner.email,
-        `${requesterName} wants to collaborate on ${c.company}`,
-        `<p>${requesterName} has requested to collaborate on <strong>${c.company}</strong>. Log in to your CRM dashboard to approve or deny.</p>`
+        `${requesterName} wants to collaborate on ${projectLabel}`,
+        `<p>${requesterName} has requested to collaborate on <strong>${projectLabel}</strong>. Log in to your CRM dashboard to approve or deny.</p>`
       );
     }
   };
@@ -282,11 +341,12 @@ export default function Dashboard() {
 
     const requester = users.find(u => u.id === request.requesterId);
     const c = customers.find(c => c.id === customerId);
+    const projectLabel = c?.projectName || c?.company || "an entry";
     if (requester?.email && requester.notifyCollabApproved !== false) {
       sendNotificationEmail(
         requester.email,
-        `You can now collaborate on ${c?.company || "an entry"}`,
-        `<p>Your request to collaborate on <strong>${c?.company || "this entry"}</strong> was approved. It now shows up in your My Dashboard.</p>`
+        `You can now collaborate on ${projectLabel}`,
+        `<p>Your request to collaborate on <strong>${projectLabel}</strong> was approved. It now shows up in your My Dashboard.</p>`
       );
     }
 
@@ -310,14 +370,6 @@ export default function Dashboard() {
     loadCustomers(uid, role === "admin");
   };
 
-  const openTeamModal = async (c) => {
-    setTeamSelected(c);
-    setTeamNotes(null);
-    if (role === "admin") {
-      const noteSnap = await getDoc(doc(db, "customers", c.id, "private", "data"));
-      setTeamNotes(noteSnap.exists() ? noteSnap.data() : { notes: "", notesHistory: [] });
-    }
-  };
 
   const saveName = async () => {
     if (!nameFirst.trim() || !nameLast.trim()) {
@@ -420,6 +472,9 @@ export default function Dashboard() {
           setNotifyCollabRequest(profile.notifyCollabRequest !== false);
           setNotifyCollabApproved(profile.notifyCollabApproved !== false);
           await loadCustomers(user.uid, profile.role === "admin");
+          await loadPipeline();
+          await loadDirectory();
+          await loadTowerModels();
         }
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading your account.");
@@ -440,16 +495,24 @@ export default function Dashboard() {
 
   // ADD
   const addCustomer = async () => {
-    if (!company || !contact || !nextDate) {
-      return alert("Please fill required fields");
+    if (!projectName || !contact || !nextDate || !projectAddress) {
+      return alert("Please fill required fields, including the project address");
     }
 
     const ref = await addDoc(col, {
+      projectName,
       company,
       contact,
       email,
       phone,
       category: category || null,
+      projectValue: projectValue || null,
+      equipmentType: equipmentType || null,
+      towerManufacturer: towerManufacturer || null,
+      modelNumber: modelNumber || null,
+      serialNumber: serialNumber || null,
+      dateInstalled: dateInstalled || null,
+      projectAddress: projectAddress || null,
       nextCheckIn: adjustWeekend(nextDate),
       lastContact: new Date().toISOString().split("T")[0],
       activityLog: [],
@@ -463,6 +526,13 @@ export default function Dashboard() {
       notesHistory: []
     });
 
+    ensureCompanyAndContact({
+      companies, contacts, companyName: company, category: "Customer",
+      contactName: contact, email, phone, uid
+    }).then(loadDirectory);
+
+    ensureTowerModel({ towerModels, manufacturer: towerManufacturer, model: modelNumber, uid }).then(loadTowerModels);
+
     clearForm();
     setShowAddModal(false);
 
@@ -470,9 +540,84 @@ export default function Dashboard() {
     loadCustomers(uid, role === "admin");
   };
 
+  // PIPELINE
+  const clearPipelineForm = () => {
+    setPipelineTitle("");
+    setPipelineStage("Pre-Bid");
+    setPipelineBidDate("");
+    setPipelineValue("");
+    setPipelineCompany("");
+    setPipelineContact("");
+    setPipelineEmail("");
+    setPipelinePhone("");
+    setPipelineNotes("");
+    setBiddingCompanies([]);
+    setPipelineTowerManufacturer("");
+    setPipelineModelNumber("");
+    setPipelineSerialNumber("");
+  };
+
+  const addBiddingCompanyRow = () => {
+    setBiddingCompanies(prev => [...prev, { company: "", contact: "", email: "", phone: "" }]);
+  };
+
+  const updateBiddingCompanyRow = (index, field, value) => {
+    setBiddingCompanies(prev => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
+
+  const removeBiddingCompanyRow = (index) => {
+    setBiddingCompanies(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const addPipelineEntry = async () => {
+    if (!pipelineTitle) {
+      return alert("Please enter a project/opportunity name");
+    }
+
+    const ref = await addDoc(collection(db, "pipeline"), {
+      title: pipelineTitle,
+      stage: pipelineStage,
+      bidDate: pipelineBidDate || null,
+      value: pipelineValue || null,
+      company: pipelineCompany || null,
+      contact: pipelineContact || null,
+      email: pipelineEmail || null,
+      phone: pipelinePhone || null,
+      biddingCompanies: biddingCompanies.filter(r => r.company || r.contact),
+      towerManufacturer: pipelineTowerManufacturer || null,
+      modelNumber: pipelineModelNumber || null,
+      serialNumber: pipelineSerialNumber || null,
+      ownerId: uid,
+      convertedToProjectId: null,
+      createdAt: new Date().toISOString()
+    });
+
+    await setDoc(doc(db, "pipeline", ref.id, "private", "data"), {
+      notes: pipelineNotes,
+      notesHistory: [],
+      files: []
+    });
+
+    const captureEntries = [
+      { companyName: pipelineCompany, category: "Engineering Firm", contactName: pipelineContact, email: pipelineEmail, phone: pipelinePhone },
+      ...biddingCompanies
+        .filter(r => r.company || r.contact)
+        .map(r => ({ companyName: r.company, category: "Contractor", contactName: r.contact, email: r.email, phone: r.phone }))
+    ];
+    ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid }).then(loadDirectory);
+    ensureTowerModel({ towerModels, manufacturer: pipelineTowerManufacturer, model: pipelineModelNumber, uid }).then(loadTowerModels);
+
+    clearPipelineForm();
+    setShowAddPipelineModal(false);
+
+    showToast("Pipeline entry added");
+    loadPipeline();
+  };
+
   const startEdit = (c) => {
     setEditingId(c.id);
     setEditData({
+      projectName: c.projectName || c.company || "",
       company: c.company || "",
       contact: c.contact || "",
       email: c.email || "",
@@ -487,6 +632,11 @@ export default function Dashboard() {
     await updateDoc(doc(db, "customers", editingId), {
       ...editData
     });
+
+    ensureCompanyAndContact({
+      companies, contacts, companyName: editData.company, category: "Customer",
+      contactName: editData.contact, email: editData.email, phone: editData.phone, uid
+    }).then(loadDirectory);
 
     setEditingId(null);
     setEditData({});
@@ -611,14 +761,18 @@ export default function Dashboard() {
       const q = searchQuery.toLowerCase();
 
       list = list.filter(c =>
+        (c.projectName || "").toLowerCase().includes(q) ||
         (c.company || "").toLowerCase().includes(q) ||
         (c.contact || "").toLowerCase().includes(q) ||
-        (c.phone || "").toLowerCase().includes(q)
+        (c.phone || "").toLowerCase().includes(q) ||
+        (c.projectAddress || "").toLowerCase().includes(q) ||
+        (notesById[c.id]?.notes || "").toLowerCase().includes(q) ||
+        (notesById[c.id]?.notesHistory || []).some(h => (h.text || "").toLowerCase().includes(q))
       );
     }
 
     return list;
-  }, [customers, searchQuery, uid]);
+  }, [customers, searchQuery, uid, notesById]);
 
   const teamCustomers = useMemo(() => {
     let list = [...customers].sort(
@@ -633,14 +787,21 @@ export default function Dashboard() {
       const q = searchQuery.toLowerCase();
 
       list = list.filter(c =>
+        (c.projectName || "").toLowerCase().includes(q) ||
         (c.company || "").toLowerCase().includes(q) ||
         (c.contact || "").toLowerCase().includes(q) ||
-        (c.phone || "").toLowerCase().includes(q)
+        (c.phone || "").toLowerCase().includes(q) ||
+        (c.projectAddress || "").toLowerCase().includes(q) ||
+        // Notes are only searchable here for entries you actually have
+        // access to (owned/collaborating) -- notesById never contains
+        // other people's private notes, so this can't leak anything.
+        (notesById[c.id]?.notes || "").toLowerCase().includes(q) ||
+        (notesById[c.id]?.notesHistory || []).some(h => (h.text || "").toLowerCase().includes(q))
       );
     }
 
     return list;
-  }, [customers, searchQuery, teamFilterOwner]);
+  }, [customers, searchQuery, teamFilterOwner, notesById]);
 
   const ownerLabel = (ownerId) => {
     if (ownerId === uid) return "You";
@@ -648,6 +809,80 @@ export default function Dashboard() {
     if (!u) return "Teammate";
     return u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email;
   };
+
+  const filteredPipeline = useMemo(() => {
+    let list = [...pipelineEntries];
+
+    if (pipelineFilterOwner !== "all") {
+      list = list.filter(p => p.ownerId === pipelineFilterOwner);
+    }
+
+    return list.sort((a, b) => {
+      const aDate = a.bidDate || "9999-99-99";
+      const bDate = b.bidDate || "9999-99-99";
+      return aDate.localeCompare(bDate);
+    });
+  }, [pipelineEntries, pipelineFilterOwner]);
+
+  // HOME CALENDAR: next 4 weeks starting from the Sunday of the current week
+  const calendarDays = useMemo(() => {
+    const pad = n => String(n).padStart(2, "0");
+    const toKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const dow = start.getDay(); // 0 = Sun ... 6 = Sat
+    const diffToMonday = dow === 0 ? -6 : 1 - dow;
+    start.setDate(start.getDate() + diffToMonday);
+
+    const todayKey = toKey(new Date());
+
+    const days = [];
+    const cursor = new Date(start);
+    while (days.length < 20) {
+      const cursorDow = cursor.getDay();
+      if (cursorDow !== 0 && cursorDow !== 6) {
+        const key = toKey(cursor);
+        days.push({ date: new Date(cursor), key, isToday: key === todayKey });
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return days;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const weekKeys = useMemo(() => calendarDays.slice(0, 5).map(d => d.key), [calendarDays]);
+
+  const myCalendarProjects = useMemo(() => {
+    return customers.filter(c => c.ownerId === uid || (c.collaboratorIds || []).includes(uid));
+  }, [customers, uid]);
+
+  const projectsByDay = useMemo(() => {
+    const map = {};
+    myCalendarProjects.forEach(c => {
+      const key = formatDate(c.nextCheckIn);
+      if (!key) return;
+      if (!map[key]) map[key] = [];
+      map[key].push(c);
+    });
+    return map;
+  }, [myCalendarProjects]);
+
+  const panelProjects = useMemo(() => {
+    if (selectedCalendarDay) {
+      return [...(projectsByDay[selectedCalendarDay] || [])].sort(
+        (a, b) => (a.projectName || a.company || "").localeCompare(b.projectName || b.company || "")
+      );
+    }
+    const weekSet = new Set(weekKeys);
+    return myCalendarProjects
+      .filter(c => weekSet.has(formatDate(c.nextCheckIn)))
+      .sort((a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn));
+  }, [selectedCalendarDay, projectsByDay, weekKeys, myCalendarProjects]);
+
+  const panelTitle = selectedCalendarDay
+    ? new Date(selectedCalendarDay + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
+    : "This Week";
 
   // ADMIN
   const createUser = async () => {
@@ -748,10 +983,10 @@ export default function Dashboard() {
           <p className="modal-subtitle">We use this to identify you across the app.</p>
 
           <label className="field-label">First Name</label>
-          <input className="field" value={nameFirst} onChange={e => setNameFirst(e.target.value)} />
+          <input className="field" name="nameFirst" autoComplete="off" value={nameFirst} onChange={e => setNameFirst(e.target.value)} />
 
           <label className="field-label">Last Name</label>
-          <input className="field" value={nameLast} onChange={e => setNameLast(e.target.value)} />
+          <input className="field" name="nameLast" autoComplete="off" value={nameLast} onChange={e => setNameLast(e.target.value)} />
 
           <button className="btn btn-primary btn-block" onClick={saveName}>Continue</button>
         </div>
@@ -855,6 +1090,12 @@ export default function Dashboard() {
       {view !== "admin" && (
         <div className="view-tabs">
           <button
+            className={`tab-btn ${view === "home" ? "tab-btn-active" : ""}`}
+            onClick={() => setView("home")}
+          >
+            Home
+          </button>
+          <button
             className={`tab-btn ${view === "personal" ? "tab-btn-active" : ""}`}
             onClick={() => setView("personal")}
           >
@@ -866,14 +1107,106 @@ export default function Dashboard() {
           >
             Team
           </button>
+          <button
+            className={`tab-btn ${view === "pipeline" ? "tab-btn-active" : ""}`}
+            onClick={() => setView("pipeline")}
+          >
+            Pipeline
+          </button>
+
+          <div className="tab-dropdown">
+            <button className="tab-btn">Directory ▾</button>
+            <div className="tab-dropdown-menu">
+              <div className="tab-dropdown-menu-card">
+                <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory")}>All Companies</a>
+                <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Contractor")}>Contractors</a>
+                <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Customer")}>Customers</a>
+                <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Engineering%20Firm")}>Engineering Firms</a>
+                <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory/towers")}>Towers</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {view === "home" && (
+        <div className="home-layout">
+          <div className="calendar-container">
+            <div className="calendar-weekday-header">
+              {["Mon", "Tue", "Wed", "Thu", "Fri"].map(d => (
+                <div key={d} className="calendar-weekday">{d}</div>
+              ))}
+            </div>
+
+            <div className="calendar-grid">
+              {calendarDays.map(({ date, key, isToday }) => {
+                const dayProjects = projectsByDay[key] || [];
+                const isSelected = selectedCalendarDay === key;
+
+                return (
+                  <div
+                    key={key}
+                    className={`calendar-day ${isToday ? "calendar-day-today" : ""} ${isSelected ? "calendar-day-selected" : ""}`}
+                    onClick={() => setSelectedCalendarDay(key)}
+                  >
+                    <div className="calendar-day-number">{date.getDate()}</div>
+                    <div className="calendar-day-events">
+                      {dayProjects.slice(0, 3).map(c => (
+                        <div
+                          key={c.id}
+                          className="calendar-event-pill"
+                          onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/project/${c.id}`); }}
+                        >
+                          {c.projectName || c.company}
+                        </div>
+                      ))}
+                      {dayProjects.length > 3 && (
+                        <div className="calendar-event-more">+{dayProjects.length - 3} more</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="calendar-side-panel">
+            <div className="calendar-panel-header">
+              <h3 className="modal-title" style={{ margin: 0 }}>{panelTitle}</h3>
+              {selectedCalendarDay && (
+                <button className="link-muted" style={{ background: "none", border: "none", cursor: "pointer" }} onClick={() => setSelectedCalendarDay(null)}>
+                  ← This Week
+                </button>
+              )}
+            </div>
+
+            {panelProjects.length === 0 && (
+              <p className="private-note-hint">Nothing due.</p>
+            )}
+
+            {panelProjects.map(c => (
+              <div
+                key={c.id}
+                className="calendar-panel-item"
+                onClick={() => router.push(`/dashboard/project/${c.id}`)}
+              >
+                <div className="customer-name" style={{ fontSize: 14 }}>{c.projectName || c.company}</div>
+                {c.company && c.projectName && c.projectName !== c.company && (
+                  <div className="customer-meta">{c.company}</div>
+                )}
+                <div className="customer-dates">Due: {formatDate(c.nextCheckIn)}</div>
+                {c.category && <span className="role-badge" style={{ marginTop: 4 }}>{c.category}</span>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {view === "personal" && (
         <>
-          {/* ADD CUSTOMER BUTTON */}
+          {/* ADD PROJECT BUTTON */}
           <div style={{ marginBottom: 20 }}>
-            <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>ADD CUSTOMER</button>
+            <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>ADD PROJECT</button>
           </div>
 
           {/* ADD MODAL */}
@@ -882,18 +1215,38 @@ export default function Dashboard() {
               <div className="modal-card">
                 <button className="modal-close" onClick={() => { clearForm(); setShowAddModal(false); }}>✕</button>
 
-                <h3 className="modal-title">Add Customer</h3>
+                <h3 className="modal-title">Add Project</h3>
 
-                <input className="field" placeholder="Company" value={company} onChange={e => setCompany(e.target.value)} />
-                <input className="field" placeholder="Contact" value={contact} onChange={e => setContact(e.target.value)} />
-                <input className="field" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-                <input className="field" placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
+                <input className="field" name="add-projectName" autoComplete="off" placeholder="Project Name" value={projectName} onChange={e => setProjectName(e.target.value)} />
+                <CompanyContactFields
+                  idPrefix="add-project"
+                  companies={companies}
+                  contacts={contacts}
+                  companyValue={company}
+                  contactValue={contact}
+                  emailValue={email}
+                  phoneValue={phone}
+                  onCompanyChange={setCompany}
+                  onContactChange={setContact}
+                  onEmailChange={setEmail}
+                  onPhoneChange={setPhone}
+                />
                 <select className="field" value={category} onChange={e => setCategory(e.target.value)}>
                   <option value="">Select category...</option>
                   {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
+                <input className="field" name="add-projectValue" autoComplete="off" placeholder="Project Value" value={projectValue} onChange={e => setProjectValue(e.target.value)} />
                 <input className="field" type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
-                <input className="field" placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
+                <AddressAutocomplete name="add-projectAddress" placeholder="Project Address (required)" value={projectAddress} onChange={setProjectAddress} />
+                <input className="field" name="add-notes" autoComplete="off" placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
+
+                <h4 className="field-label" style={{ marginTop: 12 }}>Equipment & Site Details (optional)</h4>
+                <input className="field" name="add-equipmentType" autoComplete="off" placeholder="Type of Equipment" value={equipmentType} onChange={e => setEquipmentType(e.target.value)} />
+                <input className="field" name="add-towerManufacturer" autoComplete="off" placeholder="Tower Manufacturer" value={towerManufacturer} onChange={e => setTowerManufacturer(e.target.value)} />
+                <input className="field" name="add-modelNumber" autoComplete="off" placeholder="Model Number" value={modelNumber} onChange={e => setModelNumber(e.target.value)} />
+                <input className="field" name="add-serialNumber" autoComplete="off" placeholder="Serial Number" value={serialNumber} onChange={e => setSerialNumber(e.target.value)} />
+                <div className="field-label">Year Installed</div>
+                <input className="field" type="number" placeholder="YYYY" min="1900" max="2100" value={dateInstalled} onChange={e => setDateInstalled(e.target.value)} />
 
                 <button className="btn btn-primary btn-block" onClick={addCustomer}>ADD</button>
               </div>
@@ -907,7 +1260,7 @@ export default function Dashboard() {
             {searchOpen && (
               <input
                 className="field"
-                placeholder="Search company or contact..."
+                placeholder="Search project, company, contact, address, or notes..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 style={{ flex: 1 }}
@@ -929,6 +1282,8 @@ export default function Dashboard() {
               <div
                 key={c.id}
                 className={`customer-card ${barClass}`}
+                onClick={() => { if (editingId !== c.id) router.push(`/dashboard/project/${c.id}`); }}
+                style={{ cursor: editingId === c.id ? "default" : "pointer" }}
               >
 
                 {/* LEFT */}
@@ -936,10 +1291,20 @@ export default function Dashboard() {
                   {!isOwner && <div className="owner-badge" style={{ marginBottom: 6 }}>🤝 Collaborating with {ownerLabel(c.ownerId)}</div>}
                   {editingId === c.id ? (
                     <>
-                      <input className="field" value={editData.company} onChange={e => setEditData({ ...editData, company: e.target.value })} />
-                      <input className="field" value={editData.contact} onChange={e => setEditData({ ...editData, contact: e.target.value })} />
-                      <input className="field" value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} />
-                      <input className="field" value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
+                      <input className="field" name={`edit-projectName-${c.id}`} autoComplete="off" placeholder="Project Name" value={editData.projectName} onChange={e => setEditData({ ...editData, projectName: e.target.value })} />
+                      <CompanyContactFields
+                        idPrefix={`edit-project-${c.id}`}
+                        companies={companies}
+                        contacts={contacts}
+                        companyValue={editData.company}
+                        contactValue={editData.contact}
+                        emailValue={editData.email}
+                        phoneValue={editData.phone}
+                        onCompanyChange={v => setEditData({ ...editData, company: v })}
+                        onContactChange={v => setEditData({ ...editData, contact: v })}
+                        onEmailChange={v => setEditData({ ...editData, email: v })}
+                        onPhoneChange={v => setEditData({ ...editData, phone: v })}
+                      />
 
                       <div className="field-label">Category</div>
                       <select className="field" value={editData.category} onChange={e => setEditData({ ...editData, category: e.target.value })}>
@@ -965,7 +1330,10 @@ export default function Dashboard() {
                     </>
                   ) : (
                     <>
-                      <div className="customer-name">{c.company}</div>
+                      <div className="customer-name">{c.projectName || c.company}</div>
+                      {c.company && (c.projectName && c.projectName !== c.company) && (
+                        <div className="customer-contact">{c.company}</div>
+                      )}
 
                       <div className="customer-contact">
                         {c.contact}
@@ -976,6 +1344,7 @@ export default function Dashboard() {
                       </div>
 
                       {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
+                      {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {c.projectValue}</div>}
 
                       <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
                       <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>
@@ -984,8 +1353,8 @@ export default function Dashboard() {
                 </div>
 
                 {/* MIDDLE */}
-                <div className="customer-card-middle">
-                  <div className="customer-notes-preview" onClick={() => openModal(c)}>
+                <div className="customer-card-middle customer-notes-preview" onClick={(e) => { e.stopPropagation(); openModal(c); }}>
+                  <div>
                     {notesById[c.id]?.notes}
                   </div>
 
@@ -1016,7 +1385,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* RIGHT */}
-                <div className="customer-card-right">
+                <div className="customer-card-right" onClick={(e) => e.stopPropagation()}>
                   {isOwner ? (
                     <>
                       <div className="checkbox-group">
@@ -1084,7 +1453,10 @@ export default function Dashboard() {
               <div className="modal-card modal-wide">
                 <button className="modal-close" onClick={closeModal}>✕</button>
 
-                <h2 className="modal-title">{selected.company}</h2>
+                <h2 className="modal-title">{selected.projectName || selected.company}</h2>
+                {selected.company && (selected.projectName && selected.projectName !== selected.company) && (
+                  <p className="modal-subtitle">{selected.company}</p>
+                )}
 
                 <p>{selected.contact}</p>
                 <p>{selected.email}</p>
@@ -1096,6 +1468,8 @@ export default function Dashboard() {
                 )}
                 <textarea
                   className="field"
+                  name="modalNotes"
+                  autoComplete="off"
                   style={{ width: "100%", height: 80 }}
                   value={modalNotes}
                   onChange={e => setModalNotes(e.target.value)}
@@ -1116,6 +1490,7 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+
         </>
       )}
 
@@ -1127,7 +1502,7 @@ export default function Dashboard() {
             {searchOpen && (
               <input
                 className="field"
-                placeholder="Search company or contact..."
+                placeholder="Search project, company, contact, address, or notes..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 style={{ flex: 1 }}
@@ -1162,17 +1537,21 @@ export default function Dashboard() {
             return (
               <div
                 key={c.id}
-                onClick={() => openTeamModal(c)}
+                onClick={() => router.push(`/dashboard/project/${c.id}`)}
                 className={`customer-card ${barClass}`}
                 style={{ cursor: "pointer" }}
               >
                 <div className="customer-card-left">
-                  <div className="customer-name">{c.company}</div>
+                  <div className="customer-name">{c.projectName || c.company}</div>
+                  {c.company && (c.projectName && c.projectName !== c.company) && (
+                    <div className="customer-contact">{c.company}</div>
+                  )}
                   <div className="customer-contact">{c.contact}</div>
                   <div className="customer-meta">
                     {c.email || ""} | {formatPhone(c.phone)}
                   </div>
                   {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
+                  {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {c.projectValue}</div>}
                   <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
                   <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>
                 </div>
@@ -1203,77 +1582,144 @@ export default function Dashboard() {
             );
           })}
 
-          {teamSelected && (
+        </>
+      )}
+
+      {view === "pipeline" && (
+        <>
+          <div style={{ marginBottom: 20, display: "flex", gap: 10, alignItems: "center" }}>
+            <button className="btn btn-primary" onClick={() => setShowAddPipelineModal(true)}>ADD PIPELINE ENTRY</button>
+
+            <select
+              className="field"
+              style={{ maxWidth: 220, marginLeft: "auto", marginBottom: 0 }}
+              value={pipelineFilterOwner}
+              onChange={e => setPipelineFilterOwner(e.target.value)}
+            >
+              <option value="all">All Team Members</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.id === uid ? "You" : (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {showAddPipelineModal && (
             <div className="modal-overlay">
-              <div className="modal-card modal-wide">
-                <button className="modal-close" onClick={() => { setTeamSelected(null); setTeamNotes(null); }}>✕</button>
+              <div className="modal-card modal-extra-wide">
+                <button className="modal-close" onClick={() => { clearPipelineForm(); setShowAddPipelineModal(false); }}>✕</button>
 
-                <h2 className="modal-title">{teamSelected.company}</h2>
-                <p className="modal-subtitle">Owned by {ownerLabel(teamSelected.ownerId)}</p>
+                <h3 className="modal-title">Add Pipeline Entry</h3>
 
-                <p>{teamSelected.contact}</p>
-                <p>{teamSelected.email}</p>
-                <p>{teamSelected.phone}</p>
+                <input className="field" name="pipeline-title" autoComplete="off" placeholder="Project / Opportunity Name" value={pipelineTitle} onChange={e => setPipelineTitle(e.target.value)} />
 
-                <h4 className="field-label">Activity</h4>
-                {(teamSelected.activityLog || []).length === 0 && (
-                  <p className="private-note-hint">No activity yet.</p>
-                )}
-                {(teamSelected.activityLog || []).map((a, i) => (
-                  <div key={i} className="notes-history-item">
-                    <div>{a.type} via {a.method}</div>
-                    <div className="notes-history-date">{a.timestamp}</div>
+                <div className="form-grid-2">
+                  <div>
+                    <label className="field-label">Stage</label>
+                    <select className="field" value={pipelineStage} onChange={e => setPipelineStage(e.target.value)}>
+                      {PIPELINE_STAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="field-label">Bid Date</label>
+                    <input className="field" type="date" value={pipelineBidDate} onChange={e => setPipelineBidDate(e.target.value)} />
+                  </div>
+
+                  <div>
+                    <label className="field-label">Estimated Value</label>
+                    <input className="field" name="pipeline-value" autoComplete="off" value={pipelineValue} onChange={e => setPipelineValue(e.target.value)} />
+                  </div>
+
+                  <CompanyContactFields
+                    idPrefix="add-pipeline"
+                    companies={companies}
+                    contacts={contacts}
+                    companyLabel="Engineering Firm"
+                    companyValue={pipelineCompany}
+                    contactValue={pipelineContact}
+                    emailValue={pipelineEmail}
+                    phoneValue={pipelinePhone}
+                    onCompanyChange={setPipelineCompany}
+                    onContactChange={setPipelineContact}
+                    onEmailChange={setPipelineEmail}
+                    onPhoneChange={setPipelinePhone}
+                  />
+                </div>
+
+                <h4 className="field-label" style={{ marginTop: 12 }}>Contractors Bidding (optional)</h4>
+                {biddingCompanies.map((row, i) => (
+                  <div key={i} className="bidding-company-row">
+                    <CompanyContactFields
+                      idPrefix={`add-pipeline-bidder-${i}`}
+                      companies={companies}
+                      contacts={contacts}
+                      companyLabel="Contractor"
+                      companyValue={row.company}
+                      contactValue={row.contact}
+                      emailValue={row.email}
+                      phoneValue={row.phone}
+                      onCompanyChange={v => updateBiddingCompanyRow(i, "company", v)}
+                      onContactChange={v => updateBiddingCompanyRow(i, "contact", v)}
+                      onEmailChange={v => updateBiddingCompanyRow(i, "email", v)}
+                      onPhoneChange={v => updateBiddingCompanyRow(i, "phone", v)}
+                    />
+                    <button className="btn btn-danger" onClick={() => removeBiddingCompanyRow(i)}>Remove</button>
                   </div>
                 ))}
+                <button className="btn btn-secondary" onClick={addBiddingCompanyRow}>+ Add Contractor</button>
 
-                {role === "admin" ? (
-                  <>
-                    <h4 className="field-label" style={{ marginTop: 12 }}>Notes (visible to you as admin)</h4>
-                    {teamNotes ? (
-                      <>
-                        <p>{teamNotes.notes || "(no notes yet)"}</p>
-                        {teamNotes.notesAuthorName && (
-                          <p className="private-note-hint">Last written by {teamNotes.notesAuthorName}</p>
-                        )}
-                        {(teamNotes.notesHistory || []).length > 0 && (
-                          <>
-                            <h4 className="field-label" style={{ marginTop: 12 }}>Notes History</h4>
-                            {teamNotes.notesHistory.map((h, i) => (
-                              <div key={i} className="notes-history-item">
-                                <div>{h.text}</div>
-                                <div className="notes-history-date">{h.authorName || "Unknown"} · {h.date}</div>
-                              </div>
-                            ))}
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <p>Loading...</p>
-                    )}
-                  </>
-                ) : (teamSelected.collaboratorIds || []).includes(uid) ? (
-                  <p className="private-note-hint" style={{ marginTop: 12 }}>
-                    🤝 You're a collaborator — open this from My Dashboard to view and edit notes.
-                  </p>
-                ) : (
-                  <p className="private-note-hint" style={{ marginTop: 12 }}>
-                    🔒 Notes are private to {ownerLabel(teamSelected.ownerId)}.
-                  </p>
-                )}
+                <h4 className="field-label" style={{ marginTop: 12 }}>Tower Details (optional)</h4>
+                <div className="form-grid-2">
+                  <input className="field" name="add-pipeline-towerManufacturer" autoComplete="off" placeholder="Tower Manufacturer" value={pipelineTowerManufacturer} onChange={e => setPipelineTowerManufacturer(e.target.value)} />
+                  <input className="field" name="add-pipeline-modelNumber" autoComplete="off" placeholder="Model Number" value={pipelineModelNumber} onChange={e => setPipelineModelNumber(e.target.value)} />
+                  <input className="field" name="add-pipeline-serialNumber" autoComplete="off" placeholder="Serial Number" value={pipelineSerialNumber} onChange={e => setPipelineSerialNumber(e.target.value)} />
+                </div>
 
-                {teamSelected.ownerId !== uid && !(teamSelected.collaboratorIds || []).includes(uid) && (
-                  <div className="modal-actions">
-                    <button
-                      className="btn btn-primary"
-                      disabled={requestedIds.has(teamSelected.id)}
-                      onClick={() => requestCollaborate(teamSelected)}
-                    >
-                      {requestedIds.has(teamSelected.id) ? "Requested" : "Request to Collaborate"}
-                    </button>
-                  </div>
-                )}
+                <h4 className="field-label" style={{ marginTop: 12 }}>Notes</h4>
+                <input className="field" name="pipeline-notes" autoComplete="off" placeholder="Notes" value={pipelineNotes} onChange={e => setPipelineNotes(e.target.value)} />
+
+                <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={addPipelineEntry}>ADD</button>
               </div>
             </div>
+          )}
+
+          {filteredPipeline.map(p => (
+            <div
+              key={p.id}
+              className="customer-card"
+              onClick={() => router.push(`/dashboard/pipeline/${p.id}`)}
+              style={{ cursor: "pointer" }}
+            >
+              <div className="customer-card-left">
+                <div className="customer-name">{p.title}</div>
+                {p.company && <div className="customer-contact">{p.company}</div>}
+                {p.contact && <div className="customer-meta">{p.contact}</div>}
+                <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>{p.stage}</span>
+                {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {p.value}</div>}
+              </div>
+
+              <div className="customer-card-middle">
+                <div className="owner-badge">Owned by {ownerLabel(p.ownerId)}</div>
+                {p.bidDate && <div className="customer-dates">Bid Date: {p.bidDate}</div>}
+                {(p.biddingCompanies || []).length > 0 && (
+                  <div className="private-note-hint">
+                    {p.biddingCompanies.length} contractor{p.biddingCompanies.length === 1 ? "" : "s"} bidding
+                  </div>
+                )}
+                {p.convertedToProjectId && (
+                  <div className="private-note-hint" style={{ marginTop: 4 }}>✅ Converted to project</div>
+                )}
+              </div>
+
+              <div className="customer-card-right" onClick={(e) => e.stopPropagation()}>
+                {p.ownerId !== uid && <span className="private-note-hint">View only</span>}
+              </div>
+            </div>
+          ))}
+
+          {filteredPipeline.length === 0 && (
+            <p className="private-note-hint">No pipeline entries yet.</p>
           )}
         </>
       )}
@@ -1291,6 +1737,8 @@ export default function Dashboard() {
             <label className="field-label">First Name (optional)</label>
             <input
               className="field"
+              name="newUserFirstName"
+              autoComplete="off"
               placeholder="First name"
               value={newUserFirstName}
               onChange={e => setNewUserFirstName(e.target.value)}
@@ -1299,6 +1747,8 @@ export default function Dashboard() {
             <label className="field-label">Last Name (optional)</label>
             <input
               className="field"
+              name="newUserLastName"
+              autoComplete="off"
               placeholder="Last name"
               value={newUserLastName}
               onChange={e => setNewUserLastName(e.target.value)}
@@ -1307,6 +1757,8 @@ export default function Dashboard() {
             <label className="field-label">Email</label>
             <input
               className="field"
+              name="newUserEmail"
+              autoComplete="off"
               placeholder="name@company.com"
               value={newUserEmail}
               onChange={e => setNewUserEmail(e.target.value)}

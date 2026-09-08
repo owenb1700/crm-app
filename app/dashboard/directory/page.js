@@ -1,0 +1,258 @@
+"use client";
+
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth, db } from "../../../lib/firebase";
+import { doc, getDoc, getDocs, collection, addDoc } from "firebase/firestore";
+import { COMPANY_CATEGORIES } from "../../../lib/directory";
+
+const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
+
+const clearSession = () => {
+  localStorage.removeItem("loginTimestamp");
+};
+
+function DirectoryPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const categoryFilter = searchParams.get("category") || "all";
+
+  const [uid, setUid] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+
+  const [companies, setCompanies] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [pipelineEntries, setPipelineEntries] = useState([]);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newCategory, setNewCategory] = useState("Customer");
+
+  const loadAll = async () => {
+    const [companiesSnap, contactsSnap, customersSnap, pipelineSnap] = await Promise.all([
+      getDocs(collection(db, "companies")),
+      getDocs(collection(db, "contacts")),
+      getDocs(collection(db, "customers")),
+      getDocs(collection(db, "pipeline"))
+    ]);
+    setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setCustomers(customersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setPipelineEntries(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setLoaded(true);
+  };
+
+  useEffect(() => {
+    let timer;
+
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      const loginTimestamp = Number(localStorage.getItem("loginTimestamp") || 0);
+      const elapsed = Date.now() - loginTimestamp;
+
+      if (!user || !loginTimestamp || elapsed > SESSION_LENGTH_MS) {
+        clearSession();
+        signOut(auth);
+        router.push("/");
+        return;
+      }
+
+      timer = setTimeout(() => {
+        clearSession();
+        signOut(auth);
+        router.push("/");
+      }, SESSION_LENGTH_MS - elapsed);
+
+      setUid(user.uid);
+
+      try {
+        const profileSnap = await getDoc(doc(db, "users", user.uid));
+        if (!profileSnap.exists()) {
+          router.push("/dashboard");
+          return;
+        }
+        if (profileSnap.data().disabled) {
+          clearSession();
+          await signOut(auth);
+          router.push("/");
+          return;
+        }
+
+        await loadAll();
+      } catch (err) {
+        setLoadError(err.message || "Something went wrong loading the directory.");
+      }
+    });
+
+    return () => {
+      unsub();
+      if (timer) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const jobCounts = (companyName) => {
+    const name = (companyName || "").toLowerCase();
+    const projectCount = customers.filter(c => (c.company || "").toLowerCase() === name).length;
+    const pipelineCount = pipelineEntries.filter(p =>
+      (p.company || "").toLowerCase() === name ||
+      (p.biddingCompanies || []).some(b => (b.company || "").toLowerCase() === name)
+    ).length;
+    return { projectCount, pipelineCount };
+  };
+
+  const addCompany = async () => {
+    if (!newName.trim()) return alert("Enter a company name");
+    if (companies.some(c => c.name.toLowerCase() === newName.trim().toLowerCase())) {
+      return alert("A company with this name already exists");
+    }
+
+    await addDoc(collection(db, "companies"), {
+      name: newName.trim(),
+      category: newCategory,
+      phone: null,
+      address: null,
+      website: null,
+      notes: null,
+      createdAt: new Date().toISOString(),
+      createdBy: uid
+    });
+
+    setNewName("");
+    setNewCategory("Customer");
+    setShowAddModal(false);
+    loadAll();
+  };
+
+  // No search: plain alphabetical. Searching: rank by closeness of match --
+  // name starts-with beats name contains beats a matching person at that
+  // company -- so the best match always lands on top instead of just
+  // wherever it falls alphabetically.
+  const q = searchQuery.trim().toLowerCase();
+  const byCategory = companies.filter(c => categoryFilter === "all" || c.category === categoryFilter);
+
+  const results = q
+    ? byCategory
+        .map(c => {
+          const nameLower = c.name.toLowerCase();
+          const nameIdx = nameLower.indexOf(q);
+          const matchedPerson = contacts.find(
+            p => p.companyId === c.id && p.name.toLowerCase().includes(q)
+          );
+          let score = null;
+          if (nameIdx === 0) score = 0;
+          else if (nameIdx > 0) score = 1;
+          else if (matchedPerson) score = 2;
+          return { company: c, matchedPerson: score === 2 ? matchedPerson : null, score };
+        })
+        .filter(r => r.score !== null)
+        .sort((a, b) => a.score - b.score || a.company.name.localeCompare(b.company.name))
+    : byCategory
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(c => ({ company: c, matchedPerson: null }));
+
+  const contactCount = (companyId) => contacts.filter(c => c.companyId === companyId).length;
+
+  if (loadError) {
+    return (
+      <div className="dashboard-page">
+        <div className="admin-card" style={{ maxWidth: 480 }}>
+          <h3 className="modal-title">Couldn't load the directory</h3>
+          <p className="modal-subtitle">{loadError}</p>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>Back to Dashboard</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!loaded) {
+    return <div className="dashboard-page">Loading...</div>;
+  }
+
+  const title = categoryFilter === "all" ? "All Companies" : `${categoryFilter}${categoryFilter.endsWith("s") ? "" : "s"}`;
+
+  return (
+    <div className="dashboard-page">
+      <div className="dashboard-header">
+        <div className="dashboard-brand">
+          <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
+          <h1 className="dashboard-title">Directory — {title}</h1>
+        </div>
+        <div className="dashboard-header-actions">
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
+        </div>
+      </div>
+
+      <div className="toolbar">
+        <input
+          className="field"
+          placeholder="Search companies or people..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          style={{ flex: 1, marginBottom: 0 }}
+        />
+        <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>+ Add Company</button>
+      </div>
+
+      {results.length === 0 && (
+        <p className="private-note-hint">No companies found.</p>
+      )}
+
+      {results.map(({ company: c, matchedPerson }) => {
+        const { projectCount, pipelineCount } = jobCounts(c.name);
+        return (
+          <div
+            key={c.id}
+            className="customer-card"
+            onClick={() => router.push(`/dashboard/directory/company/${c.id}`)}
+            style={{ cursor: "pointer" }}
+          >
+            <div className="customer-card-left">
+              <div className="customer-name">{c.name}</div>
+              <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>{c.category}</span>
+            </div>
+            <div className="customer-card-middle">
+              {matchedPerson && (
+                <div className="private-note-hint">Matched: {matchedPerson.name}{matchedPerson.title ? ` (${matchedPerson.title})` : ""}</div>
+              )}
+              <div className="private-note-hint">{contactCount(c.id)} people</div>
+              <div className="private-note-hint">{projectCount} project{projectCount === 1 ? "" : "s"}</div>
+              <div className="private-note-hint">{pipelineCount} pipeline entr{pipelineCount === 1 ? "y" : "ies"}</div>
+            </div>
+          </div>
+        );
+      })}
+
+      {showAddModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <button className="modal-close" onClick={() => setShowAddModal(false)}>✕</button>
+            <h3 className="modal-title">Add Company</h3>
+
+            <label className="field-label">Name</label>
+            <input className="field" autoComplete="off" value={newName} onChange={e => setNewName(e.target.value)} />
+
+            <label className="field-label">Category</label>
+            <select className="field" value={newCategory} onChange={e => setNewCategory(e.target.value)}>
+              {COMPANY_CATEGORIES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+
+            <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={addCompany}>Add</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function DirectoryPage() {
+  return (
+    <Suspense fallback={<div className="dashboard-page">Loading...</div>}>
+      <DirectoryPageContent />
+    </Suspense>
+  );
+}
