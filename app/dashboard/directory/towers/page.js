@@ -145,7 +145,7 @@ export default function TowersPage() {
           <h1 className="dashboard-title">Directory — Towers</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory")}>← Back to Directory</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
         </div>
       </div>
 

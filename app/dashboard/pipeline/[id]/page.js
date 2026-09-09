@@ -12,7 +12,9 @@ import {
   deleteDoc,
   addDoc,
   collection,
-  getDocs
+  getDocs,
+  arrayUnion,
+  arrayRemove
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { ensureCompanyAndContactBatch } from "../../../../lib/directory";
@@ -27,7 +29,7 @@ const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
 };
 
-const EDITABLE_FIELDS = ["title", "stage", "bidDate", "value", "company", "contact", "email", "phone", "towerManufacturer", "modelNumber", "serialNumber"];
+const EDITABLE_FIELDS = ["title", "stage", "bidDate", "value", "company", "contact", "email", "phone", "towerManufacturer", "modelNumber", "serialNumber", "salespersonId", "projectPointPersonId"];
 
 const formatBytes = (bytes) => {
   if (!bytes) return "";
@@ -62,6 +64,8 @@ export default function PipelineDetail() {
   const [uploading, setUploading] = useState(false);
 
   const [showConvertModal, setShowConvertModal] = useState(false);
+  const [showWonModal, setShowWonModal] = useState(false);
+  const [wonContractor, setWonContractor] = useState("");
   const [convertNextDate, setConvertNextDate] = useState("");
   const [convertProjectAddress, setConvertProjectAddress] = useState("");
 
@@ -175,7 +179,12 @@ export default function PipelineDetail() {
 
   const isOwner = pipeline && pipeline.ownerId === uid;
   const canSeeNotes = isOwner || role === "admin";
-  const canEdit = isOwner;
+  // Contractors Bidding and every other project detail are team-editable --
+  // only the private notes/files and the destructive actions (delete,
+  // convert to project) stay restricted to the owner/admin.
+  const canEdit = !!pipeline;
+  const canEditPrivate = isOwner;
+  const canDelete = isOwner || role === "admin";
 
   const startEdit = () => {
     setEditData({
@@ -189,7 +198,9 @@ export default function PipelineDetail() {
       phone: pipeline.phone || "",
       towerManufacturer: pipeline.towerManufacturer || "",
       modelNumber: pipeline.modelNumber || "",
-      serialNumber: pipeline.serialNumber || ""
+      serialNumber: pipeline.serialNumber || "",
+      salespersonId: pipeline.salespersonId || "",
+      projectPointPersonId: pipeline.projectPointPersonId || ""
     });
     setBiddingRows(pipeline.biddingCompanies || []);
     setIsEditing(true);
@@ -339,6 +350,61 @@ export default function PipelineDetail() {
     router.push("/dashboard");
   };
 
+  // Lets anyone track a pipeline entry on their own My Dashboard without
+  // needing to be the owner or assigned as salesperson/point person --
+  // this just toggles their uid in the shared array on the one document,
+  // so it's always mirrored everywhere the entry shows up.
+  const isTracked = !!pipeline && (pipeline.trackedByIds || []).includes(uid);
+
+  const toggleTracked = async () => {
+    await updateDoc(doc(db, "pipeline", pipelineId), {
+      trackedByIds: isTracked ? arrayRemove(uid) : arrayUnion(uid)
+    });
+    await loadPipelineEntry(uid, role);
+  };
+
+  const confirmMarkWon = async () => {
+    if (!wonContractor.trim()) return alert("Enter or select the winning contractor");
+
+    // Won work gets a 1-year check-in with whoever's actually responsible
+    // for the relationship (point person, then salesperson, then owner) --
+    // same follow-up/snooze pattern as a closed project. Lost work never
+    // gets a nextCheckIn at all, so it's never followed up on.
+    const followUp = new Date();
+    followUp.setFullYear(followUp.getFullYear() + 1);
+
+    await updateDoc(doc(db, "pipeline", pipelineId), {
+      outcome: "Won",
+      wonByContractor: wonContractor.trim(),
+      resolvedAt: new Date().toISOString(),
+      nextCheckIn: adjustWeekend(followUp.toISOString())
+    });
+    setShowWonModal(false);
+    setWonContractor("");
+    await loadPipelineEntry(uid, role);
+  };
+
+  const markLost = async () => {
+    if (!window.confirm("Mark this pipeline entry as Lost?")) return;
+    await updateDoc(doc(db, "pipeline", pipelineId), {
+      outcome: "Lost",
+      wonByContractor: null,
+      resolvedAt: new Date().toISOString(),
+      nextCheckIn: null
+    });
+    await loadPipelineEntry(uid, role);
+  };
+
+  const reopenPipeline = async () => {
+    await updateDoc(doc(db, "pipeline", pipelineId), {
+      outcome: null,
+      wonByContractor: null,
+      resolvedAt: null,
+      nextCheckIn: null
+    });
+    await loadPipelineEntry(uid, role);
+  };
+
   const convertToProject = async () => {
     if (!convertNextDate) {
       return alert("Pick a next check-in date for the new project");
@@ -440,8 +506,11 @@ export default function PipelineDetail() {
 
             {canEdit && !isEditing && (
               <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-secondary" onClick={toggleTracked}>
+                  {isTracked ? "Remove From My Dashboard" : "Add To My Dashboard"}
+                </button>
                 <button className="btn btn-primary" onClick={startEdit}>Edit</button>
-                <button className="btn btn-danger" onClick={deletePipeline}>Delete</button>
+                {canDelete && <button className="btn btn-danger" onClick={deletePipeline}>Delete</button>}
               </div>
             )}
             {isEditing && (
@@ -479,6 +548,7 @@ export default function PipelineDetail() {
                 companies={companies}
                 contacts={contacts}
                 companyLabel="Engineering Firm"
+                companyCategory="Engineering Firm"
                 companyValue={editData.company}
                 contactValue={editData.contact}
                 emailValue={editData.email}
@@ -498,6 +568,7 @@ export default function PipelineDetail() {
                   companies={companies}
                   contacts={contacts}
                   companyLabel="Contractor"
+                  companyCategory="Contractor"
                   companyValue={row.company}
                   contactValue={row.contact}
                   emailValue={row.email}
@@ -511,6 +582,28 @@ export default function PipelineDetail() {
               </div>
             ))}
             <button className="btn btn-secondary" onClick={addBiddingRow}>+ Add Contractor</button>
+
+            <h4 className="field-label" style={{ marginTop: 16 }}>Assigned Team</h4>
+            <div className="form-grid-2">
+              <div>
+                <label className="field-label">Salesperson</label>
+                <select className="field" value={editData.salespersonId} onChange={e => setEditData({ ...editData, salespersonId: e.target.value })}>
+                  <option value="">Unassigned</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Project Point Person</label>
+                <select className="field" value={editData.projectPointPersonId} onChange={e => setEditData({ ...editData, projectPointPersonId: e.target.value })}>
+                  <option value="">Unassigned</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Tower Details</h4>
             <div className="form-grid-2">
@@ -545,6 +638,12 @@ export default function PipelineDetail() {
             </div>
 
             <div className="project-section">
+              <h4 className="field-label">Assigned Team</h4>
+              <p><strong>Salesperson:</strong> {pipeline.salespersonId ? ownerLabel(pipeline.salespersonId) : "Unassigned"}</p>
+              <p><strong>Project Point Person:</strong> {pipeline.projectPointPersonId ? ownerLabel(pipeline.projectPointPersonId) : "Unassigned"}</p>
+            </div>
+
+            <div className="project-section">
               <h4 className="field-label">Contractors Bidding</h4>
               {(pipeline.biddingCompanies || []).length === 0 && (
                 <p className="private-note-hint">None added yet.</p>
@@ -566,6 +665,36 @@ export default function PipelineDetail() {
           </>
         )}
 
+        <div className="project-section">
+          <h4 className="field-label">Outcome</h4>
+          {!pipeline.outcome && (
+            <>
+              <p className="private-note-hint">Still in progress.</p>
+              {canEdit && (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn btn-primary" onClick={() => setShowWonModal(true)}>Mark Won</button>
+                  <button className="btn btn-danger" onClick={markLost}>Mark Lost</button>
+                </div>
+              )}
+            </>
+          )}
+          {pipeline.outcome === "Won" && (
+            <>
+              <p>✅ <strong>Won</strong>{pipeline.wonByContractor ? ` — awarded to ${pipeline.wonByContractor}` : ""}</p>
+              {pipeline.nextCheckIn && (
+                <p className="private-note-hint">Follow-up check-in scheduled: {pipeline.nextCheckIn}</p>
+              )}
+              {canEdit && <button className="btn btn-secondary" onClick={reopenPipeline}>Reopen</button>}
+            </>
+          )}
+          {pipeline.outcome === "Lost" && (
+            <>
+              <p>❌ <strong>Lost</strong></p>
+              {canEdit && <button className="btn btn-secondary" onClick={reopenPipeline}>Reopen</button>}
+            </>
+          )}
+        </div>
+
         {isOwner && !pipeline.convertedToProjectId && (
           <div className="project-section">
             <h4 className="field-label">Convert to Project</h4>
@@ -581,7 +710,7 @@ export default function PipelineDetail() {
             <p className="private-note-hint">🔒 Notes are private to {ownerLabel(pipeline.ownerId)}.</p>
           )}
 
-          {canSeeNotes && !canEdit && (
+          {canSeeNotes && !canEditPrivate && (
             <>
               <p>{privateData?.notes || "(no notes yet)"}</p>
               {privateData?.notesAuthorName && (
@@ -590,7 +719,7 @@ export default function PipelineDetail() {
             </>
           )}
 
-          {canEdit && (
+          {canEditPrivate && (
             <>
               {privateData?.notesAuthorName && (
                 <p className="private-note-hint">Last written by {privateData.notesAuthorName}</p>
@@ -616,7 +745,7 @@ export default function PipelineDetail() {
                     <div>{h.text}</div>
                     <div className="notes-history-date">{h.authorName || "Unknown"} · {h.date}</div>
                   </div>
-                  {canEdit && (
+                  {canEditPrivate && (
                     <button className="btn btn-danger" onClick={() => deleteHistoryEntry(i)}>Delete</button>
                   )}
                 </div>
@@ -645,13 +774,13 @@ export default function PipelineDetail() {
                       {formatBytes(f.size)} · uploaded by {f.uploadedByName} · {f.uploadedAt?.slice(0, 10)}
                     </div>
                   </div>
-                  {canEdit && (
+                  {canEditPrivate && (
                     <button className="btn btn-danger" onClick={() => deleteFile(f)}>Delete</button>
                   )}
                 </div>
               ))}
 
-              {canEdit && (
+              {canEditPrivate && (
                 <div style={{ marginTop: 12 }}>
                   <input
                     type="file"
@@ -666,6 +795,26 @@ export default function PipelineDetail() {
           )}
         </div>
       </div>
+
+      {showWonModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <button className="modal-close" onClick={() => setShowWonModal(false)}>✕</button>
+            <h3 className="modal-title">Mark as Won</h3>
+            <p className="modal-subtitle">Which contractor won the job?</p>
+
+            <label className="field-label">Winning Contractor</label>
+            <input className="field" list="won-contractor-options" autoComplete="off" value={wonContractor} onChange={e => setWonContractor(e.target.value)} />
+            <datalist id="won-contractor-options">
+              {Array.from(new Set((pipeline.biddingCompanies || []).map(b => b.company).filter(Boolean))).map(name => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+
+            <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={confirmMarkWon}>Confirm</button>
+          </div>
+        </div>
+      )}
 
       {showConvertModal && (
         <div className="modal-overlay">

@@ -112,12 +112,17 @@ service cloud.firestore {
     }
 
     // PIPELINE: pre-bid/bidding/design/budgeting opportunities, tracked
-    // separately from won projects. Same "everyone can view, owner+admin
-    // can edit" model as customers, without the collaboration workflow.
+    // separately from won projects. Unlike customers, every signed-in user
+    // can edit the project details and Contractors Bidding -- these are
+    // meant to be worked on as a team (salesperson, project point person,
+    // anyone who's added it to their own dashboard). Only the owner/admin
+    // can delete the entry itself, and private notes/files stay locked
+    // down below.
     match /pipeline/{pipelineId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isSignedIn() &&
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() &&
         (resource.data.ownerId == request.auth.uid || isAdmin());
 
       // Notes + files are private to the owner (read-only for admin).
@@ -154,6 +159,27 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn();
       allow delete: if isAdmin();
+    }
+
+    // Product spec library (cooling towers, chillers, strainers, etc.) --
+    // a reusable catalog for quoting prospective work, not tied to any
+    // installed/serialized equipment. Shared reference data like
+    // companies/contacts/towerModels: any signed-in user can add or edit,
+    // only admins can delete.
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    // Alerts bell: in-app notifications, separate from (and independent
+    // of) whether the accompanying email actually gets delivered. Anyone
+    // signed in can create one addressed to another user (e.g. a
+    // collaboration request notifies the owner), but only the recipient
+    // can read, mark read, or delete their own.
+    match /notifications/{notificationId} {
+      allow read, update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn();
     }
   }
 }

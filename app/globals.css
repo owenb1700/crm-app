@@ -438,6 +438,39 @@ a {
   padding: 14px;
 }
 
+/* Click-toggled (via React state), unlike .avatar-menu/.avatar-dropdown
+   which are hover-only -- so this has no display:none default to fight. */
+.alerts-menu {
+  position: relative;
+}
+
+.alerts-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 340px;
+  padding-top: 8px;
+  z-index: 40;
+}
+
+.alerts-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 .avatar-dropdown-name {
   font-size: 14px;
   font-weight: 700;

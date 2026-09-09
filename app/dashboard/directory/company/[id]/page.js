@@ -250,7 +250,7 @@ export default function CompanyDetail() {
       <div className="dashboard-header">
         <div className="dashboard-brand">
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
-          <h1 className="dashboard-title">Company</h1>
+          <h1 className="dashboard-title">{company.category || "Company"}</h1>
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory")}>← Back to Directory</button>

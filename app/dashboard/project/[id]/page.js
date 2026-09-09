@@ -75,6 +75,14 @@ export default function ProjectDetail() {
     return date;
   };
 
+  const adjustWeekend = (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    if (day === 6) d.setDate(d.getDate() + 2);
+    if (day === 0) d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
+  };
+
   const ownerLabel = (ownerId) => {
     if (ownerId === uid) return "You";
     const u = users.find(u => u.id === ownerId);
@@ -204,14 +212,27 @@ export default function ProjectDetail() {
   };
 
   const saveEdit = async () => {
-    if (!editData.projectName || !editData.contact || !editData.projectAddress) {
-      return alert("Project name, contact, and project address are required");
+    const missing = [];
+    if (!editData.projectName) missing.push("Project Name");
+    if (!editData.contact) missing.push("Contact");
+    if (!editData.projectAddress) missing.push("Project Address");
+    if (missing.length) {
+      return alert(`Please fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
     }
 
     const payload = {};
     EDITABLE_FIELDS.forEach(f => {
       payload[f] = editData[f] || null;
     });
+
+    // Closing a project schedules a 1-year "how are things going" check-in
+    // automatically, so it resurfaces on the Home calendar even though it's
+    // now hidden from the active My Dashboard list.
+    if (editData.category === "Project Closed" && customer.category !== "Project Closed") {
+      const followUp = new Date();
+      followUp.setFullYear(followUp.getFullYear() + 1);
+      payload.nextCheckIn = adjustWeekend(followUp.toISOString());
+    }
 
     await updateDoc(doc(db, "customers", projectId), payload);
 
@@ -397,6 +418,7 @@ export default function ProjectDetail() {
               idPrefix="project-detail"
               companies={companies}
               contacts={contacts}
+              companyCategory="Customer"
               companyValue={editData.company}
               contactValue={editData.contact}
               emailValue={editData.email}

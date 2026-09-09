@@ -9,6 +9,7 @@ export default function CompanyContactFields({
   companies,
   contacts,
   companyLabel = "Company",
+  companyCategory,
   companyValue,
   contactValue,
   emailValue,
@@ -19,7 +20,10 @@ export default function CompanyContactFields({
   onPhoneChange,
   showEmailPhone = true
 }) {
-  const companyOptions = companies || [];
+  // Scoped to the matching Directory category (e.g. only Engineering
+  // Firms suggested in an Engineering Firm field) so a Contractor never
+  // shows up as a suggestion for a Customer or vice versa.
+  const companyOptions = (companies || []).filter(c => !companyCategory || c.category === companyCategory);
   const matchingContacts = (contacts || []).filter(
     c => (c.companyName || "").toLowerCase() === (companyValue || "").toLowerCase()
   );

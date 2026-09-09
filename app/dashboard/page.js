@@ -20,7 +20,9 @@ import {
   setDoc,
   deleteField,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  query,
+  where
 } from "firebase/firestore";
 import { ensureCompanyAndContact, ensureCompanyAndContactBatch } from "../../lib/directory";
 import { ensureTowerModel } from "../../lib/towerModels";
@@ -31,6 +33,27 @@ const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Design", "Budgeting"];
+
+// "member" and "estimating" are stored as-is in Firestore (estimating has
+// identical permissions to member for now, just a distinct label/identity)
+// -- only the displayed text changes.
+const ROLE_LABELS = { admin: "Admin", member: "Salesperson", estimating: "Estimating Department" };
+const roleLabel = (role) => ROLE_LABELS[role] || role;
+
+// Per-user feature access, set at account creation and editable anytime
+// from Settings -> Team Members. Admins always have every permission
+// regardless of this map. Anyone created before this existed (or with no
+// permissions field at all) defaults to everything on, so nothing changes
+// until an admin deliberately restricts something.
+const PERMISSION_DEFS = [
+  { key: "dashboard", label: "Home & My Dashboard" },
+  { key: "team", label: "Team" },
+  { key: "pipeline", label: "Pipeline" },
+  { key: "directory", label: "Directory (Companies & Contacts)" },
+  { key: "towers", label: "Towers & Tower Models" },
+  { key: "products", label: "Products" }
+];
+const DEFAULT_PERMISSIONS = PERMISSION_DEFS.reduce((acc, p) => ({ ...acc, [p.key]: true }), {});
 
 const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
@@ -52,6 +75,9 @@ export default function Dashboard() {
   const [nameLast, setNameLast] = useState("");
   const [myProfile, setMyProfile] = useState(null);
   const [showUserSettings, setShowUserSettings] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsError, setNotificationsError] = useState(null);
+  const [showAlertsPanel, setShowAlertsPanel] = useState(false);
   const [notifySundayDigest, setNotifySundayDigest] = useState(true);
   const [notifyWednesdayDigest, setNotifyWednesdayDigest] = useState(true);
   const [notifyCollabRequest, setNotifyCollabRequest] = useState(true);
@@ -65,6 +91,7 @@ export default function Dashboard() {
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [towerModels, setTowerModels] = useState([]);
+  const [rebuildingDirectory, setRebuildingDirectory] = useState(false);
 
   // COLLABORATION
   const [requestsById, setRequestsById] = useState({}); // customerId -> pending requests on entries I own
@@ -101,6 +128,8 @@ export default function Dashboard() {
   const [pipelineTowerManufacturer, setPipelineTowerManufacturer] = useState("");
   const [pipelineModelNumber, setPipelineModelNumber] = useState("");
   const [pipelineSerialNumber, setPipelineSerialNumber] = useState("");
+  const [pipelineSalespersonId, setPipelineSalespersonId] = useState("");
+  const [pipelineProjectPointPersonId, setPipelineProjectPointPersonId] = useState("");
   const [biddingCompanies, setBiddingCompanies] = useState([]);
   const [showAddPipelineModal, setShowAddPipelineModal] = useState(false);
 
@@ -125,12 +154,16 @@ export default function Dashboard() {
   // SEARCH
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [pastProjectsSearch, setPastProjectsSearch] = useState("");
 
   // ADMIN: create user form
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserRole, setNewUserRole] = useState("member");
   const [newUserFirstName, setNewUserFirstName] = useState("");
   const [newUserLastName, setNewUserLastName] = useState("");
+  const [newUserPermissions, setNewUserPermissions] = useState(DEFAULT_PERMISSIONS);
+  const [editPermissionsTarget, setEditPermissionsTarget] = useState(null);
+  const [editPermissionsData, setEditPermissionsData] = useState(DEFAULT_PERMISSIONS);
 
   const col = collection(db, "customers");
 
@@ -298,6 +331,61 @@ export default function Dashboard() {
     setTowerModels(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   };
 
+  // The Directory only fills in as a side effect of saving a project or
+  // pipeline entry, so anything created before that feature existed (or
+  // untouched since) never made it into companies/contacts/towerModels.
+  // This walks every existing project + pipeline entry and backfills them,
+  // reusing the exact same capture logic as a normal save. Safe to re-run
+  // any time -- it just skips anything that already exists.
+  const rebuildDirectory = async () => {
+    if (!window.confirm("Rebuild the Directory from every existing project and pipeline entry? This can take a minute for a lot of data.")) return;
+
+    setRebuildingDirectory(true);
+    try {
+      const captureEntries = [];
+
+      customers.forEach(c => {
+        captureEntries.push({
+          companyName: c.company, category: "Customer",
+          contactName: c.contact, email: c.email, phone: c.phone
+        });
+      });
+
+      pipelineEntries.forEach(p => {
+        captureEntries.push({
+          companyName: p.company, category: "Engineering Firm",
+          contactName: p.contact, email: p.email, phone: p.phone
+        });
+        (p.biddingCompanies || []).forEach(b => {
+          captureEntries.push({
+            companyName: b.company, category: "Contractor",
+            contactName: b.contact, email: b.email, phone: b.phone
+          });
+        });
+      });
+
+      await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });
+
+      const workingTowerModels = [...towerModels];
+      const towerEntries = [
+        ...customers.map(c => ({ manufacturer: c.towerManufacturer, model: c.modelNumber })),
+        ...pipelineEntries.map(p => ({ manufacturer: p.towerManufacturer, model: p.modelNumber }))
+      ];
+      for (const entry of towerEntries) {
+        const result = await ensureTowerModel({ towerModels: workingTowerModels, manufacturer: entry.manufacturer, model: entry.model, uid });
+        if (result && !workingTowerModels.some(t => t.id === result.id)) {
+          workingTowerModels.push(result);
+        }
+      }
+
+      await loadDirectory();
+      await loadTowerModels();
+      showToast("Directory rebuilt from existing projects & pipeline");
+    } finally {
+      setRebuildingDirectory(false);
+    }
+  };
+
   const sendNotificationEmail = async (to, subject, html) => {
     try {
       await fetch("/api/send-email", {
@@ -308,6 +396,46 @@ export default function Dashboard() {
     } catch {
       // best-effort -- don't let a failed email break the actual action
     }
+  };
+
+  const loadNotifications = async (currentUid) => {
+    const snap = await getDocs(query(collection(db, "notifications"), where("userId", "==", currentUid)));
+    const list = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    setNotifications(list);
+    setNotificationsError(null);
+  };
+
+  // In-app alert, independent of whether the accompanying email actually
+  // gets delivered -- the alerts bell always shows what happened even
+  // when email doesn't (see: the whole SES/Gmail saga).
+  const notifyUser = async (userId, { type, message, link, email, subject, emailHtml, emailPref }) => {
+    await addDoc(collection(db, "notifications"), {
+      userId,
+      type,
+      message,
+      link: link || null,
+      read: false,
+      createdAt: new Date().toISOString()
+    });
+
+    if (email && emailPref !== false) {
+      sendNotificationEmail(email, subject, emailHtml);
+    }
+  };
+
+  const markNotificationRead = async (n) => {
+    if (!n.read) {
+      await updateDoc(doc(db, "notifications", n.id), { read: true });
+      setNotifications(prev => prev.map(x => (x.id === n.id ? { ...x, read: true } : x)));
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    const unread = notifications.filter(n => !n.read);
+    await Promise.all(unread.map(n => updateDoc(doc(db, "notifications", n.id), { read: true })));
+    setNotifications(prev => prev.map(x => ({ ...x, read: true })));
   };
 
   const requestCollaborate = async (c) => {
@@ -323,12 +451,16 @@ export default function Dashboard() {
 
     const owner = users.find(u => u.id === c.ownerId);
     const projectLabel = c.projectName || c.company;
-    if (owner?.email && owner.notifyCollabRequest !== false) {
-      sendNotificationEmail(
-        owner.email,
-        `${requesterName} wants to collaborate on ${projectLabel}`,
-        `<p>${requesterName} has requested to collaborate on <strong>${projectLabel}</strong>. Log in to your CRM dashboard to approve or deny.</p>`
-      );
+    if (owner) {
+      notifyUser(owner.id, {
+        type: "collab_request",
+        message: `${requesterName} wants to collaborate on ${projectLabel}`,
+        link: `/dashboard/project/${c.id}`,
+        email: owner.email,
+        subject: `${requesterName} wants to collaborate on ${projectLabel}`,
+        emailHtml: `<p>${requesterName} has requested to collaborate on <strong>${projectLabel}</strong>. Log in to your CRM dashboard to approve or deny.</p>`,
+        emailPref: owner.notifyCollabRequest
+      });
     }
   };
 
@@ -342,12 +474,16 @@ export default function Dashboard() {
     const requester = users.find(u => u.id === request.requesterId);
     const c = customers.find(c => c.id === customerId);
     const projectLabel = c?.projectName || c?.company || "an entry";
-    if (requester?.email && requester.notifyCollabApproved !== false) {
-      sendNotificationEmail(
-        requester.email,
-        `You can now collaborate on ${projectLabel}`,
-        `<p>Your request to collaborate on <strong>${projectLabel}</strong> was approved. It now shows up in your My Dashboard.</p>`
-      );
+    if (requester) {
+      notifyUser(requester.id, {
+        type: "collab_approved",
+        message: `Your request to collaborate on ${projectLabel} was approved`,
+        link: `/dashboard/project/${customerId}`,
+        email: requester.email,
+        subject: `You can now collaborate on ${projectLabel}`,
+        emailHtml: `<p>Your request to collaborate on <strong>${projectLabel}</strong> was approved. It now shows up in your My Dashboard.</p>`,
+        emailPref: requester.notifyCollabApproved
+      });
     }
 
     loadCustomers(uid, role === "admin");
@@ -356,6 +492,15 @@ export default function Dashboard() {
   const denyRequest = async (customerId, request) => {
     await deleteDoc(doc(db, "customers", customerId, "collabRequests", request.id));
     showToast("Request denied");
+
+    const c = customers.find(c => c.id === customerId);
+    const projectLabel = c?.projectName || c?.company || "an entry";
+    notifyUser(request.requesterId, {
+      type: "collab_denied",
+      message: `Your request to collaborate on ${projectLabel} was denied`,
+      link: null
+    });
+
     loadCustomers(uid, role === "admin");
   };
 
@@ -475,6 +620,14 @@ export default function Dashboard() {
           await loadPipeline();
           await loadDirectory();
           await loadTowerModels();
+          // A broken alerts bell shouldn't take down the whole dashboard,
+          // but the failure still needs to be visible -- an empty list
+          // must never be indistinguishable from "nothing to show."
+          try {
+            await loadNotifications(user.uid);
+          } catch (err) {
+            setNotificationsError(err.message || "Couldn't load alerts.");
+          }
         }
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading your account.");
@@ -493,10 +646,34 @@ export default function Dashboard() {
     }
   }, [view, role]);
 
+  // If the current view is one this user's permissions don't allow (e.g.
+  // an admin just revoked it, or it's their first load after being
+  // restricted), bounce to the first tab they still have. Past Projects
+  // is always available so it's the guaranteed fallback.
+  useEffect(() => {
+    if (!myProfile) return;
+    const perms = role === "admin"
+      ? PERMISSION_DEFS.reduce((acc, p) => ({ ...acc, [p.key]: true }), {})
+      : { ...DEFAULT_PERMISSIONS, ...(myProfile?.permissions || {}) };
+    const viewPermissionMap = { home: "dashboard", personal: "dashboard", team: "team", pipeline: "pipeline" };
+    const neededPerm = viewPermissionMap[view];
+    if (neededPerm && !perms[neededPerm]) {
+      if (perms.dashboard) setView("home");
+      else if (perms.team) setView("team");
+      else if (perms.pipeline) setView("pipeline");
+      else setView("pastProjects");
+    }
+  }, [myProfile, role, view]);
+
   // ADD
   const addCustomer = async () => {
-    if (!projectName || !contact || !nextDate || !projectAddress) {
-      return alert("Please fill required fields, including the project address");
+    const missing = [];
+    if (!projectName) missing.push("Project Name");
+    if (!contact) missing.push("Contact");
+    if (!nextDate) missing.push("Next Check-In date");
+    if (!projectAddress) missing.push("Project Address");
+    if (missing.length) {
+      return alert(`Please fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
     }
 
     const ref = await addDoc(col, {
@@ -555,6 +732,8 @@ export default function Dashboard() {
     setPipelineTowerManufacturer("");
     setPipelineModelNumber("");
     setPipelineSerialNumber("");
+    setPipelineSalespersonId("");
+    setPipelineProjectPointPersonId("");
   };
 
   const addBiddingCompanyRow = () => {
@@ -587,6 +766,12 @@ export default function Dashboard() {
       towerManufacturer: pipelineTowerManufacturer || null,
       modelNumber: pipelineModelNumber || null,
       serialNumber: pipelineSerialNumber || null,
+      salespersonId: pipelineSalespersonId || null,
+      projectPointPersonId: pipelineProjectPointPersonId || null,
+      trackedByIds: [],
+      outcome: null,
+      wonByContractor: null,
+      nextCheckIn: null,
       ownerId: uid,
       convertedToProjectId: null,
       createdAt: new Date().toISOString()
@@ -629,9 +814,19 @@ export default function Dashboard() {
   };
 
   const saveEdit = async () => {
-    await updateDoc(doc(db, "customers", editingId), {
-      ...editData
-    });
+    const original = customers.find(c => c.id === editingId);
+    const payload = { ...editData };
+
+    // Closing a project schedules a 1-year "how are things going" check-in
+    // automatically, so it resurfaces on the Home calendar even though it's
+    // now hidden from the active My Dashboard list.
+    if (editData.category === "Project Closed" && original?.category !== "Project Closed") {
+      const followUp = new Date();
+      followUp.setFullYear(followUp.getFullYear() + 1);
+      payload.nextCheckIn = adjustWeekend(followUp.toISOString());
+    }
+
+    await updateDoc(doc(db, "customers", editingId), payload);
 
     ensureCompanyAndContact({
       companies, contacts, companyName: editData.company, category: "Customer",
@@ -664,13 +859,69 @@ export default function Dashboard() {
     loadCustomers(uid, role === "admin");
   };
 
+  const snoozeClosedFollowUp = async (c) => {
+    const next = new Date();
+    next.setMonth(next.getMonth() + 3);
+
+    await updateDoc(doc(db, "customers", c.id), {
+      nextCheckIn: adjustWeekend(next.toISOString())
+    });
+
+    showToast("Snoozed for 3 months");
+    loadCustomers(uid, role === "admin");
+  };
+
+  const followUpAnotherYear = async (c) => {
+    const next = new Date();
+    next.setFullYear(next.getFullYear() + 1);
+
+    await updateDoc(doc(db, "customers", c.id), {
+      nextCheckIn: adjustWeekend(next.toISOString())
+    });
+
+    showToast("Follow-up scheduled for 1 year");
+    loadCustomers(uid, role === "admin");
+  };
+
+  // Same snooze/re-follow-up pattern as closed projects, but for Won
+  // pipeline entries -- lost entries never get a nextCheckIn in the first
+  // place, so there's nothing to follow up on for those.
+  const snoozePipelineFollowUp = async (p) => {
+    const next = new Date();
+    next.setMonth(next.getMonth() + 3);
+
+    await updateDoc(doc(db, "pipeline", p.id), {
+      nextCheckIn: adjustWeekend(next.toISOString())
+    });
+
+    showToast("Snoozed for 3 months");
+    loadPipeline();
+  };
+
+  const pipelineFollowUpAnotherYear = async (p) => {
+    const next = new Date();
+    next.setFullYear(next.getFullYear() + 1);
+
+    await updateDoc(doc(db, "pipeline", p.id), {
+      nextCheckIn: adjustWeekend(next.toISOString())
+    });
+
+    showToast("Follow-up scheduled for 1 year");
+    loadPipeline();
+  };
+
   const openCompletedPopup = (c) => {
     setCompletedTarget(c);
   };
 
   const confirmCompleted = async () => {
+    // Marking a project completed closes it out the same way changing its
+    // category to "Project Closed" does: it drops off My Dashboard, moves
+    // into Past Projects, and gets the same 1-year follow-up (with the
+    // same Snooze 3 Months / Follow Up in 1 Year options once due) as
+    // every other closed project -- one unified process either way.
     const d = new Date();
-    d.setMonth(d.getMonth() + 6);
+    d.setFullYear(d.getFullYear() + 1);
 
     const entry = {
       type: "completed",
@@ -679,6 +930,7 @@ export default function Dashboard() {
     };
 
     await updateDoc(doc(db, "customers", completedTarget.id), {
+      category: "Project Closed",
       nextCheckIn: adjustWeekend(d.toISOString()),
       activityLog: [
         ...(completedTarget.activityLog || []),
@@ -689,7 +941,7 @@ export default function Dashboard() {
     setCompletedTarget(null);
     setContactMethod("phone");
 
-    showToast("Marked completed");
+    showToast("Marked completed — moved to Past Projects");
     loadCustomers(uid, role === "admin");
   };
 
@@ -752,7 +1004,10 @@ export default function Dashboard() {
   };
 
   const filteredCustomers = useMemo(() => {
-    let list = customers.filter(c => c.ownerId === uid || (c.collaboratorIds || []).includes(uid));
+    let list = customers.filter(c =>
+      (c.ownerId === uid || (c.collaboratorIds || []).includes(uid)) &&
+      c.category !== "Project Closed"
+    );
     list = [...list].sort(
       (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
     );
@@ -773,6 +1028,50 @@ export default function Dashboard() {
 
     return list;
   }, [customers, searchQuery, uid, notesById]);
+
+  // Pipeline entries "on my dashboard" -- owner, assigned salesperson,
+  // assigned project point person, or self-tracked. Pulled live from the
+  // same pipelineEntries used by the Pipeline tab, so it's always a
+  // mirror of the single underlying document, never a copy.
+  const myPipelineEntries = useMemo(() => {
+    return pipelineEntries
+      .filter(p =>
+        p.ownerId === uid ||
+        p.salespersonId === uid ||
+        p.projectPointPersonId === uid ||
+        (p.trackedByIds || []).includes(uid)
+      )
+      .filter(p => !p.convertedToProjectId && !p.outcome)
+      .sort((a, b) => (a.bidDate || "").localeCompare(b.bidDate || ""));
+  }, [pipelineEntries, uid]);
+
+  // PAST PROJECTS: the company-wide archive of finished work -- closed
+  // projects and resolved (Won/Lost) pipeline entries, for everyone to
+  // browse regardless of who owned them.
+  const pastProjectsList = useMemo(() => {
+    let list = customers.filter(c => c.category === "Project Closed");
+    if (pastProjectsSearch.trim()) {
+      const q = pastProjectsSearch.toLowerCase();
+      list = list.filter(c =>
+        (c.projectName || "").toLowerCase().includes(q) ||
+        (c.company || "").toLowerCase().includes(q)
+      );
+    }
+    return list.sort((a, b) => (a.projectName || "").localeCompare(b.projectName || ""));
+  }, [customers, pastProjectsSearch]);
+
+  const pastPipelineList = useMemo(() => {
+    let list = pipelineEntries.filter(p => p.outcome === "Won" || p.outcome === "Lost");
+    if (pastProjectsSearch.trim()) {
+      const q = pastProjectsSearch.toLowerCase();
+      list = list.filter(p =>
+        (p.title || "").toLowerCase().includes(q) ||
+        (p.company || "").toLowerCase().includes(q) ||
+        (p.wonByContractor || "").toLowerCase().includes(q)
+      );
+    }
+    return list.sort((a, b) => (b.resolvedAt || "").localeCompare(a.resolvedAt || ""));
+  }, [pipelineEntries, pastProjectsSearch]);
 
   const teamCustomers = useMemo(() => {
     let list = [...customers].sort(
@@ -811,7 +1110,7 @@ export default function Dashboard() {
   };
 
   const filteredPipeline = useMemo(() => {
-    let list = [...pipelineEntries];
+    let list = pipelineEntries.filter(p => !p.outcome);
 
     if (pipelineFilterOwner !== "all") {
       list = list.filter(p => p.ownerId === pipelineFilterOwner);
@@ -854,8 +1153,21 @@ export default function Dashboard() {
   const weekKeys = useMemo(() => calendarDays.slice(0, 5).map(d => d.key), [calendarDays]);
 
   const myCalendarProjects = useMemo(() => {
-    return customers.filter(c => c.ownerId === uid || (c.collaboratorIds || []).includes(uid));
-  }, [customers, uid]);
+    const projectItems = customers
+      .filter(c => c.ownerId === uid || (c.collaboratorIds || []).includes(uid))
+      .map(c => ({ ...c, _kind: "project" }));
+
+    // Won pipeline entries follow up with whoever's actually responsible
+    // for the relationship -- the assigned point person, falling back to
+    // the salesperson, falling back to whoever owns the entry. Lost
+    // entries never get a nextCheckIn set, so they never appear here.
+    const pipelineFollowUps = pipelineEntries
+      .filter(p => p.outcome === "Won" && p.nextCheckIn)
+      .filter(p => (p.projectPointPersonId || p.salespersonId || p.ownerId) === uid)
+      .map(p => ({ ...p, _kind: "pipeline", projectName: p.title }));
+
+    return [...projectItems, ...pipelineFollowUps];
+  }, [customers, pipelineEntries, uid]);
 
   const projectsByDay = useMemo(() => {
     const map = {};
@@ -899,6 +1211,7 @@ export default function Dashboard() {
         firstName: newUserFirstName.trim() || null,
         lastName: newUserLastName.trim() || null,
         disabled: false,
+        permissions: newUserPermissions,
         createdAt: new Date().toISOString()
       });
 
@@ -919,6 +1232,7 @@ export default function Dashboard() {
       setNewUserRole("member");
       setNewUserFirstName("");
       setNewUserLastName("");
+      setNewUserPermissions(DEFAULT_PERMISSIONS);
       showToast("Account created — setup email + SES verification email sent");
       loadUsers();
     } catch (err) {
@@ -926,13 +1240,23 @@ export default function Dashboard() {
     }
   };
 
-  const toggleUserRole = async (u) => {
+  const changeUserRole = async (u, newRole) => {
     if (u.id === uid) {
       return alert("You can't change your own role. Ask another admin to do it.");
     }
-    await updateDoc(doc(db, "users", u.id), {
-      role: u.role === "admin" ? "member" : "admin"
-    });
+    await updateDoc(doc(db, "users", u.id), { role: newRole });
+    loadUsers();
+  };
+
+  const openEditPermissions = (u) => {
+    setEditPermissionsTarget(u);
+    setEditPermissionsData({ ...DEFAULT_PERMISSIONS, ...(u.permissions || {}) });
+  };
+
+  const savePermissions = async () => {
+    await updateDoc(doc(db, "users", editPermissionsTarget.id), { permissions: editPermissionsData });
+    setEditPermissionsTarget(null);
+    showToast("Permissions updated");
     loadUsers();
   };
 
@@ -954,6 +1278,10 @@ export default function Dashboard() {
 
     loadUsers();
   };
+
+  const myPermissions = role === "admin"
+    ? PERMISSION_DEFS.reduce((acc, p) => ({ ...acc, [p.key]: true }), {})
+    : { ...DEFAULT_PERMISSIONS, ...(myProfile?.permissions || {}) };
 
   if (loadError) {
     return (
@@ -994,6 +1322,12 @@ export default function Dashboard() {
     );
   }
 
+  const allPendingRequests = Object.entries(requestsById).flatMap(([customerId, reqs]) =>
+    reqs.map(r => ({ ...r, customerId }))
+  );
+  const unreadNotificationCount = notifications.filter(n => !n.read).length;
+  const alertsCount = allPendingRequests.length + unreadNotificationCount;
+
   return (
     <div className="dashboard-page">
 
@@ -1008,9 +1342,78 @@ export default function Dashboard() {
               className="btn btn-secondary"
               onClick={() => setView(view === "admin" ? "personal" : "admin")}
             >
-              {view === "admin" ? "Back to Dashboard" : "Settings"}
+              {view === "admin" ? "Back to Dashboard" : "Admin Settings"}
             </button>
           )}
+
+          <div className="alerts-menu">
+            <button className="avatar-circle" style={{ position: "relative" }} onClick={() => setShowAlertsPanel(prev => !prev)}>
+              🔔
+              {alertsCount > 0 && <span className="alerts-badge">{alertsCount}</span>}
+            </button>
+            {showAlertsPanel && (
+              <div className="alerts-dropdown">
+                <div className="avatar-dropdown-card" style={{ width: 340 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <h4 className="field-label" style={{ margin: 0 }}>Alerts</h4>
+                    {unreadNotificationCount > 0 && (
+                      <button className="link-muted" style={{ background: "none", border: "none", cursor: "pointer" }} onClick={markAllNotificationsRead}>
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  {allPendingRequests.length > 0 && (
+                    <>
+                      <div className="field-label" style={{ marginTop: 8 }}>Pending Collaboration Requests</div>
+                      {allPendingRequests.map(r => {
+                        const c = customers.find(cust => cust.id === r.customerId);
+                        const label = c?.projectName || c?.company || "an entry";
+                        return (
+                          <div key={`${r.customerId}-${r.id}`} className="notes-history-item" style={{ marginTop: 6 }}>
+                            <div>
+                              <strong>{r.requesterName}</strong> wants to collaborate on {label}
+                            </div>
+                            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                              <button className="btn btn-primary" onClick={() => approveRequest(r.customerId, r)}>Approve</button>
+                              <button className="btn btn-secondary" onClick={() => denyRequest(r.customerId, r)}>Deny</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  <div className="field-label" style={{ marginTop: 12 }}>Notifications</div>
+                  {notificationsError && (
+                    <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ Couldn't load alerts: {notificationsError}</p>
+                  )}
+                  {!notificationsError && notifications.length === 0 && (
+                    <p className="private-note-hint">Nothing yet.</p>
+                  )}
+                  <div style={{ maxHeight: 280, overflowY: "auto" }}>
+                    {notifications.map(n => (
+                      <div
+                        key={n.id}
+                        className="notes-history-item"
+                        style={{ marginTop: 6, cursor: n.link ? "pointer" : "default", opacity: n.read ? 0.6 : 1 }}
+                        onClick={() => {
+                          markNotificationRead(n);
+                          if (n.link) {
+                            setShowAlertsPanel(false);
+                            router.push(n.link);
+                          }
+                        }}
+                      >
+                        <div>{n.message}</div>
+                        <div className="notes-history-date">{(n.createdAt || "").slice(0, 16).replace("T", " ")}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="avatar-menu">
             <button className="avatar-circle">
@@ -1023,7 +1426,7 @@ export default function Dashboard() {
                 </div>
                 <div className="avatar-dropdown-email">{auth.currentUser?.email}</div>
                 <div className="avatar-dropdown-role">
-                  <span className={`role-badge ${role === "admin" ? "role-badge-admin" : ""}`}>{role}</span>
+                  <span className={`role-badge ${role === "admin" ? "role-badge-admin" : ""}`}>{roleLabel(role)}</span>
                 </div>
                 <button className="btn btn-secondary btn-block" onClick={() => setShowUserSettings(true)}>
                   User Settings
@@ -1089,43 +1492,69 @@ export default function Dashboard() {
 
       {view !== "admin" && (
         <div className="view-tabs">
-          <button
-            className={`tab-btn ${view === "home" ? "tab-btn-active" : ""}`}
-            onClick={() => setView("home")}
-          >
-            Home
-          </button>
-          <button
-            className={`tab-btn ${view === "personal" ? "tab-btn-active" : ""}`}
-            onClick={() => setView("personal")}
-          >
-            My Dashboard
-          </button>
-          <button
-            className={`tab-btn ${view === "team" ? "tab-btn-active" : ""}`}
-            onClick={() => setView("team")}
-          >
-            Team
-          </button>
-          <button
-            className={`tab-btn ${view === "pipeline" ? "tab-btn-active" : ""}`}
-            onClick={() => setView("pipeline")}
-          >
-            Pipeline
-          </button>
+          {myPermissions.dashboard && (
+            <>
+              <button
+                className={`tab-btn ${view === "home" ? "tab-btn-active" : ""}`}
+                onClick={() => setView("home")}
+              >
+                Home
+              </button>
+              <button
+                className={`tab-btn ${view === "personal" ? "tab-btn-active" : ""}`}
+                onClick={() => setView("personal")}
+              >
+                My Dashboard
+              </button>
+            </>
+          )}
+          {myPermissions.team && (
+            <button
+              className={`tab-btn ${view === "team" ? "tab-btn-active" : ""}`}
+              onClick={() => setView("team")}
+            >
+              Team
+            </button>
+          )}
+          {myPermissions.pipeline && (
+            <button
+              className={`tab-btn ${view === "pipeline" ? "tab-btn-active" : ""}`}
+              onClick={() => setView("pipeline")}
+            >
+              Pipeline
+            </button>
+          )}
 
-          <div className="tab-dropdown">
-            <button className="tab-btn">Directory ▾</button>
-            <div className="tab-dropdown-menu">
-              <div className="tab-dropdown-menu-card">
-                <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory")}>All Companies</a>
-                <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Contractor")}>Contractors</a>
-                <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Customer")}>Customers</a>
-                <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Engineering%20Firm")}>Engineering Firms</a>
-                <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory/towers")}>Towers</a>
+          {(myPermissions.directory || myPermissions.towers || myPermissions.products) && (
+            <div className="tab-dropdown">
+              <button className="tab-btn">Directory ▾</button>
+              <div className="tab-dropdown-menu">
+                <div className="tab-dropdown-menu-card">
+                  {myPermissions.directory && (
+                    <>
+                      <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory")}>All Companies</a>
+                      <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Contractor")}>Contractors</a>
+                      <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Customer")}>Customers</a>
+                      <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Engineering%20Firm")}>Engineering Firms</a>
+                    </>
+                  )}
+                  {myPermissions.towers && (
+                    <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory/towers")}>Towers</a>
+                  )}
+                  {myPermissions.products && (
+                    <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory/products")}>Products</a>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          <button
+            className={`tab-btn ${view === "pastProjects" ? "tab-btn-active" : ""}`}
+            onClick={() => setView("pastProjects")}
+          >
+            Past Projects
+          </button>
         </div>
       )}
 
@@ -1155,7 +1584,7 @@ export default function Dashboard() {
                         <div
                           key={c.id}
                           className="calendar-event-pill"
-                          onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/project/${c.id}`); }}
+                          onClick={(e) => { e.stopPropagation(); router.push(c._kind === "pipeline" ? `/dashboard/pipeline/${c.id}` : `/dashboard/project/${c.id}`); }}
                         >
                           {c.projectName || c.company}
                         </div>
@@ -1188,21 +1617,37 @@ export default function Dashboard() {
               <div
                 key={c.id}
                 className="calendar-panel-item"
-                onClick={() => router.push(`/dashboard/project/${c.id}`)}
+                onClick={() => router.push(c._kind === "pipeline" ? `/dashboard/pipeline/${c.id}` : `/dashboard/project/${c.id}`)}
               >
                 <div className="customer-name" style={{ fontSize: 14 }}>{c.projectName || c.company}</div>
                 {c.company && c.projectName && c.projectName !== c.company && (
                   <div className="customer-meta">{c.company}</div>
                 )}
                 <div className="customer-dates">Due: {formatDate(c.nextCheckIn)}</div>
-                {c.category && <span className="role-badge" style={{ marginTop: 4 }}>{c.category}</span>}
+                {c._kind === "pipeline" ? (
+                  <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>✅ Won — Check In</span>
+                ) : (
+                  c.category && <span className="role-badge" style={{ marginTop: 4 }}>{c.category}</span>
+                )}
+                {c._kind === "project" && c.category === "Project Closed" && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                    <button className="btn btn-secondary" onClick={() => snoozeClosedFollowUp(c)}>Snooze 3 Months</button>
+                    <button className="btn btn-secondary" onClick={() => followUpAnotherYear(c)}>Follow Up in 1 Year</button>
+                  </div>
+                )}
+                {c._kind === "pipeline" && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                    <button className="btn btn-secondary" onClick={() => snoozePipelineFollowUp(c)}>Snooze 3 Months</button>
+                    <button className="btn btn-secondary" onClick={() => pipelineFollowUpAnotherYear(c)}>Follow Up in 1 Year</button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {view === "personal" && (
+      {view === "personal" && role !== "estimating" && (
         <>
           {/* ADD PROJECT BUTTON */}
           <div style={{ marginBottom: 20 }}>
@@ -1222,6 +1667,7 @@ export default function Dashboard() {
                   idPrefix="add-project"
                   companies={companies}
                   contacts={contacts}
+                  companyCategory="Customer"
                   companyValue={company}
                   contactValue={contact}
                   emailValue={email}
@@ -1268,8 +1714,12 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* LIST */}
-          {filteredCustomers.map(c => {
+          {/* LIST -- projects and pipeline follow-ups interleaved by due
+              date in one continuous list, not split into separate
+              sections; pipeline entries get a "Pipeline" label instead so
+              they're still tellable apart. */}
+          {[
+            ...filteredCustomers.map(c => {
             const days = diffDays(c.nextCheckIn);
             const isOwner = c.ownerId === uid;
             const pendingRequests = requestsById[c.id] || [];
@@ -1278,7 +1728,7 @@ export default function Dashboard() {
             if (days <= 0) barClass = "badge-bar-overdue";
             else if (days <= 2) barClass = "badge-bar-soon";
 
-            return (
+            return { sortKey: getDateValue(c.nextCheckIn), element: (
               <div
                 key={c.id}
                 className={`customer-card ${barClass}`}
@@ -1296,6 +1746,7 @@ export default function Dashboard() {
                         idPrefix={`edit-project-${c.id}`}
                         companies={companies}
                         contacts={contacts}
+                        companyCategory="Customer"
                         companyValue={editData.company}
                         contactValue={editData.contact}
                         emailValue={editData.email}
@@ -1425,15 +1876,44 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
-            );
-          })}
+            ) };
+          }),
+            ...myPipelineEntries.map(p => ({
+              sortKey: p.bidDate ? new Date(p.bidDate).getTime() : Infinity,
+              element: (
+                <div
+                  key={`pipeline-${p.id}`}
+                  className="customer-card"
+                  onClick={() => router.push(`/dashboard/pipeline/${p.id}`)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <div className="customer-card-left">
+                    <div className="customer-name">{p.title}</div>
+                    <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>Pipeline · {p.stage}</span>
+                  </div>
+                  <div className="customer-card-middle">
+                    {p.company && <div className="private-note-hint">{p.company}</div>}
+                    {p.bidDate && <div className="customer-dates">Bid: {p.bidDate}</div>}
+                  </div>
+                </div>
+              )
+            }))
+          ].sort((a, b) => a.sortKey - b.sortKey).map(item => item.element)}
+
+          {filteredCustomers.length === 0 && myPipelineEntries.length === 0 && (
+            <p className="private-note-hint">Nothing on your dashboard yet.</p>
+          )}
 
           {/* COMPLETED POPUP */}
           {completedTarget && (
             <div className="modal-overlay">
               <div className="modal-card">
-                <h3 className="modal-title">Contact Method</h3>
+                <h3 className="modal-title">Mark Completed</h3>
+                <p className="modal-subtitle" style={{ marginBottom: 12 }}>
+                  This closes the project out and moves it to Past Projects. You'll be reminded to check back in on it in a year.
+                </p>
 
+                <label className="field-label">How was contact made?</label>
                 <select className="field" value={contactMethod} onChange={e => setContactMethod(e.target.value)}>
                   <option value="phone">Phone</option>
                   <option value="email">Email</option>
@@ -1585,7 +2065,7 @@ export default function Dashboard() {
         </>
       )}
 
-      {view === "pipeline" && (
+      {(view === "pipeline" || (view === "personal" && role === "estimating")) && (
         <>
           <div style={{ marginBottom: 20, display: "flex", gap: 10, alignItems: "center" }}>
             <button className="btn btn-primary" onClick={() => setShowAddPipelineModal(true)}>ADD PIPELINE ENTRY</button>
@@ -1636,6 +2116,7 @@ export default function Dashboard() {
                     companies={companies}
                     contacts={contacts}
                     companyLabel="Engineering Firm"
+                    companyCategory="Engineering Firm"
                     companyValue={pipelineCompany}
                     contactValue={pipelineContact}
                     emailValue={pipelineEmail}
@@ -1655,6 +2136,7 @@ export default function Dashboard() {
                       companies={companies}
                       contacts={contacts}
                       companyLabel="Contractor"
+                      companyCategory="Contractor"
                       companyValue={row.company}
                       contactValue={row.contact}
                       emailValue={row.email}
@@ -1668,6 +2150,28 @@ export default function Dashboard() {
                   </div>
                 ))}
                 <button className="btn btn-secondary" onClick={addBiddingCompanyRow}>+ Add Contractor</button>
+
+                <h4 className="field-label" style={{ marginTop: 12 }}>Assigned Team (optional)</h4>
+                <div className="form-grid-2">
+                  <div>
+                    <label className="field-label">Salesperson</label>
+                    <select className="field" value={pipelineSalespersonId} onChange={e => setPipelineSalespersonId(e.target.value)}>
+                      <option value="">Unassigned</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="field-label">Project Point Person</label>
+                    <select className="field" value={pipelineProjectPointPersonId} onChange={e => setPipelineProjectPointPersonId(e.target.value)}>
+                      <option value="">Unassigned</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
                 <h4 className="field-label" style={{ marginTop: 12 }}>Tower Details (optional)</h4>
                 <div className="form-grid-2">
@@ -1724,9 +2228,72 @@ export default function Dashboard() {
         </>
       )}
 
+      {view === "pastProjects" && (
+        <>
+          <div className="toolbar">
+            <input
+              className="field"
+              placeholder="Search past projects and pipeline entries..."
+              value={pastProjectsSearch}
+              onChange={e => setPastProjectsSearch(e.target.value)}
+              style={{ flex: 1, marginBottom: 0 }}
+            />
+          </div>
+
+          <h3 className="modal-title" style={{ marginTop: 8, marginBottom: 12 }}>Closed Projects</h3>
+          {pastProjectsList.length === 0 && (
+            <p className="private-note-hint">No closed projects yet.</p>
+          )}
+          {pastProjectsList.map(c => (
+            <div
+              key={c.id}
+              className="customer-card"
+              onClick={() => router.push(`/dashboard/project/${c.id}`)}
+              style={{ cursor: "pointer" }}
+            >
+              <div className="customer-card-left">
+                <div className="customer-name">{c.projectName || c.company}</div>
+                <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>
+              </div>
+              <div className="customer-card-middle">
+                {c.company && <div className="private-note-hint">{c.company}</div>}
+                <div className="private-note-hint">Owned by {ownerLabel(c.ownerId)}</div>
+              </div>
+            </div>
+          ))}
+
+          <h3 className="modal-title" style={{ marginTop: 28, marginBottom: 12 }}>Resolved Pipeline Entries</h3>
+          {pastPipelineList.length === 0 && (
+            <p className="private-note-hint">No won or lost pipeline entries yet.</p>
+          )}
+          {pastPipelineList.map(p => (
+            <div
+              key={p.id}
+              className="customer-card"
+              onClick={() => router.push(`/dashboard/pipeline/${p.id}`)}
+              style={{ cursor: "pointer" }}
+            >
+              <div className="customer-card-left">
+                <div className="customer-name">{p.title}</div>
+                <span className={`role-badge ${p.outcome === "Won" ? "role-badge-admin" : ""}`} style={{ marginTop: 6 }}>
+                  {p.outcome === "Won" ? "✅ Won" : "❌ Lost"}
+                </span>
+              </div>
+              <div className="customer-card-middle">
+                {p.company && <div className="private-note-hint">{p.company}</div>}
+                {p.outcome === "Won" && p.wonByContractor && (
+                  <div className="private-note-hint">Awarded to {p.wonByContractor}</div>
+                )}
+                <div className="private-note-hint">Owned by {ownerLabel(p.ownerId)}</div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
       {view === "admin" && (
         <div className="admin-panel">
-          <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 700 }}>Settings</h2>
+          <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 700 }}>Admin Settings</h2>
           <p className="modal-subtitle" style={{ marginBottom: 16 }}>
             Company account management — create logins and control access.
           </p>
@@ -1766,11 +2333,24 @@ export default function Dashboard() {
 
             <label className="field-label">Role</label>
             <select className="field" value={newUserRole} onChange={e => setNewUserRole(e.target.value)}>
-              <option value="member">Member</option>
+              <option value="member">Salesperson</option>
+              <option value="estimating">Estimating Department</option>
               <option value="admin">Admin</option>
             </select>
 
-            <button className="btn btn-primary" onClick={createUser}>Create Account</button>
+            <label className="field-label" style={{ marginTop: 8 }}>Permissions</label>
+            {PERMISSION_DEFS.map(p => (
+              <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={newUserPermissions[p.key]}
+                  onChange={() => setNewUserPermissions(prev => ({ ...prev, [p.key]: !prev[p.key] }))}
+                />
+                {p.label}
+              </label>
+            ))}
+
+            <button className="btn btn-primary" style={{ marginTop: 8 }} onClick={createUser}>Create Account</button>
             <p className="modal-subtitle" style={{ marginTop: 10 }}>
               They'll get an email to set their own password.
               {(!newUserFirstName || !newUserLastName) && " If you skip the name fields, they'll be asked for it on first login."}
@@ -1802,7 +2382,7 @@ export default function Dashboard() {
                       <td>{u.email}{u.id === uid ? " (You)" : ""}</td>
                       <td>
                         <span className={`role-badge ${u.role === "admin" ? "role-badge-admin" : ""}`}>
-                          {u.role}
+                          {roleLabel(u.role)}
                         </span>
                       </td>
                       <td>{u.disabled ? "Disabled" : "Active"}</td>
@@ -1811,9 +2391,12 @@ export default function Dashboard() {
                           <span className="private-note-hint">Manage your own account from another admin's login.</span>
                         ) : (
                           <>
-                            <button className="btn btn-secondary" onClick={() => toggleUserRole(u)}>
-                              Make {u.role === "admin" ? "Member" : "Admin"}
-                            </button>
+                            <select className="field" style={{ marginBottom: 0, display: "inline-block", width: "auto" }} value={u.role} onChange={e => changeUserRole(u, e.target.value)}>
+                              <option value="member">Salesperson</option>
+                              <option value="estimating">Estimating Department</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                            <button className="btn btn-secondary" onClick={() => openEditPermissions(u)}>Permissions</button>
                             <button className="btn btn-danger" onClick={() => toggleUserDisabled(u)}>
                               {u.disabled ? "Reactivate" : "Deactivate"}
                             </button>
@@ -1825,6 +2408,40 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          <div className="admin-card">
+            <h3 className="modal-title">Directory</h3>
+            <p className="modal-subtitle" style={{ marginBottom: 12 }}>
+              The Directory (companies, contacts, tower models) only fills in when a project or pipeline entry is saved.
+              Run this to backfill it from everything that already exists -- safe to re-run any time.
+            </p>
+            <button className="btn btn-secondary" disabled={rebuildingDirectory} onClick={rebuildDirectory}>
+              {rebuildingDirectory ? "Rebuilding..." : "Rebuild Directory From Existing Data"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editPermissionsTarget && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <button className="modal-close" onClick={() => setEditPermissionsTarget(null)}>✕</button>
+            <h3 className="modal-title">Permissions</h3>
+            <p className="modal-subtitle" style={{ marginBottom: 12 }}>{editPermissionsTarget.email}</p>
+
+            {PERMISSION_DEFS.map(p => (
+              <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={editPermissionsData[p.key]}
+                  onChange={() => setEditPermissionsData(prev => ({ ...prev, [p.key]: !prev[p.key] }))}
+                />
+                {p.label}
+              </label>
+            ))}
+
+            <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={savePermissions}>Save Permissions</button>
           </div>
         </div>
       )}
