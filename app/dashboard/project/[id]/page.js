@@ -237,7 +237,7 @@ export default function ProjectDetail() {
     await updateDoc(doc(db, "customers", projectId), payload);
 
     ensureCompanyAndContact({
-      companies, contacts, companyName: editData.company, category: "Customer",
+      companies, contacts, companyName: editData.company, category: "Contractor",
       contactName: editData.contact, email: editData.email, phone: editData.phone, uid
     });
 
@@ -418,7 +418,8 @@ export default function ProjectDetail() {
               idPrefix="project-detail"
               companies={companies}
               contacts={contacts}
-              companyCategory="Customer"
+              companyLabel="Contractor"
+              companyCategory="Contractor"
               companyValue={editData.company}
               contactValue={editData.contact}
               emailValue={editData.email}

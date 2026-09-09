@@ -347,7 +347,7 @@ export default function Dashboard() {
 
       customers.forEach(c => {
         captureEntries.push({
-          companyName: c.company, category: "Customer",
+          companyName: c.company, category: "Contractor",
           contactName: c.contact, email: c.email, phone: c.phone
         });
       });
@@ -384,6 +384,26 @@ export default function Dashboard() {
       showToast("Directory rebuilt from existing projects & pipeline");
     } finally {
       setRebuildingDirectory(false);
+    }
+  };
+
+  // One-time correction: the Project "Company" field used to auto-capture
+  // into the Directory under the "Customer" category, but it's actually
+  // always been the contractor a project runs through, not the end
+  // customer -- so every company that landed under "Customer" this way
+  // needs to move to "Contractor". Safe to re-run; it's a no-op once
+  // there's nothing left categorized as Customer.
+  const [fixingContractorCategories, setFixingContractorCategories] = useState(false);
+
+  const fixContractorCategories = async () => {
+    setFixingContractorCategories(true);
+    try {
+      const toFix = companies.filter(c => c.category === "Customer");
+      await Promise.all(toFix.map(c => updateDoc(doc(db, "companies", c.id), { category: "Contractor" })));
+      await loadDirectory();
+      showToast(`Recategorized ${toFix.length} compan${toFix.length === 1 ? "y" : "ies"} to Contractor`);
+    } finally {
+      setFixingContractorCategories(false);
     }
   };
 
@@ -706,7 +726,7 @@ export default function Dashboard() {
     });
 
     ensureCompanyAndContact({
-      companies, contacts, companyName: company, category: "Customer",
+      companies, contacts, companyName: company, category: "Contractor",
       contactName: contact, email, phone, uid
     }).then(loadDirectory);
 
@@ -833,7 +853,7 @@ export default function Dashboard() {
     await updateDoc(doc(db, "customers", editingId), payload);
 
     ensureCompanyAndContact({
-      companies, contacts, companyName: editData.company, category: "Customer",
+      companies, contacts, companyName: editData.company, category: "Contractor",
       contactName: editData.contact, email: editData.email, phone: editData.phone, uid
     }).then(loadDirectory);
 
@@ -1671,7 +1691,8 @@ export default function Dashboard() {
                   idPrefix="add-project"
                   companies={companies}
                   contacts={contacts}
-                  companyCategory="Customer"
+                  companyLabel="Contractor"
+                  companyCategory="Contractor"
                   companyValue={company}
                   contactValue={contact}
                   emailValue={email}
@@ -1750,7 +1771,8 @@ export default function Dashboard() {
                         idPrefix={`edit-project-${c.id}`}
                         companies={companies}
                         contacts={contacts}
-                        companyCategory="Customer"
+                        companyLabel="Contractor"
+                        companyCategory="Contractor"
                         companyValue={editData.company}
                         contactValue={editData.contact}
                         emailValue={editData.email}
@@ -2427,6 +2449,14 @@ export default function Dashboard() {
             </p>
             <button className="btn btn-secondary" disabled={rebuildingDirectory} onClick={rebuildDirectory}>
               {rebuildingDirectory ? "Rebuilding..." : "Rebuild Directory From Existing Data"}
+            </button>
+
+            <p className="modal-subtitle" style={{ marginTop: 16, marginBottom: 12 }}>
+              A project's "Company" field is the contractor the job runs through, not the end customer --
+              run this once to move anything that landed under "Customer" over to "Contractor."
+            </p>
+            <button className="btn btn-secondary" disabled={fixingContractorCategories} onClick={fixContractorCategories}>
+              {fixingContractorCategories ? "Fixing..." : "Fix Contractor Categories"}
             </button>
           </div>
         </div>
