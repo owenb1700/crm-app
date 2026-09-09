@@ -1,5 +1,7 @@
 "use client";
 
+import { primaryEmail, primaryPhone } from "../../lib/directory";
+
 // Reusable company + contact input pair with directory-backed autocomplete.
 // Typing a company shows suggestions from the shared directory; the contact
 // field's suggestions narrow to people at whichever company is currently
@@ -32,8 +34,8 @@ export default function CompanyContactFields({
     onContactChange(value);
     const match = matchingContacts.find(c => c.name.toLowerCase() === value.toLowerCase());
     if (match) {
-      if (onEmailChange) onEmailChange(match.email || "");
-      if (onPhoneChange) onPhoneChange(match.phone || "");
+      if (onEmailChange) onEmailChange(primaryEmail(match));
+      if (onPhoneChange) onPhoneChange(primaryPhone(match));
     }
   };
 

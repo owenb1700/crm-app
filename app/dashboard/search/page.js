@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { doc, getDoc, getDocs, collection } from "firebase/firestore";
+import { primaryEmail, primaryPhone } from "../../../lib/directory";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -139,7 +140,11 @@ function SearchPageContent() {
   const engineeringResults = q ? companies.filter(c => c.category === "Engineering Firm" && matches(q, [c.name, c.phone, c.address, c.website, c.notes])) : [];
   const otherCompanyResults = q ? companies.filter(c => c.category !== "Contractor" && c.category !== "Engineering Firm" && matches(q, [c.name, c.phone, c.address, c.website, c.notes])) : [];
 
-  const peopleResults = q ? contacts.filter(p => matches(q, [p.name, p.title, p.email, p.phone, p.notes, p.companyName])) : [];
+  const peopleResults = q ? contacts.filter(p => matches(q, [
+    p.name, p.title, p.notes, p.companyName,
+    ...(p.emails || (p.email ? [p.email] : [])),
+    ...(p.phones || (p.phone ? [p.phone] : []))
+  ])) : [];
 
   const towerResults = q ? Object.values(towersBySerial).filter(t => matches(q, [t.serial, t.manufacturer, t.model, t.address])) : [];
   const towerModelResults = q ? towerModels.filter(m => matches(q, [m.manufacturer, m.model])) : [];
@@ -280,8 +285,8 @@ function SearchPageContent() {
               <div className="private-note-hint">{p.title ? `${p.title} — ` : ""}{p.companyName}</div>
             </div>
             <div className="customer-card-middle">
-              {p.email && <div className="private-note-hint">{p.email}</div>}
-              {p.phone && <div className="private-note-hint">{p.phone}</div>}
+              {primaryEmail(p) && <div className="private-note-hint">{primaryEmail(p)}</div>}
+              {primaryPhone(p) && <div className="private-note-hint">{primaryPhone(p)}</div>}
             </div>
           </div>
         )}

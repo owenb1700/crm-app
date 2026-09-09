@@ -23,6 +23,53 @@ const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
 };
 
+// A person can have several emails or phone numbers on file. Renders one
+// input per value plus an "add another" link; always keeps at least one
+// (blank) row so there's somewhere to type the first value.
+function MultiField({ label, type = "text", values, onChange }) {
+  const list = values.length ? values : [""];
+
+  const update = (i, v) => {
+    const next = [...list];
+    next[i] = v;
+    onChange(next);
+  };
+
+  const remove = (i) => {
+    const next = list.filter((_, idx) => idx !== i);
+    onChange(next.length ? next : [""]);
+  };
+
+  return (
+    <div>
+      <label className="field-label">{label}</label>
+      {list.map((v, i) => (
+        <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+          <input
+            className="field"
+            style={{ marginBottom: 0 }}
+            type={type}
+            autoComplete="off"
+            value={v}
+            onChange={e => update(i, e.target.value)}
+          />
+          {list.length > 1 && (
+            <button type="button" className="btn btn-secondary" onClick={() => remove(i)}>×</button>
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        className="link-muted"
+        style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 13 }}
+        onClick={() => onChange([...list, ""])}
+      >
+        + Add another {label.toLowerCase()}
+      </button>
+    </div>
+  );
+}
+
 export default function CompanyDetail() {
   const params = useParams();
   const router = useRouter();
@@ -44,8 +91,8 @@ export default function CompanyDetail() {
   const [showAddPerson, setShowAddPerson] = useState(false);
   const [personName, setPersonName] = useState("");
   const [personTitle, setPersonTitle] = useState("");
-  const [personEmail, setPersonEmail] = useState("");
-  const [personPhone, setPersonPhone] = useState("");
+  const [personEmails, setPersonEmails] = useState([""]);
+  const [personPhones, setPersonPhones] = useState([""]);
   const [personNotes, setPersonNotes] = useState("");
 
   const [editingPersonId, setEditingPersonId] = useState(null);
@@ -186,8 +233,8 @@ export default function CompanyDetail() {
     await addDoc(collection(db, "contacts"), {
       name: personName.trim(),
       title: personTitle || null,
-      email: personEmail || null,
-      phone: personPhone || null,
+      emails: personEmails.map(e => e.trim()).filter(Boolean),
+      phones: personPhones.map(p => p.trim()).filter(Boolean),
       notes: personNotes || null,
       companyId,
       companyName: company.name,
@@ -197,8 +244,8 @@ export default function CompanyDetail() {
 
     setPersonName("");
     setPersonTitle("");
-    setPersonEmail("");
-    setPersonPhone("");
+    setPersonEmails([""]);
+    setPersonPhones([""]);
     setPersonNotes("");
     setShowAddPerson(false);
     await loadCompany();
@@ -209,8 +256,8 @@ export default function CompanyDetail() {
     setPersonEditData({
       name: p.name || "",
       title: p.title || "",
-      email: p.email || "",
-      phone: p.phone || "",
+      emails: p.emails?.length ? p.emails : (p.email ? [p.email] : [""]),
+      phones: p.phones?.length ? p.phones : (p.phone ? [p.phone] : [""]),
       notes: p.notes || ""
     });
   };
@@ -221,23 +268,27 @@ export default function CompanyDetail() {
     const before = people.find(p => p.id === editingPersonId);
     const oldName = before?.name || "";
 
+    const emails = (personEditData.emails || []).map(e => e.trim()).filter(Boolean);
+    const phones = (personEditData.phones || []).map(p => p.trim()).filter(Boolean);
+
     await updateDoc(doc(db, "contacts", editingPersonId), {
       name: personEditData.name,
       title: personEditData.title || null,
-      email: personEditData.email || null,
-      phone: personEditData.phone || null,
+      emails,
+      phones,
       notes: personEditData.notes || null
     });
 
     // Push the update out to every project/pipeline entry (including
     // bidding rows) that already captured this person, so they stop
-    // showing a stale snapshot of the old name/email/phone.
+    // showing a stale snapshot of the old name/email/phone. Those entries
+    // only hold a single email/phone each, so they get the primary one.
     await propagateContactUpdate({
       companyName: company.name,
       oldContactName: oldName,
       newContactName: personEditData.name,
-      email: personEditData.email || null,
-      phone: personEditData.phone || null
+      email: emails[0] || null,
+      phone: phones[0] || null
     });
 
     setEditingPersonId(null);
@@ -359,8 +410,8 @@ export default function CompanyDetail() {
                 <div style={{ flex: 1 }}>
                   <input className="field" placeholder="Name" autoComplete="off" value={personEditData.name} onChange={e => setPersonEditData({ ...personEditData, name: e.target.value })} />
                   <input className="field" placeholder="Title" autoComplete="off" value={personEditData.title} onChange={e => setPersonEditData({ ...personEditData, title: e.target.value })} />
-                  <input className="field" placeholder="Email" autoComplete="off" value={personEditData.email} onChange={e => setPersonEditData({ ...personEditData, email: e.target.value })} />
-                  <input className="field" placeholder="Phone" autoComplete="off" value={personEditData.phone} onChange={e => setPersonEditData({ ...personEditData, phone: e.target.value })} />
+                  <MultiField label="Email" type="email" values={personEditData.emails || [""]} onChange={emails => setPersonEditData({ ...personEditData, emails })} />
+                  <MultiField label="Phone" type="tel" values={personEditData.phones || [""]} onChange={phones => setPersonEditData({ ...personEditData, phones })} />
                   <textarea className="field" placeholder="Notes" style={{ width: "100%", height: 60 }} value={personEditData.notes} onChange={e => setPersonEditData({ ...personEditData, notes: e.target.value })} />
                   <div style={{ display: "flex", gap: 8 }}>
                     <button className="btn btn-primary" onClick={savePerson}>Save</button>
@@ -371,7 +422,19 @@ export default function CompanyDetail() {
                 <>
                   <div>
                     <div><strong>{p.name}</strong>{p.title ? ` — ${p.title}` : ""}</div>
-                    <div className="notes-history-date">{[p.email, formatPhone(p.phone)].filter(Boolean).join(" | ") || "No contact info"}</div>
+                    {(() => {
+                      const emails = p.emails?.length ? p.emails : (p.email ? [p.email] : []);
+                      const phones = p.phones?.length ? p.phones : (p.phone ? [p.phone] : []);
+                      if (emails.length === 0 && phones.length === 0) {
+                        return <div className="notes-history-date">No contact info</div>;
+                      }
+                      return (
+                        <div className="notes-history-date">
+                          {emails.map((e, i) => <div key={`e${i}`}>{e}</div>)}
+                          {phones.map((ph, i) => <div key={`p${i}`}>{formatPhone(ph)}</div>)}
+                        </div>
+                      );
+                    })()}
                     {p.notes && <div className="notes-history-date" style={{ marginTop: 4 }}>{p.notes}</div>}
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
@@ -387,8 +450,8 @@ export default function CompanyDetail() {
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--color-border)" }}>
               <input className="field" placeholder="Name" autoComplete="off" value={personName} onChange={e => setPersonName(e.target.value)} />
               <input className="field" placeholder="Title" autoComplete="off" value={personTitle} onChange={e => setPersonTitle(e.target.value)} />
-              <input className="field" placeholder="Email" autoComplete="off" value={personEmail} onChange={e => setPersonEmail(e.target.value)} />
-              <input className="field" placeholder="Phone" autoComplete="off" value={personPhone} onChange={e => setPersonPhone(e.target.value)} />
+              <MultiField label="Email" type="email" values={personEmails} onChange={setPersonEmails} />
+              <MultiField label="Phone" type="tel" values={personPhones} onChange={setPersonPhones} />
               <textarea className="field" placeholder="Notes" style={{ width: "100%", height: 60 }} value={personNotes} onChange={e => setPersonNotes(e.target.value)} />
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="btn btn-primary" onClick={addPerson}>Add</button>

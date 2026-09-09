@@ -34,6 +34,9 @@ const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Design", "Budgeting"];
 
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DEFAULT_DIGEST_SCHEDULE = { dayOfWeek: 0, daysAhead: 7, includeOverdue: true };
+
 // "member" and "estimating" are stored as-is in Firestore (estimating has
 // identical permissions to member for now, just a distinct label/identity)
 // -- only the displayed text changes.
@@ -78,8 +81,7 @@ export default function Dashboard() {
   const [notifications, setNotifications] = useState([]);
   const [notificationsError, setNotificationsError] = useState(null);
   const [showAlertsPanel, setShowAlertsPanel] = useState(false);
-  const [notifySundayDigest, setNotifySundayDigest] = useState(true);
-  const [notifyWednesdayDigest, setNotifyWednesdayDigest] = useState(true);
+  const [digestSchedules, setDigestSchedules] = useState([]);
   const [notifyCollabRequest, setNotifyCollabRequest] = useState(true);
   const [notifyCollabApproved, setNotifyCollabApproved] = useState(true);
 
@@ -552,14 +554,25 @@ export default function Dashboard() {
     await loadCustomers(uid, role === "admin");
   };
 
+  const addDigestSchedule = () => {
+    setDigestSchedules(prev => [...prev, { ...DEFAULT_DIGEST_SCHEDULE }]);
+  };
+
+  const updateDigestSchedule = (index, field, value) => {
+    setDigestSchedules(prev => prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)));
+  };
+
+  const removeDigestSchedule = (index) => {
+    setDigestSchedules(prev => prev.filter((_, i) => i !== index));
+  };
+
   const saveNotificationSettings = async () => {
     await updateDoc(doc(db, "users", uid), {
-      notifySundayDigest,
-      notifyWednesdayDigest,
+      digestSchedules,
       notifyCollabRequest,
       notifyCollabApproved
     });
-    setMyProfile(prev => ({ ...(prev || {}), notifySundayDigest, notifyWednesdayDigest, notifyCollabRequest, notifyCollabApproved }));
+    setMyProfile(prev => ({ ...(prev || {}), digestSchedules, notifyCollabRequest, notifyCollabApproved }));
     showToast("Notification settings saved");
     setShowUserSettings(false);
   };
@@ -635,8 +648,21 @@ export default function Dashboard() {
           setNeedsName(true);
         } else {
           setMyProfile(profile);
-          setNotifySundayDigest(profile.notifySundayDigest !== false);
-          setNotifyWednesdayDigest(profile.notifyWednesdayDigest !== false);
+
+          // Carry forward whoever was on the old fixed Sunday/Wednesday
+          // digests into the equivalent custom schedules the first time
+          // they load this after the rework, so no one silently stops
+          // getting emails they were relying on. Once they hit Save here,
+          // digestSchedules is written and this fallback no longer applies.
+          if (profile.digestSchedules) {
+            setDigestSchedules(profile.digestSchedules);
+          } else {
+            const carried = [];
+            if (profile.notifySundayDigest !== false) carried.push({ dayOfWeek: 0, daysAhead: 7, includeOverdue: true });
+            if (profile.notifyWednesdayDigest !== false) carried.push({ dayOfWeek: 3, daysAhead: 5, includeOverdue: true });
+            setDigestSchedules(carried);
+          }
+
           setNotifyCollabRequest(profile.notifyCollabRequest !== false);
           setNotifyCollabApproved(profile.notifyCollabApproved !== false);
           await loadCustomers(user.uid, profile.role === "admin");
@@ -1470,27 +1496,56 @@ export default function Dashboard() {
             <button className="modal-close" onClick={() => setShowUserSettings(false)}>✕</button>
             <h3 className="modal-title">User Settings</h3>
 
-            <h4 className="field-label" style={{ marginTop: 4 }}>Email Notifications</h4>
+            <h4 className="field-label" style={{ marginTop: 4 }}>Digest Emails</h4>
+            <p className="private-note-hint">Each one sends at 4:00 AM Central on the day you pick.</p>
 
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-              <input
-                type="checkbox"
-                checked={notifySundayDigest}
-                onChange={e => setNotifySundayDigest(e.target.checked)}
-              />
-              Sunday evening digest (due this week + overdue)
-            </label>
+            {digestSchedules.map((s, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                <select
+                  className="field"
+                  style={{ marginBottom: 0, width: 130 }}
+                  value={s.dayOfWeek}
+                  onChange={e => updateDigestSchedule(i, "dayOfWeek", Number(e.target.value))}
+                >
+                  {DAY_NAMES.map((d, idx) => <option key={idx} value={idx}>{d}</option>)}
+                </select>
+                <span style={{ fontSize: 13 }}>next</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  className="field"
+                  style={{ marginBottom: 0, width: 60 }}
+                  value={s.daysAhead}
+                  onChange={e => updateDigestSchedule(i, "daysAhead", Number(e.target.value) || 1)}
+                />
+                <span style={{ fontSize: 13 }}>days</span>
+                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13 }}>
+                  <input
+                    type="checkbox"
+                    checked={s.includeOverdue !== false}
+                    onChange={e => updateDigestSchedule(i, "includeOverdue", e.target.checked)}
+                  />
+                  Include overdue
+                </label>
+                <button type="button" className="btn btn-secondary" onClick={() => removeDigestSchedule(i)}>×</button>
+              </div>
+            ))}
 
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-              <input
-                type="checkbox"
-                checked={notifyWednesdayDigest}
-                onChange={e => setNotifyWednesdayDigest(e.target.checked)}
-              />
-              Wednesday morning digest (due by Monday + overdue)
-            </label>
+            {digestSchedules.length === 0 && (
+              <p className="private-note-hint" style={{ marginTop: 8 }}>No digest emails scheduled.</p>
+            )}
 
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+            <button
+              type="button"
+              className="link-muted"
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 10, fontSize: 13 }}
+              onClick={addDigestSchedule}
+            >
+              + Add another schedule
+            </button>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 18 }}>
               <input
                 type="checkbox"
                 checked={notifyCollabRequest}
