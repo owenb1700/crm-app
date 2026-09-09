@@ -29,6 +29,7 @@ export default function CompanyDetail() {
   const companyId = params.id;
 
   const [uid, setUid] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [notFound, setNotFound] = useState(false);
 
@@ -125,6 +126,8 @@ export default function CompanyDetail() {
           return;
         }
 
+        setIsAdmin(profileSnap.data().role === "admin");
+
         await loadCompany();
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading this company.");
@@ -164,6 +167,17 @@ export default function CompanyDetail() {
 
     setIsEditing(false);
     await loadCompany();
+  };
+
+  const deleteCompany = async () => {
+    if (!window.confirm(`Delete ${company.name}? This also removes all ${people.length} people on file for them. Projects and pipeline entries that reference them are kept.`)) {
+      return;
+    }
+
+    await Promise.all(people.map(p => deleteDoc(doc(db, "contacts", p.id))));
+    await deleteDoc(doc(db, "companies", companyId));
+
+    router.push("/dashboard/directory");
   };
 
   const addPerson = async () => {
@@ -284,7 +298,12 @@ export default function CompanyDetail() {
               <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>{company.category}</span>
             </div>
             {!isEditing && (
-              <button className="btn btn-primary" onClick={startEdit}>Edit</button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-primary" onClick={startEdit}>Edit</button>
+                {isAdmin && (
+                  <button className="btn btn-danger" onClick={deleteCompany}>Delete</button>
+                )}
+              </div>
             )}
             {isEditing && (
               <div style={{ display: "flex", gap: 8 }}>

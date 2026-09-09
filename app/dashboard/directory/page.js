@@ -220,7 +220,7 @@ function DirectoryPageContent() {
                 <div className="private-note-hint">Matched: {matchedPerson.name}{matchedPerson.title ? ` (${matchedPerson.title})` : ""}</div>
               )}
               <div className="private-note-hint">{contactCount(c.id)} people</div>
-              {categoryFilter !== "Contractor" && (
+              {categoryFilter !== "Contractor" && categoryFilter !== "Engineering Firm" && (
                 <>
                   <div className="private-note-hint">{projectCount} project{projectCount === 1 ? "" : "s"}</div>
                   <div className="private-note-hint">{pipelineCount} pipeline entr{pipelineCount === 1 ? "y" : "ies"}</div>
