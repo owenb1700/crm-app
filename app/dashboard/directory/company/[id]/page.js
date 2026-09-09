@@ -15,7 +15,7 @@ import {
   updateDoc,
   deleteDoc
 } from "firebase/firestore";
-import { COMPANY_CATEGORIES } from "../../../../../lib/directory";
+import { COMPANY_CATEGORIES, propagateContactUpdate } from "../../../../../lib/directory";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -45,6 +45,7 @@ export default function CompanyDetail() {
   const [personTitle, setPersonTitle] = useState("");
   const [personEmail, setPersonEmail] = useState("");
   const [personPhone, setPersonPhone] = useState("");
+  const [personNotes, setPersonNotes] = useState("");
 
   const [editingPersonId, setEditingPersonId] = useState(null);
   const [personEditData, setPersonEditData] = useState({});
@@ -173,6 +174,7 @@ export default function CompanyDetail() {
       title: personTitle || null,
       email: personEmail || null,
       phone: personPhone || null,
+      notes: personNotes || null,
       companyId,
       companyName: company.name,
       createdAt: new Date().toISOString(),
@@ -183,6 +185,7 @@ export default function CompanyDetail() {
     setPersonTitle("");
     setPersonEmail("");
     setPersonPhone("");
+    setPersonNotes("");
     setShowAddPerson(false);
     await loadCompany();
   };
@@ -193,16 +196,32 @@ export default function CompanyDetail() {
       name: p.name || "",
       title: p.title || "",
       email: p.email || "",
-      phone: p.phone || ""
+      phone: p.phone || "",
+      notes: p.notes || ""
     });
   };
 
   const savePerson = async () => {
     if (!personEditData.name.trim()) return alert("Enter a name");
 
+    const before = people.find(p => p.id === editingPersonId);
+    const oldName = before?.name || "";
+
     await updateDoc(doc(db, "contacts", editingPersonId), {
       name: personEditData.name,
       title: personEditData.title || null,
+      email: personEditData.email || null,
+      phone: personEditData.phone || null,
+      notes: personEditData.notes || null
+    });
+
+    // Push the update out to every project/pipeline entry (including
+    // bidding rows) that already captured this person, so they stop
+    // showing a stale snapshot of the old name/email/phone.
+    await propagateContactUpdate({
+      companyName: company.name,
+      oldContactName: oldName,
+      newContactName: personEditData.name,
       email: personEditData.email || null,
       phone: personEditData.phone || null
     });
@@ -323,6 +342,7 @@ export default function CompanyDetail() {
                   <input className="field" placeholder="Title" autoComplete="off" value={personEditData.title} onChange={e => setPersonEditData({ ...personEditData, title: e.target.value })} />
                   <input className="field" placeholder="Email" autoComplete="off" value={personEditData.email} onChange={e => setPersonEditData({ ...personEditData, email: e.target.value })} />
                   <input className="field" placeholder="Phone" autoComplete="off" value={personEditData.phone} onChange={e => setPersonEditData({ ...personEditData, phone: e.target.value })} />
+                  <textarea className="field" placeholder="Notes" style={{ width: "100%", height: 60 }} value={personEditData.notes} onChange={e => setPersonEditData({ ...personEditData, notes: e.target.value })} />
                   <div style={{ display: "flex", gap: 8 }}>
                     <button className="btn btn-primary" onClick={savePerson}>Save</button>
                     <button className="btn btn-secondary" onClick={() => setEditingPersonId(null)}>Cancel</button>
@@ -333,6 +353,7 @@ export default function CompanyDetail() {
                   <div>
                     <div><strong>{p.name}</strong>{p.title ? ` — ${p.title}` : ""}</div>
                     <div className="notes-history-date">{[p.email, formatPhone(p.phone)].filter(Boolean).join(" | ") || "No contact info"}</div>
+                    {p.notes && <div className="notes-history-date" style={{ marginTop: 4 }}>{p.notes}</div>}
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button className="btn btn-secondary" onClick={() => startEditPerson(p)}>Edit</button>
@@ -349,6 +370,7 @@ export default function CompanyDetail() {
               <input className="field" placeholder="Title" autoComplete="off" value={personTitle} onChange={e => setPersonTitle(e.target.value)} />
               <input className="field" placeholder="Email" autoComplete="off" value={personEmail} onChange={e => setPersonEmail(e.target.value)} />
               <input className="field" placeholder="Phone" autoComplete="off" value={personPhone} onChange={e => setPersonPhone(e.target.value)} />
+              <textarea className="field" placeholder="Notes" style={{ width: "100%", height: 60 }} value={personNotes} onChange={e => setPersonNotes(e.target.value)} />
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="btn btn-primary" onClick={addPerson}>Add</button>
                 <button className="btn btn-secondary" onClick={() => setShowAddPerson(false)}>Cancel</button>
