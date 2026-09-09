@@ -491,9 +491,22 @@ a {
 
 .view-tabs {
   display: flex;
+  align-items: center;
   gap: 6px;
   margin-bottom: 20px;
   border-bottom: 1px solid var(--color-border);
+}
+
+.global-search {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  margin-bottom: 10px;
+}
+
+.global-search-input {
+  width: 220px;
+  margin-bottom: 0;
 }
 
 .tab-btn {

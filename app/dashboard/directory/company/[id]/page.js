@@ -144,7 +144,7 @@ export default function CompanyDetail() {
   const startEdit = () => {
     setEditData({
       name: company.name || "",
-      category: company.category || "Customer",
+      category: company.category || "Contractor",
       phone: company.phone || "",
       address: company.address || "",
       website: company.website || "",

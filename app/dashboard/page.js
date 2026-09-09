@@ -156,6 +156,7 @@ export default function Dashboard() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [pastProjectsSearch, setPastProjectsSearch] = useState("");
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
 
   // ADMIN: create user form
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -1558,7 +1559,6 @@ export default function Dashboard() {
                     <>
                       <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory")}>All Companies</a>
                       <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Contractor")}>Contractors</a>
-                      <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Customer")}>Customers</a>
                       <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Engineering%20Firm")}>Engineering Firms</a>
                     </>
                   )}
@@ -1579,6 +1579,23 @@ export default function Dashboard() {
           >
             Past Projects
           </button>
+
+          <form
+            className="global-search"
+            onSubmit={e => {
+              e.preventDefault();
+              if (!globalSearchQuery.trim()) return;
+              router.push(`/dashboard/search?q=${encodeURIComponent(globalSearchQuery.trim())}`);
+            }}
+          >
+            <input
+              className="field global-search-input"
+              placeholder="Search everything..."
+              value={globalSearchQuery}
+              onChange={e => setGlobalSearchQuery(e.target.value)}
+            />
+            <button className="btn btn-secondary" type="submit">Search</button>
+          </form>
         </div>
       )}
 

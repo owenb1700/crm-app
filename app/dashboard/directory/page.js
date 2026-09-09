@@ -30,7 +30,7 @@ function DirectoryPageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newCategory, setNewCategory] = useState("Customer");
+  const [newCategory, setNewCategory] = useState("Contractor");
 
   const loadAll = async () => {
     const [companiesSnap, contactsSnap, customersSnap, pipelineSnap] = await Promise.all([
@@ -122,7 +122,7 @@ function DirectoryPageContent() {
     });
 
     setNewName("");
-    setNewCategory("Customer");
+    setNewCategory("Contractor");
     setShowAddModal(false);
     loadAll();
   };
