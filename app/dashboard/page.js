@@ -124,6 +124,7 @@ export default function Dashboard() {
   const [pipelineContact, setPipelineContact] = useState("");
   const [pipelineEmail, setPipelineEmail] = useState("");
   const [pipelinePhone, setPipelinePhone] = useState("");
+  const [pipelineProjectAddress, setPipelineProjectAddress] = useState("");
   const [pipelineNotes, setPipelineNotes] = useState("");
   const [pipelineTowerManufacturer, setPipelineTowerManufacturer] = useState("");
   const [pipelineModelNumber, setPipelineModelNumber] = useState("");
@@ -490,6 +491,7 @@ export default function Dashboard() {
   };
 
   const denyRequest = async (customerId, request) => {
+    if (!window.confirm(`Deny ${request.requesterName}'s request to collaborate?`)) return;
     await deleteDoc(doc(db, "customers", customerId, "collabRequests", request.id));
     showToast("Request denied");
 
@@ -727,6 +729,7 @@ export default function Dashboard() {
     setPipelineContact("");
     setPipelineEmail("");
     setPipelinePhone("");
+    setPipelineProjectAddress("");
     setPipelineNotes("");
     setBiddingCompanies([]);
     setPipelineTowerManufacturer("");
@@ -762,6 +765,7 @@ export default function Dashboard() {
       contact: pipelineContact || null,
       email: pipelineEmail || null,
       phone: pipelinePhone || null,
+      projectAddress: pipelineProjectAddress || null,
       biddingCompanies: biddingCompanies.filter(r => r.company || r.contact),
       towerManufacturer: pipelineTowerManufacturer || null,
       modelNumber: pipelineModelNumber || null,
@@ -2126,6 +2130,11 @@ export default function Dashboard() {
                     onEmailChange={setPipelineEmail}
                     onPhoneChange={setPipelinePhone}
                   />
+
+                  <div>
+                    <label className="field-label">Project Address</label>
+                    <AddressAutocomplete name="add-pipeline-projectAddress" value={pipelineProjectAddress} onChange={setPipelineProjectAddress} />
+                  </div>
                 </div>
 
                 <h4 className="field-label" style={{ marginTop: 12 }}>Contractors Bidding (optional)</h4>

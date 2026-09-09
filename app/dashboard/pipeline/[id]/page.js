@@ -29,7 +29,7 @@ const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
 };
 
-const EDITABLE_FIELDS = ["title", "stage", "bidDate", "value", "company", "contact", "email", "phone", "towerManufacturer", "modelNumber", "serialNumber", "salespersonId", "projectPointPersonId"];
+const EDITABLE_FIELDS = ["title", "stage", "bidDate", "value", "company", "contact", "email", "phone", "projectAddress", "towerManufacturer", "modelNumber", "serialNumber", "salespersonId", "projectPointPersonId"];
 
 const formatBytes = (bytes) => {
   if (!bytes) return "";
@@ -196,6 +196,7 @@ export default function PipelineDetail() {
       contact: pipeline.contact || "",
       email: pipeline.email || "",
       phone: pipeline.phone || "",
+      projectAddress: pipeline.projectAddress || "",
       towerManufacturer: pipeline.towerManufacturer || "",
       modelNumber: pipeline.modelNumber || "",
       serialNumber: pipeline.serialNumber || "",
@@ -558,6 +559,9 @@ export default function PipelineDetail() {
                 onEmailChange={v => setEditData({ ...editData, email: v })}
                 onPhoneChange={v => setEditData({ ...editData, phone: v })}
               />
+
+              <h4 className="field-label" style={{ marginTop: 12 }}>Project Address</h4>
+              <AddressAutocomplete name="pipeline-detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
             </div>
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Contractors Bidding</h4>
@@ -629,6 +633,7 @@ export default function PipelineDetail() {
               <p><strong>Contact:</strong> {pipeline.contact || "—"}</p>
               <p><strong>Email:</strong> {pipeline.email || "—"}</p>
               <p><strong>Phone:</strong> {formatPhone(pipeline.phone) || "—"}</p>
+              <p><strong>Project Address:</strong> {pipeline.projectAddress || "—"}</p>
             </div>
 
             <div className="project-section">
@@ -699,7 +704,7 @@ export default function PipelineDetail() {
           <div className="project-section">
             <h4 className="field-label">Convert to Project</h4>
             <p className="private-note-hint">Won the project? Turn this pipeline entry into a real project.</p>
-            <button className="btn btn-primary" onClick={() => setShowConvertModal(true)}>Convert to Project</button>
+            <button className="btn btn-primary" onClick={() => { setConvertProjectAddress(pipeline.projectAddress || ""); setShowConvertModal(true); }}>Convert to Project</button>
           </div>
         )}
 
