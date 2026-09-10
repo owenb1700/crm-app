@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../../lib/firebase";
 import { doc, getDoc, getDocs, collection, updateDoc, deleteDoc } from "firebase/firestore";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../../lib/products";
+import DashboardHeader from "../../../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -18,6 +19,7 @@ export default function ProductDetail() {
   const router = useRouter();
   const productId = params.id;
 
+  const [uid, setUid] = useState(null);
   const [role, setRole] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [notFound, setNotFound] = useState(false);
@@ -58,6 +60,8 @@ export default function ProductDetail() {
         signOut(auth);
         router.push("/");
       }, SESSION_LENGTH_MS - elapsed);
+
+      setUid(user.uid);
 
       try {
         const profileSnap = await getDoc(doc(db, "users", user.uid));
@@ -168,6 +172,7 @@ export default function ProductDetail() {
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/products")}>← Back to Products</button>
+          <DashboardHeader uid={uid} />
         </div>
       </div>
 

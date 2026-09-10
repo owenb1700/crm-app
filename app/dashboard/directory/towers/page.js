@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../lib/firebase";
 import { doc, getDoc, getDocs, collection } from "firebase/firestore";
+import DashboardHeader from "../../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -15,6 +16,7 @@ const clearSession = () => {
 export default function TowersPage() {
   const router = useRouter();
 
+  const [uid, setUid] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -51,6 +53,8 @@ export default function TowersPage() {
         signOut(auth);
         router.push("/");
       }, SESSION_LENGTH_MS - elapsed);
+
+      setUid(user.uid);
 
       try {
         const profileSnap = await getDoc(doc(db, "users", user.uid));
@@ -146,6 +150,7 @@ export default function TowersPage() {
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
+          <DashboardHeader uid={uid} />
         </div>
       </div>
 

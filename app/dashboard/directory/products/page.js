@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../lib/firebase";
 import { doc, getDoc, getDocs, collection, addDoc } from "firebase/firestore";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
+import DashboardHeader from "../../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -226,6 +227,7 @@ export default function ProductsPage() {
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
+          <DashboardHeader uid={uid} />
         </div>
       </div>
 

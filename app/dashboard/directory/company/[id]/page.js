@@ -16,6 +16,7 @@ import {
   deleteDoc
 } from "firebase/firestore";
 import { COMPANY_CATEGORIES, propagateContactUpdate } from "../../../../../lib/directory";
+import DashboardHeader from "../../../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -338,6 +339,7 @@ export default function CompanyDetail() {
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory")}>← Back to Directory</button>
+          <DashboardHeader uid={uid} />
         </div>
       </div>
 

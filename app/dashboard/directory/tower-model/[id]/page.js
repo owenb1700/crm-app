@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db, storage } from "../../../../../lib/firebase";
 import { doc, getDoc, updateDoc, getDocs, collection } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import DashboardHeader from "../../../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -201,6 +202,7 @@ export default function TowerModelDetail() {
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => router.back()}>← Back</button>
+          <DashboardHeader uid={uid} />
         </div>
       </div>
 

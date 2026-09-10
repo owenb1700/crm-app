@@ -17,6 +17,7 @@ import { ensureCompanyAndContact } from "../../../../lib/directory";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
+import DashboardHeader from "../../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
@@ -381,6 +382,7 @@ export default function ProjectDetail() {
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
+          <DashboardHeader uid={uid} />
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { doc, getDoc, getDocs, collection, addDoc } from "firebase/firestore";
 import { COMPANY_CATEGORIES } from "../../../lib/directory";
+import DashboardHeader from "../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -184,6 +185,7 @@ function DirectoryPageContent() {
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
+          <DashboardHeader uid={uid} />
         </div>
       </div>
 

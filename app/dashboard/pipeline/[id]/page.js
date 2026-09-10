@@ -21,6 +21,7 @@ import { ensureCompanyAndContactBatch } from "../../../../lib/directory";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
+import DashboardHeader from "../../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Design", "Budgeting"];
@@ -484,6 +485,7 @@ export default function PipelineDetail() {
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
+          <DashboardHeader uid={uid} />
         </div>
       </div>
 

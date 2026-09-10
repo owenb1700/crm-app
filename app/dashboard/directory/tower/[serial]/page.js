@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../../lib/firebase";
 import { doc, getDoc, getDocs, collection } from "firebase/firestore";
+import DashboardHeader from "../../../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -17,6 +18,7 @@ export default function TowerDetail() {
   const router = useRouter();
   const serial = decodeURIComponent(params.serial || "");
 
+  const [uid, setUid] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -77,6 +79,8 @@ export default function TowerDetail() {
         signOut(auth);
         router.push("/");
       }, SESSION_LENGTH_MS - elapsed);
+
+      setUid(user.uid);
 
       try {
         const profileSnap = await getDoc(doc(db, "users", user.uid));
@@ -171,6 +175,7 @@ export default function TowerDetail() {
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/towers")}>← Back to Towers</button>
+          <DashboardHeader uid={uid} />
         </div>
       </div>
 
