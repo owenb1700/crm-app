@@ -193,7 +193,7 @@ export default function Dashboard() {
       list = list.map(c => (c.ownerId ? c : { ...c, ownerId: currentUid }));
     }
 
-    list = await reactivateDueClosedProjects(list);
+    list = await reactivateDueClosedProjects(list, currentUid, isAdmin);
 
     setCustomers(list);
 
@@ -412,34 +412,46 @@ export default function Dashboard() {
   // what actually catches a due date and flips it back to active --
   // acceptable for a small internal tool, but it means reactivation can
   // lag until someone opens the dashboard.
-  const reactivateDueClosedProjects = async (list) => {
+  //
+  // Firestore rules only let the owner (or an admin) update a customer
+  // doc, so this can only actually reactivate items the current session
+  // has permission to touch -- everyone else's due items wait for their
+  // own owner (or an admin) to next load the dashboard instead. Each
+  // update is isolated in its own try/catch so one failure (permission or
+  // otherwise) can't break loading the rest of the list.
+  const reactivateDueClosedProjects = async (list, currentUid, isAdmin) => {
     const now = new Date();
     const due = list.filter(c =>
       c.category === "Project Closed" &&
       (c.closedOutcome === "Won" || c.closedOutcome === "Prospecting Only") &&
-      c.nextCheckIn && new Date(c.nextCheckIn) <= now
+      c.nextCheckIn && new Date(c.nextCheckIn) <= now &&
+      (isAdmin || c.ownerId === currentUid)
     );
     if (due.length === 0) return list;
 
-    await Promise.all(due.map(c => {
+    const reactivated = new Set();
+    await Promise.all(due.map(async (c) => {
       const targetCategory = c.closedOutcome === "Won" ? "Ongoing Project" : "Prospecting";
       const label = c.projectName || c.company || "A project";
       const message = c.closedOutcome === "Won"
         ? `${label} is starting soon -- moved back to My Dashboard`
         : `Reminder: reach out to the contractor on ${label} (prospecting follow-up)`;
 
-      return Promise.all([
-        updateDoc(doc(db, "customers", c.id), {
+      try {
+        await updateDoc(doc(db, "customers", c.id), {
           category: targetCategory,
           closedOutcome: null,
           nextCheckIn: null
-        }),
-        notifyUser(c.ownerId, { type: "reactivated", message, link: `/dashboard/project/${c.id}` })
-      ]);
+        });
+        await notifyUser(c.ownerId, { type: "reactivated", message, link: `/dashboard/project/${c.id}` });
+        reactivated.add(c.id);
+      } catch {
+        // Leave it closed for now -- it'll be picked up next time someone
+        // with permission (its owner, or an admin) loads the dashboard.
+      }
     }));
 
-    const dueIds = new Set(due.map(c => c.id));
-    return list.map(c => (dueIds.has(c.id)
+    return list.map(c => (reactivated.has(c.id)
       ? { ...c, category: c.closedOutcome === "Won" ? "Ongoing Project" : "Prospecting", closedOutcome: null, nextCheckIn: null }
       : c));
   };

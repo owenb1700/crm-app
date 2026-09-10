@@ -64,7 +64,10 @@ export default function AllAlerts() {
         company: c.company || "",
         badge: c.category || "",
         nextCheckIn: c.nextCheckIn,
-        link: `/dashboard/project/${c.id}`
+        link: `/dashboard/project/${c.id}`,
+        // Firestore rules only let the owner (or an admin) change a
+        // project's date -- a collaborator can see it here but not edit it.
+        canEditDate: c.ownerId === currentUid
       }));
 
     // Same responsibility rule as the Home calendar's myCalendarProjects --
@@ -83,7 +86,10 @@ export default function AllAlerts() {
         company: p.company || "",
         badge: "Pipeline",
         nextCheckIn: p.nextCheckIn,
-        link: `/dashboard/pipeline/${p.id}`
+        link: `/dashboard/pipeline/${p.id}`,
+        // Pipeline entries are editable by any signed-in user, so anyone
+        // who sees this (already scoped to responsibility above) can edit it.
+        canEditDate: true
       }));
 
     const combined = [...customers, ...pipeline]
@@ -159,6 +165,8 @@ export default function AllAlerts() {
         delete next[alert.key];
         return next;
       });
+    } catch (err) {
+      alert(err.message || "Couldn't save that date.");
     } finally {
       setSavingId(null);
     }
@@ -243,20 +251,26 @@ export default function AllAlerts() {
             <div className="customer-dates">Alert set for: {a.nextCheckIn.slice ? a.nextCheckIn.slice(0, 10) : a.nextCheckIn}</div>
           </div>
           <div className="customer-card-right" onClick={e => e.stopPropagation()}>
-            <input
-              className="field"
-              type="date"
-              style={{ marginBottom: 0, width: 160 }}
-              value={editedDates[a.key] !== undefined ? editedDates[a.key] : toDateInputValue(a.nextCheckIn)}
-              onChange={e => setEditedDates(prev => ({ ...prev, [a.key]: e.target.value }))}
-            />
-            <button
-              className="btn btn-secondary"
-              disabled={editedDates[a.key] === undefined || savingId === a.key}
-              onClick={() => saveDate(a)}
-            >
-              {savingId === a.key ? "Saving..." : "Save"}
-            </button>
+            {a.canEditDate ? (
+              <>
+                <input
+                  className="field"
+                  type="date"
+                  style={{ marginBottom: 0, width: 160 }}
+                  value={editedDates[a.key] !== undefined ? editedDates[a.key] : toDateInputValue(a.nextCheckIn)}
+                  onChange={e => setEditedDates(prev => ({ ...prev, [a.key]: e.target.value }))}
+                />
+                <button
+                  className="btn btn-secondary"
+                  disabled={editedDates[a.key] === undefined || savingId === a.key}
+                  onClick={() => saveDate(a)}
+                >
+                  {savingId === a.key ? "Saving..." : "Save"}
+                </button>
+              </>
+            ) : (
+              <span className="private-note-hint">Only the owner can change this date</span>
+            )}
           </div>
         </div>
         );
