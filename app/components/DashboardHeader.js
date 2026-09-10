@@ -194,7 +194,7 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
                 style={{ marginTop: 12 }}
                 onClick={() => router.push("/dashboard/alerts")}
               >
-                All Future Alerts
+                All Alerts
               </button>
             </div>
         </div>

@@ -27,12 +27,13 @@ const toDateInputValue = (date) => {
   return date.slice ? date.slice(0, 10) : date;
 };
 
-// Every future nextCheckIn across projects and Won pipeline entries, in one
-// place -- the same "what's this alert for and when does it fire" data that
-// otherwise only surfaces piecemeal (Home calendar, My Dashboard, the bell).
-// Scoped to the current user's own projects/collaborations and pipeline
-// responsibility, same as Home's calendar -- not an admin-wide view.
-export default function AllFutureAlerts() {
+// Every nextCheckIn across projects and Won pipeline entries -- past and
+// upcoming alike -- in one place: the same "what's this alert for and when
+// does it fire" data that otherwise only surfaces piecemeal (Home calendar,
+// My Dashboard, the bell). Scoped to the current user's own projects/
+// collaborations and pipeline responsibility, same as Home's calendar --
+// not an admin-wide view.
+export default function AllAlerts() {
   const router = useRouter();
 
   const [uid, setUid] = useState(null);
@@ -42,6 +43,7 @@ export default function AllFutureAlerts() {
 
   const [alerts, setAlerts] = useState([]);
   const [search, setSearch] = useState("");
+  const [timeFilter, setTimeFilter] = useState("all"); // 'all' | 'upcoming' | 'past'
   const [editedDates, setEditedDates] = useState({});
 
   const loadAlerts = async (currentUid) => {
@@ -84,9 +86,7 @@ export default function AllFutureAlerts() {
         link: `/dashboard/pipeline/${p.id}`
       }));
 
-    const now = new Date();
     const combined = [...customers, ...pipeline]
-      .filter(a => new Date(a.nextCheckIn) >= now)
       .sort((a, b) => new Date(a.nextCheckIn) - new Date(b.nextCheckIn));
 
     setAlerts(combined);
@@ -164,10 +164,15 @@ export default function AllFutureAlerts() {
     }
   };
 
+  const now = new Date();
   const q = search.trim().toLowerCase();
-  const filtered = q
-    ? alerts.filter(a => a.name.toLowerCase().includes(q) || a.company.toLowerCase().includes(q))
-    : alerts;
+  const filtered = alerts
+    .filter(a => !q || a.name.toLowerCase().includes(q) || a.company.toLowerCase().includes(q))
+    .filter(a => {
+      if (timeFilter === "upcoming") return new Date(a.nextCheckIn) >= now;
+      if (timeFilter === "past") return new Date(a.nextCheckIn) < now;
+      return true;
+    });
 
   if (loadError) {
     return (
@@ -190,7 +195,7 @@ export default function AllFutureAlerts() {
       <div className="dashboard-header">
         <div className="dashboard-brand">
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
-          <h1 className="dashboard-title">All Future Alerts</h1>
+          <h1 className="dashboard-title">All Alerts</h1>
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
@@ -206,17 +211,32 @@ export default function AllFutureAlerts() {
           onChange={e => setSearch(e.target.value)}
           style={{ flex: 1, marginBottom: 0 }}
         />
+        <select
+          className="field"
+          style={{ maxWidth: 160, marginBottom: 0 }}
+          value={timeFilter}
+          onChange={e => setTimeFilter(e.target.value)}
+        >
+          <option value="all">All</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="past">Past</option>
+        </select>
       </div>
 
       {filtered.length === 0 && (
-        <p className="private-note-hint">{alerts.length === 0 ? "No upcoming alerts." : "No alerts match that search."}</p>
+        <p className="private-note-hint">{alerts.length === 0 ? "No alerts yet." : "No alerts match that search/filter."}</p>
       )}
 
-      {filtered.map(a => (
+      {filtered.map(a => {
+        const isPast = new Date(a.nextCheckIn) < now;
+        return (
         <div key={a.key} className="customer-card">
           <div className="customer-card-left" style={{ cursor: "pointer" }} onClick={() => router.push(a.link)}>
             <div className="customer-name">{a.name}</div>
             {a.badge && <span className="role-badge" style={{ marginTop: 6 }}>{a.badge}</span>}
+            <span className={`role-badge ${isPast ? "role-badge-admin" : ""}`} style={{ marginTop: 4 }}>
+              {isPast ? "Past" : "Upcoming"}
+            </span>
           </div>
           <div className="customer-card-middle">
             {a.company && <div className="private-note-hint">{a.company}</div>}
@@ -239,7 +259,8 @@ export default function AllFutureAlerts() {
             </button>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
