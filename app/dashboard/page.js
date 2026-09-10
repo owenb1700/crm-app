@@ -2132,7 +2132,12 @@ export default function Dashboard() {
             >
               <div className="customer-card-left">
                 <div className="customer-name">{c.projectName || c.company}</div>
-                <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>
+                <span className="role-badge" style={{ marginTop: 6 }}>
+                  {/* A closed project with a future alert on file (Won awaiting
+                      start, or Prospecting Only awaiting its next check-in)
+                      isn't done for good -- it's just parked until then. */}
+                  {c.category === "Project Closed" && c.nextCheckIn ? "Temporarily Closed" : c.category}
+                </span>
                 {c.closedOutcome && (
                   <span className={`role-badge ${c.closedOutcome === "Won" ? "role-badge-admin" : ""}`} style={{ marginTop: 4 }}>
                     {c.closedOutcome}
