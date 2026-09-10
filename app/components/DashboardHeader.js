@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../../lib/firebase";
@@ -33,8 +33,25 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
   const [notifications, setNotifications] = useState([]);
   const [notificationsError, setNotificationsError] = useState(null);
   const [showAlertsPanel, setShowAlertsPanel] = useState(false);
+  const [alertsPinned, setAlertsPinned] = useState(false);
+  const alertsRef = useRef(null);
   const [showUserSettings, setShowUserSettings] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
+
+  // Clicking the bell pins the panel open until a click lands outside it;
+  // hovering (without clicking) opens/closes it as the mouse enters/leaves,
+  // but never overrides a pinned-open panel.
+  useEffect(() => {
+    if (!showAlertsPanel) return;
+    const handleOutsideClick = (e) => {
+      if (alertsRef.current && !alertsRef.current.contains(e.target)) {
+        setShowAlertsPanel(false);
+        setAlertsPinned(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [showAlertsPanel]);
 
   useEffect(() => {
     if (!uid) return;
@@ -133,8 +150,25 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
 
   return (
     <>
-      <div className="alerts-menu">
-        <button className="avatar-circle" style={{ position: "relative" }} onClick={() => setShowAlertsPanel(prev => !prev)}>
+      <div
+        className="alerts-menu"
+        ref={alertsRef}
+        onMouseEnter={() => setShowAlertsPanel(true)}
+        onMouseLeave={() => { if (!alertsPinned) setShowAlertsPanel(false); }}
+      >
+        <button
+          className="avatar-circle"
+          style={{ position: "relative" }}
+          onClick={() => {
+            if (showAlertsPanel && alertsPinned) {
+              setShowAlertsPanel(false);
+              setAlertsPinned(false);
+            } else {
+              setShowAlertsPanel(true);
+              setAlertsPinned(true);
+            }
+          }}
+        >
           🔔
           {alertsCount > 0 && <span className="alerts-badge">{alertsCount}</span>}
         </button>
