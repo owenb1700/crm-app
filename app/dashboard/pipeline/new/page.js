@@ -14,6 +14,7 @@ import DashboardHeader from "../../../components/DashboardHeader";
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Design", "Budgeting"];
 const BLANK_BIDDER_ROW = { company: "", contact: "", email: "", phone: "" };
+const BLANK_EQUIPMENT_ROW = { manufacturer: "", model: "" };
 
 const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
@@ -45,8 +46,7 @@ export default function NewPipelineEntry() {
   const [biddingCompanies, setBiddingCompanies] = useState([]);
   const [salespersonId, setSalespersonId] = useState("");
   const [projectPointPersonId, setProjectPointPersonId] = useState("");
-  const [towerManufacturer, setTowerManufacturer] = useState("");
-  const [modelNumber, setModelNumber] = useState("");
+  const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
   const [notes, setNotes] = useState("");
 
   const engineeringFirmOptions = companies.filter(c => c.category === "Engineering Firm").map(c => c.name);
@@ -95,6 +95,18 @@ export default function NewPipelineEntry() {
 
   const removeBiddingCompanyRow = (index) => {
     setBiddingCompanies(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const addEquipmentRow = () => {
+    setEquipmentRows(prev => [...prev, { ...BLANK_EQUIPMENT_ROW }]);
+  };
+
+  const updateEquipmentRow = (index, field, value) => {
+    setEquipmentRows(prev => prev.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
+  };
+
+  const removeEquipmentRow = (index) => {
+    setEquipmentRows(prev => prev.filter((_, i) => i !== index));
   };
 
   useEffect(() => {
@@ -197,6 +209,8 @@ export default function NewPipelineEntry() {
     setSaving(true);
     try {
       const cleanBidders = biddingCompanies.filter(r => r.company || r.contact);
+      const equipment = equipmentRows.filter(r => r.manufacturer || r.model);
+      const firstEquipment = equipment[0] || {};
 
       const ref = await addDoc(collection(db, "pipeline"), {
         title,
@@ -209,8 +223,9 @@ export default function NewPipelineEntry() {
         phone: phone || null,
         projectAddress: projectAddress || null,
         biddingCompanies: cleanBidders,
-        towerManufacturer: towerManufacturer || null,
-        modelNumber: modelNumber || null,
+        equipment,
+        towerManufacturer: firstEquipment.manufacturer || null,
+        modelNumber: firstEquipment.model || null,
         salespersonId: salespersonId || null,
         projectPointPersonId: projectPointPersonId || null,
         trackedByIds: [],
@@ -233,7 +248,9 @@ export default function NewPipelineEntry() {
         ...cleanBidders.map(r => ({ companyName: r.company, category: "Contractor", contactName: r.contact, email: r.email, phone: r.phone }))
       ];
       await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });
-      await ensureTowerModel({ towerModels, manufacturer: towerManufacturer, model: modelNumber, uid });
+      await Promise.all(
+        equipment.map(row => ensureTowerModel({ towerModels, manufacturer: row.manufacturer, model: row.model, uid }))
+      );
 
       router.push(`/dashboard/pipeline/${ref.id}`);
     } finally {
@@ -390,28 +407,29 @@ export default function NewPipelineEntry() {
 
         <div className="project-section">
           <h4 className="field-label" style={{ marginTop: 0 }}>Equipment Details (optional)</h4>
-          <div className="form-grid-2">
-            <div>
-              <label className="field-label">Manufacturer</label>
+          {equipmentRows.map((row, i) => (
+            <div
+              key={i}
+              style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr) auto", gap: 8, alignItems: "center", marginBottom: 8 }}
+            >
               <SearchableSelect
                 options={manufacturerOptions}
-                value={towerManufacturer}
-                onChange={setTowerManufacturer}
+                value={row.manufacturer}
+                onChange={v => updateEquipmentRow(i, "manufacturer", v)}
                 placeholder="Select or search manufacturer..."
                 newLabel="manufacturer"
               />
-            </div>
-            <div>
-              <label className="field-label">Model</label>
               <SearchableSelect
-                options={modelOptionsFor(towerManufacturer)}
-                value={modelNumber}
-                onChange={setModelNumber}
+                options={modelOptionsFor(row.manufacturer)}
+                value={row.model}
+                onChange={v => updateEquipmentRow(i, "model", v)}
                 placeholder="Select or search model..."
                 newLabel="model"
               />
+              <button className="btn btn-danger" onClick={() => removeEquipmentRow(i)}>Remove</button>
             </div>
-          </div>
+          ))}
+          <button className="btn btn-secondary" onClick={addEquipmentRow}>+ Add Equipment</button>
         </div>
 
         <div className="project-section">
