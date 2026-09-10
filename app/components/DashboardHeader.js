@@ -35,6 +35,9 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
   const [showAlertsPanel, setShowAlertsPanel] = useState(false);
   const [alertsPinned, setAlertsPinned] = useState(false);
   const alertsRef = useRef(null);
+  const [showAvatarPanel, setShowAvatarPanel] = useState(false);
+  const [avatarPinned, setAvatarPinned] = useState(false);
+  const avatarRef = useRef(null);
   const [showUserSettings, setShowUserSettings] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
 
@@ -52,6 +55,20 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [showAlertsPanel]);
+
+  // Same hover-opens/click-pins/outside-click-closes behavior for the
+  // avatar/user-settings menu.
+  useEffect(() => {
+    if (!showAvatarPanel) return;
+    const handleOutsideClick = (e) => {
+      if (avatarRef.current && !avatarRef.current.contains(e.target)) {
+        setShowAvatarPanel(false);
+        setAvatarPinned(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [showAvatarPanel]);
 
   useEffect(() => {
     if (!uid) return;
@@ -240,27 +257,48 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
         )}
       </div>
 
-      <div className="avatar-menu">
-        <button className="avatar-circle">
+      <div
+        className="avatar-menu"
+        ref={avatarRef}
+        onMouseEnter={() => setShowAvatarPanel(true)}
+        onMouseLeave={() => { if (!avatarPinned) setShowAvatarPanel(false); }}
+      >
+        <button
+          className="avatar-circle"
+          onClick={() => {
+            if (showAvatarPanel && avatarPinned) {
+              setShowAvatarPanel(false);
+              setAvatarPinned(false);
+            } else {
+              setShowAvatarPanel(true);
+              setAvatarPinned(true);
+            }
+          }}
+        >
           {`${profile?.firstName?.[0] || ""}${profile?.lastName?.[0] || ""}`.toUpperCase()}
         </button>
-        <div className="avatar-dropdown">
-          <div className="avatar-dropdown-card">
-            <div className="avatar-dropdown-name">
-              {profile?.firstName} {profile?.lastName}
+        {showAvatarPanel && (
+          <div className="avatar-dropdown">
+            <div className="avatar-dropdown-card">
+              <div className="avatar-dropdown-name">
+                {profile?.firstName} {profile?.lastName}
+              </div>
+              <div className="avatar-dropdown-email">{auth.currentUser?.email}</div>
+              <div className="avatar-dropdown-role">
+                <span className={`role-badge ${role === "admin" ? "role-badge-admin" : ""}`}>{roleLabel(role)}</span>
+              </div>
+              <button
+                className="btn btn-secondary btn-block"
+                onClick={() => { setShowAvatarPanel(false); setAvatarPinned(false); setShowUserSettings(true); }}
+              >
+                User Settings
+              </button>
+              <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={logout}>
+                Logout
+              </button>
             </div>
-            <div className="avatar-dropdown-email">{auth.currentUser?.email}</div>
-            <div className="avatar-dropdown-role">
-              <span className={`role-badge ${role === "admin" ? "role-badge-admin" : ""}`}>{roleLabel(role)}</span>
-            </div>
-            <button className="btn btn-secondary btn-block" onClick={() => setShowUserSettings(true)}>
-              User Settings
-            </button>
-            <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={logout}>
-              Logout
-            </button>
           </div>
-        </div>
+        )}
       </div>
 
       {showUserSettings && (
