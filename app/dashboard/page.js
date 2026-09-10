@@ -115,6 +115,13 @@ export default function Dashboard() {
   // COMPLETED
   const [completedTarget, setCompletedTarget] = useState(null);
   const [completedOutcome, setCompletedOutcome] = useState("Won");
+  const [wonStartDate, setWonStartDate] = useState("");
+  const [lostNotes, setLostNotes] = useState("");
+  const [prospectingNextDate, setProspectingNextDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 3);
+    return d.toISOString().split("T")[0];
+  });
 
   // TOAST
   const [toast, setToast] = useState("");
@@ -185,6 +192,8 @@ export default function Dashboard() {
       );
       list = list.map(c => (c.ownerId ? c : { ...c, ownerId: currentUid }));
     }
+
+    list = await reactivateDueClosedProjects(list);
 
     setCustomers(list);
 
@@ -394,6 +403,45 @@ export default function Dashboard() {
     if (email && emailPref !== false) {
       sendNotificationEmail(email, subject, emailHtml);
     }
+  };
+
+  // Won and Prospecting Only are the only closed outcomes that ever come
+  // back -- Lost and Not Pursuing stay in Past Projects with no further
+  // alerts until someone edits them by hand. There's no server-side cron
+  // here, so whichever teammate's session next loads the customer list is
+  // what actually catches a due date and flips it back to active --
+  // acceptable for a small internal tool, but it means reactivation can
+  // lag until someone opens the dashboard.
+  const reactivateDueClosedProjects = async (list) => {
+    const now = new Date();
+    const due = list.filter(c =>
+      c.category === "Project Closed" &&
+      (c.closedOutcome === "Won" || c.closedOutcome === "Prospecting Only") &&
+      c.nextCheckIn && new Date(c.nextCheckIn) <= now
+    );
+    if (due.length === 0) return list;
+
+    await Promise.all(due.map(c => {
+      const targetCategory = c.closedOutcome === "Won" ? "Ongoing Project" : "Prospecting";
+      const label = c.projectName || c.company || "A project";
+      const message = c.closedOutcome === "Won"
+        ? `${label} is starting soon -- moved back to My Dashboard`
+        : `Reminder: reach out to the contractor on ${label} (prospecting follow-up)`;
+
+      return Promise.all([
+        updateDoc(doc(db, "customers", c.id), {
+          category: targetCategory,
+          closedOutcome: null,
+          nextCheckIn: null
+        }),
+        notifyUser(c.ownerId, { type: "reactivated", message, link: `/dashboard/project/${c.id}` })
+      ]);
+    }));
+
+    const dueIds = new Set(due.map(c => c.id));
+    return list.map(c => (dueIds.has(c.id)
+      ? { ...c, category: c.closedOutcome === "Won" ? "Ongoing Project" : "Prospecting", closedOutcome: null, nextCheckIn: null }
+      : c));
   };
 
   const markNotificationRead = async (n) => {
@@ -774,34 +822,71 @@ export default function Dashboard() {
 
   const openCompletedPopup = (c) => {
     setCompletedTarget(c);
+    setCompletedOutcome("Won");
+    setWonStartDate("");
+    setLostNotes("");
+    const d = new Date();
+    d.setMonth(d.getMonth() + 3);
+    setProspectingNextDate(d.toISOString().split("T")[0]);
   };
 
   const confirmCompleted = async () => {
-    // Marking a project completed closes it out the same way changing its
-    // category to "Project Closed" does: it drops off My Dashboard, moves
-    // into Past Projects, and gets the same 6-month follow-up (with the
-    // same Snooze 3 Months / Follow Up in 6 Months options once due) as
-    // every other closed project -- one unified process either way.
-    const d = new Date();
-    d.setMonth(d.getMonth() + 6);
+    if (completedOutcome === "Won" && !wonStartDate) {
+      return alert("Please enter the estimated job start date");
+    }
+    if (completedOutcome === "Lost" && !lostNotes.trim()) {
+      return alert("Please enter notes on why the job was lost and who won it");
+    }
+    if (completedOutcome === "Prospecting Only" && !prospectingNextDate) {
+      return alert("Please choose the next alert date");
+    }
 
+    // Marking a project completed closes it out the same way changing its
+    // category to "Project Closed" does: it drops off My Dashboard and
+    // moves into Past Projects. What happens next depends on the outcome:
+    // - Won: comes back to My Dashboard (as an Ongoing Project) 2 weeks
+    //   before the job start date, with an alert.
+    // - Prospecting Only: comes back to My Dashboard (as Prospecting) on
+    //   the chosen next-alert date (default 3 months), with an alert to
+    //   reach out to the contractor. Picking Prospecting Only again from
+    //   here restarts the same cycle -- it can be snoozed indefinitely by
+    //   just re-choosing it each time it resurfaces.
+    // - Lost / Not Pursuing: no further alerts, stays in Past Projects
+    //   until someone edits it by hand.
     const entry = {
       type: "completed",
       outcome: completedOutcome,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      ...(completedOutcome === "Won" && { startDate: wonStartDate }),
+      ...(completedOutcome === "Lost" && { notes: lostNotes.trim() })
     };
 
-    await updateDoc(doc(db, "customers", completedTarget.id), {
+    const payload = {
       category: "Project Closed",
-      nextCheckIn: adjustWeekend(d.toISOString()),
+      closedOutcome: completedOutcome,
       activityLog: [
         ...(completedTarget.activityLog || []),
         entry
       ]
-    });
+    };
+
+    if (completedOutcome === "Won") {
+      const start = new Date(wonStartDate);
+      start.setDate(start.getDate() - 14);
+      payload.nextCheckIn = adjustWeekend(start.toISOString());
+      payload.wonStartDate = wonStartDate;
+    } else if (completedOutcome === "Prospecting Only") {
+      payload.nextCheckIn = adjustWeekend(new Date(prospectingNextDate).toISOString());
+    } else {
+      payload.nextCheckIn = null;
+    }
+
+    await updateDoc(doc(db, "customers", completedTarget.id), payload);
 
     setCompletedTarget(null);
     setCompletedOutcome("Won");
+    setWonStartDate("");
+    setLostNotes("");
 
     showToast("Marked completed — moved to Past Projects");
     loadCustomers(uid, role === "admin");
@@ -1538,7 +1623,12 @@ export default function Dashboard() {
                 ) : (
                   c.category && <span className="role-badge" style={{ marginTop: 4 }}>{c.category}</span>
                 )}
-                {c._kind === "project" && c.category === "Project Closed" && (
+                {/* Won/Prospecting Only closed projects reactivate themselves
+                    automatically once due (see reactivateDueClosedProjects) --
+                    these manual buttons only still apply to legacy closed
+                    projects from before that existed (no closedOutcome on
+                    file), which just get pushed further out by hand. */}
+                {c._kind === "project" && c.category === "Project Closed" && !c.closedOutcome && (
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
                     <button className="btn btn-secondary" onClick={() => snoozeClosedFollowUp(c)}>Snooze 3 Months</button>
                     <button className="btn btn-secondary" onClick={() => followUpIn6Months(c)}>Follow Up in 6 Months</button>
@@ -1775,7 +1865,11 @@ export default function Dashboard() {
               <div className="modal-card">
                 <h3 className="modal-title">Mark Completed</h3>
                 <p className="modal-subtitle" style={{ marginBottom: 12 }}>
-                  This closes the project out and moves it to Past Projects. You'll be reminded to check back in on it in 6 months.
+                  This closes the project out and moves it to Past Projects.{" "}
+                  {completedOutcome === "Won" && "You'll be alerted and it'll move back to My Dashboard 2 weeks before the job starts."}
+                  {completedOutcome === "Lost" && "No further alerts -- it stays in Past Projects until someone moves it back."}
+                  {completedOutcome === "Not Pursuing" && "No further alerts -- it stays in Past Projects until someone moves it back."}
+                  {completedOutcome === "Prospecting Only" && "You'll be alerted and it'll move back to My Dashboard on the date below to reach out to the contractor."}
                 </p>
 
                 <label className="field-label">Outcome</label>
@@ -1785,6 +1879,27 @@ export default function Dashboard() {
                   <option value="Not Pursuing">Not Pursuing Anymore</option>
                   <option value="Prospecting Only">Prospecting Only</option>
                 </select>
+
+                {completedOutcome === "Won" && (
+                  <div style={{ marginTop: 10 }}>
+                    <label className="field-label">Estimated Job Start Date</label>
+                    <input className="field" type="date" value={wonStartDate} onChange={e => setWonStartDate(e.target.value)} />
+                  </div>
+                )}
+
+                {completedOutcome === "Lost" && (
+                  <div style={{ marginTop: 10 }}>
+                    <label className="field-label">Why was it lost, and who won it?</label>
+                    <input className="field" autoComplete="off" value={lostNotes} onChange={e => setLostNotes(e.target.value)} />
+                  </div>
+                )}
+
+                {completedOutcome === "Prospecting Only" && (
+                  <div style={{ marginTop: 10 }}>
+                    <label className="field-label">Next Alert Date</label>
+                    <input className="field" type="date" value={prospectingNextDate} onChange={e => setProspectingNextDate(e.target.value)} />
+                  </div>
+                )}
 
                 <div className="modal-actions">
                   <button className="btn btn-primary" onClick={confirmCompleted}>Confirm</button>
@@ -2018,6 +2133,11 @@ export default function Dashboard() {
               <div className="customer-card-left">
                 <div className="customer-name">{c.projectName || c.company}</div>
                 <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>
+                {c.closedOutcome && (
+                  <span className={`role-badge ${c.closedOutcome === "Won" ? "role-badge-admin" : ""}`} style={{ marginTop: 4 }}>
+                    {c.closedOutcome}
+                  </span>
+                )}
               </div>
               <div className="customer-card-middle">
                 {c.company && <div className="private-note-hint">{c.company}</div>}

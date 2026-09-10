@@ -535,6 +535,8 @@ export default function ProjectDetail() {
           {(customer.activityLog || []).map((a, i) => (
             <div key={i} className="notes-history-item">
               <div>{a.type} — {a.outcome}</div>
+              {a.startDate && <div className="private-note-hint">Estimated start: {a.startDate}</div>}
+              {a.notes && <div className="private-note-hint">{a.notes}</div>}
               <div className="notes-history-date">{a.timestamp}</div>
             </div>
           ))}
