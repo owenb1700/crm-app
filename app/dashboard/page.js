@@ -69,7 +69,9 @@ export default function Dashboard() {
   const [uid, setUid] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [role, setRole] = useState(null); // 'admin' | 'member' | null (loading)
-  const [view, setView] = useState("home"); // 'home' | 'personal' | 'team' | 'admin'
+  // #personal in the URL (e.g. after Cancel Entry on the Add Project page)
+  // opens straight to My Dashboard instead of Home.
+  const [view, setView] = useState(() => (typeof window !== "undefined" && window.location.hash === "#personal" ? "personal" : "home")); // 'home' | 'personal' | 'team' | 'admin'
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(null); // null = "this week" panel
 
   // NAME COLLECTION (first login without a name on file)

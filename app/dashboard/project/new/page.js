@@ -140,6 +140,43 @@ export default function NewProject() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // This screen shouldn't be left except via Cancel Entry or Finish and
+  // Add. Neither of those triggers beforeunload/popstate (they're plain
+  // client-side router.push calls, not real navigation/unload events) --
+  // this guard only has to catch the other ways out: closing the tab,
+  // refreshing, typing a new address, or the browser back/forward buttons.
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    // An extra history entry means a back-button press lands here first
+    // (firing popstate) instead of immediately leaving, so we get a
+    // chance to confirm before actually navigating away.
+    window.history.pushState(null, "", window.location.href);
+
+    const handlePopState = () => {
+      if (window.confirm("Leave without finishing this project? Use Cancel Entry or Finish and Add instead.")) {
+        window.removeEventListener("beforeunload", handleBeforeUnload);
+        router.back();
+      } else {
+        window.history.pushState(null, "", window.location.href);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [router]);
+
+  const handleCancel = () => {
+    router.push("/dashboard#personal");
+  };
+
   const addProject = async () => {
     const missing = [];
     if (!projectName) missing.push("Project Name");
@@ -224,7 +261,6 @@ export default function NewProject() {
           <h1 className="dashboard-title">Add Project</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
           <DashboardHeader uid={uid} />
         </div>
       </div>
@@ -246,16 +282,13 @@ export default function NewProject() {
 
           <div>
             <label className="field-label">Contact</label>
-            <input
-              className="field"
-              list="new-project-contacts"
-              autoComplete="off"
+            <SearchableSelect
+              options={matchingContacts.map(c => c.name)}
               value={contact}
-              onChange={e => handleContactChange(e.target.value)}
+              onChange={handleContactChange}
+              placeholder="Select or search contact..."
+              newLabel="contact"
             />
-            <datalist id="new-project-contacts">
-              {matchingContacts.map(c => <option key={c.id} value={c.name} />)}
-            </datalist>
           </div>
 
           <div>
@@ -346,10 +379,13 @@ export default function NewProject() {
           ))}
           <button className="btn btn-secondary" onClick={addEquipmentRow}>+ Add Equipment</button>
         </div>
+      </div>
 
-        <button className="btn btn-primary btn-block" disabled={saving} onClick={addProject}>
-          {saving ? "Adding..." : "ADD"}
+      <div style={{ position: "fixed", top: "50%", right: 24, transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: 10, zIndex: 10 }}>
+        <button className="btn btn-primary" disabled={saving} onClick={addProject}>
+          {saving ? "Adding..." : "Finish and Add"}
         </button>
+        <button className="btn btn-secondary" onClick={handleCancel}>Cancel Entry</button>
       </div>
     </div>
   );
