@@ -381,11 +381,11 @@ export default function NewProject() {
         </div>
       </div>
 
-      <div style={{ position: "fixed", top: "50%", right: 24, transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: 10, zIndex: 10 }}>
-        <button className="btn btn-primary" disabled={saving} onClick={addProject}>
+      <div style={{ position: "fixed", top: 100, right: 24, display: "flex", flexDirection: "column", gap: 10, zIndex: 10 }}>
+        <button className="btn btn-primary" style={{ padding: "20px 32px", fontSize: 28 }} disabled={saving} onClick={addProject}>
           {saving ? "Adding..." : "Finish and Add"}
         </button>
-        <button className="btn btn-secondary" onClick={handleCancel}>Cancel Entry</button>
+        <button className="btn btn-secondary" style={{ padding: "20px 32px", fontSize: 28 }} onClick={handleCancel}>Cancel Entry</button>
       </div>
     </div>
   );
