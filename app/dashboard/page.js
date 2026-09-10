@@ -1588,14 +1588,6 @@ export default function Dashboard() {
               </button>
             </>
           )}
-          {myPermissions.team && (
-            <button
-              className={`tab-btn ${view === "team" ? "tab-btn-active" : ""}`}
-              onClick={() => setView("team")}
-            >
-              Team
-            </button>
-          )}
           {myPermissions.pipeline && (
             <button
               className={`tab-btn ${view === "pipeline" ? "tab-btn-active" : ""}`}
@@ -1626,6 +1618,15 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
+          )}
+
+          {myPermissions.team && (
+            <button
+              className={`tab-btn ${view === "team" ? "tab-btn-active" : ""}`}
+              onClick={() => setView("team")}
+            >
+              Team
+            </button>
           )}
 
           <button
