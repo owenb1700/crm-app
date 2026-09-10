@@ -412,12 +412,22 @@ a {
 }
 
 .avatar-dropdown {
+  display: none;
   position: absolute;
+  /* Touches the trigger (no gap) so the hoverable hit area is continuous
+     between the circle and the panel -- the visual gap below comes from
+     padding-top instead, which (unlike a positional offset) is still part
+     of this element's hoverable box. */
   top: 100%;
   right: 0;
   width: 220px;
   padding-top: 8px;
   z-index: 40;
+}
+
+.avatar-menu:hover .avatar-dropdown,
+.avatar-menu:focus-within .avatar-dropdown {
+  display: block;
 }
 
 .avatar-dropdown-card {
@@ -428,20 +438,23 @@ a {
   padding: 14px;
 }
 
-/* Both this and .avatar-menu are shown/hidden via React state (hover
-   opens, click pins open until an outside click), not CSS hover -- so
-   there's no display:none default to fight here. */
 .alerts-menu {
   position: relative;
 }
 
 .alerts-dropdown {
+  display: none;
   position: absolute;
   top: 100%;
   right: 0;
   width: 340px;
   padding-top: 8px;
   z-index: 40;
+}
+
+.alerts-menu:hover .alerts-dropdown,
+.alerts-menu:focus-within .alerts-dropdown {
+  display: block;
 }
 
 .alerts-badge {

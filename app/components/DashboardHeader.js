@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../../lib/firebase";
@@ -32,43 +32,8 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
 
   const [notifications, setNotifications] = useState([]);
   const [notificationsError, setNotificationsError] = useState(null);
-  const [showAlertsPanel, setShowAlertsPanel] = useState(false);
-  const [alertsPinned, setAlertsPinned] = useState(false);
-  const alertsRef = useRef(null);
-  const [showAvatarPanel, setShowAvatarPanel] = useState(false);
-  const [avatarPinned, setAvatarPinned] = useState(false);
-  const avatarRef = useRef(null);
   const [showUserSettings, setShowUserSettings] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
-
-  // Clicking the bell pins the panel open until a click lands outside it;
-  // hovering (without clicking) opens/closes it as the mouse enters/leaves,
-  // but never overrides a pinned-open panel.
-  useEffect(() => {
-    if (!showAlertsPanel) return;
-    const handleOutsideClick = (e) => {
-      if (alertsRef.current && !alertsRef.current.contains(e.target)) {
-        setShowAlertsPanel(false);
-        setAlertsPinned(false);
-      }
-    };
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [showAlertsPanel]);
-
-  // Same hover-opens/click-pins/outside-click-closes behavior for the
-  // avatar/user-settings menu.
-  useEffect(() => {
-    if (!showAvatarPanel) return;
-    const handleOutsideClick = (e) => {
-      if (avatarRef.current && !avatarRef.current.contains(e.target)) {
-        setShowAvatarPanel(false);
-        setAvatarPinned(false);
-      }
-    };
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [showAvatarPanel]);
 
   useEffect(() => {
     if (!uid) return;
@@ -167,30 +132,12 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
 
   return (
     <>
-      <div
-        className="alerts-menu"
-        ref={alertsRef}
-        onMouseEnter={() => setShowAlertsPanel(true)}
-        onMouseLeave={() => { if (!alertsPinned) setShowAlertsPanel(false); }}
-      >
-        <button
-          className="avatar-circle"
-          style={{ position: "relative" }}
-          onClick={() => {
-            if (showAlertsPanel && alertsPinned) {
-              setShowAlertsPanel(false);
-              setAlertsPinned(false);
-            } else {
-              setShowAlertsPanel(true);
-              setAlertsPinned(true);
-            }
-          }}
-        >
+      <div className="alerts-menu">
+        <button className="avatar-circle" style={{ position: "relative" }}>
           🔔
           {alertsCount > 0 && <span className="alerts-badge">{alertsCount}</span>}
         </button>
-        {showAlertsPanel && (
-          <div className="alerts-dropdown">
+        <div className="alerts-dropdown">
             <div className="avatar-dropdown-card" style={{ width: 340 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <h4 className="field-label" style={{ margin: 0 }}>Alerts</h4>
@@ -233,10 +180,7 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
                     style={{ marginTop: 6, cursor: n.link ? "pointer" : "default", opacity: n.read ? 0.6 : 1 }}
                     onClick={() => {
                       markNotificationRead(n);
-                      if (n.link) {
-                        setShowAlertsPanel(false);
-                        router.push(n.link);
-                      }
+                      if (n.link) router.push(n.link);
                     }}
                   >
                     <div>{n.message}</div>
@@ -248,63 +192,40 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
               <button
                 className="btn btn-secondary btn-block"
                 style={{ marginTop: 12 }}
-                onClick={() => { setShowAlertsPanel(false); router.push("/dashboard/alerts"); }}
+                onClick={() => router.push("/dashboard/alerts")}
               >
                 All Future Alerts
               </button>
             </div>
-          </div>
-        )}
+        </div>
       </div>
 
-      <div
-        className="avatar-menu"
-        ref={avatarRef}
-        onMouseEnter={() => setShowAvatarPanel(true)}
-        onMouseLeave={() => { if (!avatarPinned) setShowAvatarPanel(false); }}
-      >
-        <button
-          className="avatar-circle"
-          onClick={() => {
-            if (showAvatarPanel && avatarPinned) {
-              setShowAvatarPanel(false);
-              setAvatarPinned(false);
-            } else {
-              setShowAvatarPanel(true);
-              setAvatarPinned(true);
-            }
-          }}
-        >
+      <div className="avatar-menu">
+        <button className="avatar-circle">
           {`${profile?.firstName?.[0] || ""}${profile?.lastName?.[0] || ""}`.toUpperCase()}
         </button>
-        {showAvatarPanel && (
-          <div className="avatar-dropdown">
-            <div className="avatar-dropdown-card">
-              <div className="avatar-dropdown-name">
-                {profile?.firstName} {profile?.lastName}
-              </div>
-              <div className="avatar-dropdown-email">{auth.currentUser?.email}</div>
-              <div className="avatar-dropdown-role">
-                <span className={`role-badge ${role === "admin" ? "role-badge-admin" : ""}`}>{roleLabel(role)}</span>
-              </div>
-              <button
-                className="btn btn-secondary btn-block"
-                onClick={() => { setShowAvatarPanel(false); setAvatarPinned(false); setShowUserSettings(true); }}
-              >
-                User Settings
-              </button>
-              <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={logout}>
-                Logout
-              </button>
+        <div className="avatar-dropdown">
+          <div className="avatar-dropdown-card">
+            <div className="avatar-dropdown-name">
+              {profile?.firstName} {profile?.lastName}
             </div>
+            <div className="avatar-dropdown-email">{auth.currentUser?.email}</div>
+            <div className="avatar-dropdown-role">
+              <span className={`role-badge ${role === "admin" ? "role-badge-admin" : ""}`}>{roleLabel(role)}</span>
+            </div>
+            <button className="btn btn-secondary btn-block" onClick={() => setShowUserSettings(true)}>
+              User Settings
+            </button>
+            <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={logout}>
+              Logout
+            </button>
           </div>
-        )}
+        </div>
       </div>
 
       {showUserSettings && (
         <div className="modal-overlay" onClick={() => setShowUserSettings(false)}>
           <div className="modal-card" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowUserSettings(false)}>✕</button>
             <h3 className="modal-title">User Settings</h3>
 
             <h4 className="field-label" style={{ marginTop: 4 }}>Digest Emails</h4>
