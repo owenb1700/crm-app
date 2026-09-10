@@ -302,8 +302,8 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
       </div>
 
       {showUserSettings && (
-        <div className="modal-overlay">
-          <div className="modal-card">
+        <div className="modal-overlay" onClick={() => setShowUserSettings(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setShowUserSettings(false)}>✕</button>
             <h3 className="modal-title">User Settings</h3>
 
