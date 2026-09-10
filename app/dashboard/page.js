@@ -88,6 +88,7 @@ export default function Dashboard() {
   const [digestSchedules, setDigestSchedules] = useState([]);
   const [notifyCollabRequest, setNotifyCollabRequest] = useState(true);
   const [notifyCollabApproved, setNotifyCollabApproved] = useState(true);
+  const [sendingTestDigest, setSendingTestDigest] = useState(false);
 
   const [customers, setCustomers] = useState([]);
   const [notesById, setNotesById] = useState({});
@@ -582,6 +583,81 @@ export default function Dashboard() {
     setMyProfile(prev => ({ ...(prev || {}), digestSchedules, notifyCollabRequest, notifyCollabApproved }));
     showToast("Notification settings saved");
     setShowUserSettings(false);
+  };
+
+  // There's no server-side cron actually sending scheduled digests yet --
+  // digestSchedules only ever configured *when* one would send, nothing
+  // ever built the content or sent it. This composes a real one from the
+  // signed-in user's own live data (same nextCheckIn/ownership fields
+  // everything else on this page already reads) and sends it through the
+  // same /api/send-email route every other email in the app uses.
+  const buildDigestHtml = () => {
+    const now = new Date();
+    const weekOut = new Date();
+    weekOut.setDate(weekOut.getDate() + 7);
+    const baseUrl = "https://crm-app-coral-five.vercel.app";
+
+    const mine = customers.filter(c => c.ownerId === uid && c.category !== "Project Closed");
+    const dueThisWeek = mine
+      .filter(c => c.nextCheckIn && new Date(c.nextCheckIn) >= now && new Date(c.nextCheckIn) <= weekOut)
+      .sort((a, b) => new Date(a.nextCheckIn) - new Date(b.nextCheckIn));
+    const overdue = mine
+      .filter(c => c.nextCheckIn && new Date(c.nextCheckIn) < now)
+      .sort((a, b) => new Date(a.nextCheckIn) - new Date(b.nextCheckIn));
+
+    const pipelineDue = pipelineEntries
+      .filter(p => p.outcome === "Won" && p.nextCheckIn && (p.projectPointPersonId || p.salespersonId || p.ownerId) === uid)
+      .filter(p => new Date(p.nextCheckIn) >= now && new Date(p.nextCheckIn) <= weekOut)
+      .sort((a, b) => new Date(a.nextCheckIn) - new Date(b.nextCheckIn));
+
+    const row = (name, company, date, link) => `
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">
+          <a href="${link}" style="color:#2563eb;text-decoration:none;font-weight:600;">${name}</a>
+          ${company ? `<div style="color:#6b7280;font-size:13px;">${company}</div>` : ""}
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#374151;white-space:nowrap;">${formatDate(date)}</td>
+      </tr>`;
+
+    const section = (title, items, getRow) => (items.length ? `
+      <h3 style="margin:24px 0 8px;font-size:15px;color:#111827;">${title} (${items.length})</h3>
+      <table style="width:100%;border-collapse:collapse;">${items.map(getRow).join("")}</table>
+    ` : "");
+
+    const total = dueThisWeek.length + overdue.length + pipelineDue.length;
+
+    return `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;">
+        <h2 style="color:#111827;">Your Upcoming Tasks</h2>
+        <p style="color:#6b7280;">Test send -- this reflects your real, live data right now.</p>
+        ${section("Due This Week", dueThisWeek, c => row(c.projectName || c.company, c.company, c.nextCheckIn, `${baseUrl}/dashboard/project/${c.id}`))}
+        ${section("Overdue", overdue, c => row(c.projectName || c.company, c.company, c.nextCheckIn, `${baseUrl}/dashboard/project/${c.id}`))}
+        ${section("Pipeline Follow-Ups Due This Week", pipelineDue, p => row(p.title, p.company, p.nextCheckIn, `${baseUrl}/dashboard/pipeline/${p.id}`))}
+        ${total === 0 ? '<p style="color:#6b7280;">Nothing due right now.</p>' : ""}
+      </div>
+    `;
+  };
+
+  const sendTestDigest = async () => {
+    setSendingTestDigest(true);
+    try {
+      const res = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: auth.currentUser?.email,
+          subject: "Your Upcoming Tasks (Test Digest)",
+          html: buildDigestHtml()
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send");
+      showToast(`Test digest sent to ${auth.currentUser?.email}`);
+    } catch (err) {
+      alert(err.message || "Couldn't send test digest");
+    } finally {
+      setSendingTestDigest(false);
+    }
   };
 
   const logout = async () => {
@@ -1474,6 +1550,15 @@ export default function Dashboard() {
 
             <button className="btn btn-primary btn-block" style={{ marginTop: 16 }} onClick={saveNotificationSettings}>
               Save
+            </button>
+
+            <button
+              className="btn btn-secondary btn-block"
+              style={{ marginTop: 8 }}
+              disabled={sendingTestDigest}
+              onClick={sendTestDigest}
+            >
+              {sendingTestDigest ? "Sending..." : "Send Test Digest Now"}
             </button>
           </div>
         </div>
