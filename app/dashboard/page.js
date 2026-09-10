@@ -114,7 +114,7 @@ export default function Dashboard() {
 
   // COMPLETED
   const [completedTarget, setCompletedTarget] = useState(null);
-  const [contactMethod, setContactMethod] = useState("phone");
+  const [completedOutcome, setCompletedOutcome] = useState("Won");
 
   // TOAST
   const [toast, setToast] = useState("");
@@ -787,7 +787,7 @@ export default function Dashboard() {
 
     const entry = {
       type: "completed",
-      method: contactMethod,
+      outcome: completedOutcome,
       timestamp: new Date().toISOString()
     };
 
@@ -801,7 +801,7 @@ export default function Dashboard() {
     });
 
     setCompletedTarget(null);
-    setContactMethod("phone");
+    setCompletedOutcome("Won");
 
     showToast("Marked completed — moved to Past Projects");
     loadCustomers(uid, role === "admin");
@@ -1778,10 +1778,12 @@ export default function Dashboard() {
                   This closes the project out and moves it to Past Projects. You'll be reminded to check back in on it in 6 months.
                 </p>
 
-                <label className="field-label">How was contact made?</label>
-                <select className="field" value={contactMethod} onChange={e => setContactMethod(e.target.value)}>
-                  <option value="phone">Phone</option>
-                  <option value="email">Email</option>
+                <label className="field-label">Outcome</label>
+                <select className="field" value={completedOutcome} onChange={e => setCompletedOutcome(e.target.value)}>
+                  <option value="Won">Job Won</option>
+                  <option value="Lost">Job Lost</option>
+                  <option value="Not Pursuing">Not Pursuing Anymore</option>
+                  <option value="Prospecting Only">Prospecting Only</option>
                 </select>
 
                 <div className="modal-actions">

@@ -534,7 +534,7 @@ export default function ProjectDetail() {
           )}
           {(customer.activityLog || []).map((a, i) => (
             <div key={i} className="notes-history-item">
-              <div>{a.type} via {a.method}</div>
+              <div>{a.type} — {a.outcome}</div>
               <div className="notes-history-date">{a.timestamp}</div>
             </div>
           ))}
