@@ -193,6 +193,14 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
                   </div>
                 ))}
               </div>
+
+              <button
+                className="btn btn-secondary btn-block"
+                style={{ marginTop: 12 }}
+                onClick={() => { setShowAlertsPanel(false); router.push("/dashboard/alerts"); }}
+              >
+                All Future Alerts
+              </button>
             </div>
           </div>
         )}
