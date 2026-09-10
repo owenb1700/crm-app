@@ -1482,11 +1482,12 @@ export default function Dashboard() {
                 <button className="btn btn-secondary btn-block" onClick={() => setShowUserSettings(true)}>
                   User Settings
                 </button>
+                <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={logout}>
+                  Logout
+                </button>
               </div>
             </div>
           </div>
-
-          <button className="btn btn-secondary" onClick={logout}>Logout</button>
         </div>
       </div>
 
