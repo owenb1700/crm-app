@@ -1,5 +1,13 @@
 import nodemailer from "nodemailer";
 
+// Sends via a real Gmail account's own SMTP relay (crmupdates169@gmail.com,
+// authenticated with a Gmail "App Password"), not AWS SES. SES sending as
+// bullocklogan.com kept getting silently dropped by the receiving mail
+// server -- the domain's SPF only authorizes Microsoft 365 and DKIM was
+// never set up for SES, so every SES-sent message failed DMARC and never
+// arrived, even though SES itself always reported success. Gmail's own
+// relay doesn't have that problem since the mail genuinely originates from
+// Google's servers under this address, not a third party impersonating it.
 export async function POST(req) {
   const { to, subject, html } = await req.json();
 
@@ -7,21 +15,19 @@ export async function POST(req) {
     return Response.json({ error: "Missing to, subject, or html" }, { status: 400 });
   }
 
-  const { SES_SMTP_HOST, SES_SMTP_PORT, SES_SMTP_USER, SES_SMTP_PASS, SES_FROM_EMAIL } = process.env;
-  if (!SES_SMTP_HOST || !SES_SMTP_USER || !SES_SMTP_PASS || !SES_FROM_EMAIL) {
+  const { GMAIL_USER, GMAIL_APP_PASSWORD } = process.env;
+  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
     return Response.json({ error: "Email sending is not configured" }, { status: 500 });
   }
 
   const transporter = nodemailer.createTransport({
-    host: SES_SMTP_HOST,
-    port: Number(SES_SMTP_PORT) || 587,
-    secure: false,
-    auth: { user: SES_SMTP_USER, pass: SES_SMTP_PASS }
+    service: "gmail",
+    auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD }
   });
 
   try {
     await transporter.sendMail({
-      from: `CRM <${SES_FROM_EMAIL}>`,
+      from: `CRM Updates <${GMAIL_USER}>`,
       to,
       subject,
       html
