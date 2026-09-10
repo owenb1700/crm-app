@@ -27,12 +27,10 @@ import {
 import { ensureCompanyAndContact, ensureCompanyAndContactBatch } from "../../lib/directory";
 import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
-import AddressAutocomplete from "../components/AddressAutocomplete";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
-const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Design", "Budgeting"];
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const DEFAULT_DIGEST_SCHEDULE = { dayOfWeek: 0, daysAhead: 7, includeOverdue: true };
@@ -69,9 +67,13 @@ export default function Dashboard() {
   const [uid, setUid] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [role, setRole] = useState(null); // 'admin' | 'member' | null (loading)
-  // #personal in the URL (e.g. after Cancel Entry on the Add Project page)
-  // opens straight to My Dashboard instead of Home.
-  const [view, setView] = useState(() => (typeof window !== "undefined" && window.location.hash === "#personal" ? "personal" : "home")); // 'home' | 'personal' | 'team' | 'admin'
+  // A #personal or #pipeline hash in the URL (e.g. after Cancel Entry on
+  // the Add Project / Add Pipeline Entry pages) opens straight to that
+  // tab instead of always defaulting to Home.
+  const [view, setView] = useState(() => {
+    const hash = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
+    return ["personal", "pipeline", "team"].includes(hash) ? hash : "home";
+  }); // 'home' | 'personal' | 'team' | 'admin'
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(null); // null = "this week" panel
 
   // NAME COLLECTION (first login without a name on file)
@@ -101,25 +103,6 @@ export default function Dashboard() {
   const [requestsById, setRequestsById] = useState({}); // customerId -> pending requests on entries I own
   const [requestedIds, setRequestedIds] = useState(new Set()); // customerIds I've just requested (optimistic)
   const [teamFilterOwner, setTeamFilterOwner] = useState("all");
-
-  // PIPELINE FORM
-  const [pipelineTitle, setPipelineTitle] = useState("");
-  const [pipelineStage, setPipelineStage] = useState("Pre-Bid");
-  const [pipelineBidDate, setPipelineBidDate] = useState("");
-  const [pipelineValue, setPipelineValue] = useState("");
-  const [pipelineCompany, setPipelineCompany] = useState("");
-  const [pipelineContact, setPipelineContact] = useState("");
-  const [pipelineEmail, setPipelineEmail] = useState("");
-  const [pipelinePhone, setPipelinePhone] = useState("");
-  const [pipelineProjectAddress, setPipelineProjectAddress] = useState("");
-  const [pipelineNotes, setPipelineNotes] = useState("");
-  const [pipelineTowerManufacturer, setPipelineTowerManufacturer] = useState("");
-  const [pipelineModelNumber, setPipelineModelNumber] = useState("");
-  const [pipelineSerialNumber, setPipelineSerialNumber] = useState("");
-  const [pipelineSalespersonId, setPipelineSalespersonId] = useState("");
-  const [pipelineProjectPointPersonId, setPipelineProjectPointPersonId] = useState("");
-  const [biddingCompanies, setBiddingCompanies] = useState([]);
-  const [showAddPipelineModal, setShowAddPipelineModal] = useState(false);
 
   // EDIT
   const [editingId, setEditingId] = useState(null);
@@ -677,91 +660,6 @@ export default function Dashboard() {
       else setView("pastProjects");
     }
   }, [myProfile, role, view]);
-
-  // ADD
-  // PIPELINE
-  const clearPipelineForm = () => {
-    setPipelineTitle("");
-    setPipelineStage("Pre-Bid");
-    setPipelineBidDate("");
-    setPipelineValue("");
-    setPipelineCompany("");
-    setPipelineContact("");
-    setPipelineEmail("");
-    setPipelinePhone("");
-    setPipelineProjectAddress("");
-    setPipelineNotes("");
-    setBiddingCompanies([]);
-    setPipelineTowerManufacturer("");
-    setPipelineModelNumber("");
-    setPipelineSerialNumber("");
-    setPipelineSalespersonId("");
-    setPipelineProjectPointPersonId("");
-  };
-
-  const addBiddingCompanyRow = () => {
-    setBiddingCompanies(prev => [...prev, { company: "", contact: "", email: "", phone: "" }]);
-  };
-
-  const updateBiddingCompanyRow = (index, field, value) => {
-    setBiddingCompanies(prev => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
-  };
-
-  const removeBiddingCompanyRow = (index) => {
-    setBiddingCompanies(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const addPipelineEntry = async () => {
-    if (!pipelineTitle) {
-      return alert("Please enter a project/opportunity name");
-    }
-
-    const ref = await addDoc(collection(db, "pipeline"), {
-      title: pipelineTitle,
-      stage: pipelineStage,
-      bidDate: pipelineBidDate || null,
-      value: pipelineValue || null,
-      company: pipelineCompany || null,
-      contact: pipelineContact || null,
-      email: pipelineEmail || null,
-      phone: pipelinePhone || null,
-      projectAddress: pipelineProjectAddress || null,
-      biddingCompanies: biddingCompanies.filter(r => r.company || r.contact),
-      towerManufacturer: pipelineTowerManufacturer || null,
-      modelNumber: pipelineModelNumber || null,
-      serialNumber: pipelineSerialNumber || null,
-      salespersonId: pipelineSalespersonId || null,
-      projectPointPersonId: pipelineProjectPointPersonId || null,
-      trackedByIds: [],
-      outcome: null,
-      wonByContractor: null,
-      nextCheckIn: null,
-      ownerId: uid,
-      convertedToProjectId: null,
-      createdAt: new Date().toISOString()
-    });
-
-    await setDoc(doc(db, "pipeline", ref.id, "private", "data"), {
-      notes: pipelineNotes,
-      notesHistory: [],
-      files: []
-    });
-
-    const captureEntries = [
-      { companyName: pipelineCompany, category: "Engineering Firm", contactName: pipelineContact, email: pipelineEmail, phone: pipelinePhone },
-      ...biddingCompanies
-        .filter(r => r.company || r.contact)
-        .map(r => ({ companyName: r.company, category: "Contractor", contactName: r.contact, email: r.email, phone: r.phone }))
-    ];
-    ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid }).then(loadDirectory);
-    ensureTowerModel({ towerModels, manufacturer: pipelineTowerManufacturer, model: pipelineModelNumber, uid }).then(loadTowerModels);
-
-    clearPipelineForm();
-    setShowAddPipelineModal(false);
-
-    showToast("Pipeline entry added");
-    loadPipeline();
-  };
 
   const startEdit = (c) => {
     setEditingId(c.id);
@@ -2035,7 +1933,7 @@ export default function Dashboard() {
       {(view === "pipeline" || (view === "personal" && role === "estimating")) && (
         <>
           <div style={{ marginBottom: 20, display: "flex", gap: 10, alignItems: "center" }}>
-            <button className="btn btn-primary" onClick={() => setShowAddPipelineModal(true)}>ADD PIPELINE ENTRY</button>
+            <button className="btn btn-primary" onClick={() => router.push("/dashboard/pipeline/new")}>ADD PIPELINE ENTRY</button>
 
             <select
               className="field"
@@ -2051,114 +1949,6 @@ export default function Dashboard() {
               ))}
             </select>
           </div>
-
-          {showAddPipelineModal && (
-            <div className="modal-overlay">
-              <div className="modal-card modal-extra-wide">
-                <button className="modal-close" onClick={() => { clearPipelineForm(); setShowAddPipelineModal(false); }}>✕</button>
-
-                <h3 className="modal-title">Add Pipeline Entry</h3>
-
-                <input className="field" name="pipeline-title" autoComplete="off" placeholder="Project / Opportunity Name" value={pipelineTitle} onChange={e => setPipelineTitle(e.target.value)} />
-
-                <div className="form-grid-2">
-                  <div>
-                    <label className="field-label">Stage</label>
-                    <select className="field" value={pipelineStage} onChange={e => setPipelineStage(e.target.value)}>
-                      {PIPELINE_STAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="field-label">Bid Date</label>
-                    <input className="field" type="date" value={pipelineBidDate} onChange={e => setPipelineBidDate(e.target.value)} />
-                  </div>
-
-                  <div>
-                    <label className="field-label">Estimated Value</label>
-                    <input className="field" name="pipeline-value" autoComplete="off" value={pipelineValue} onChange={e => setPipelineValue(e.target.value)} />
-                  </div>
-
-                  <CompanyContactFields
-                    idPrefix="add-pipeline"
-                    companies={companies}
-                    contacts={contacts}
-                    companyLabel="Engineering Firm"
-                    companyCategory="Engineering Firm"
-                    companyValue={pipelineCompany}
-                    contactValue={pipelineContact}
-                    emailValue={pipelineEmail}
-                    phoneValue={pipelinePhone}
-                    onCompanyChange={setPipelineCompany}
-                    onContactChange={setPipelineContact}
-                    onEmailChange={setPipelineEmail}
-                    onPhoneChange={setPipelinePhone}
-                  />
-
-                  <div>
-                    <label className="field-label">Project Address</label>
-                    <AddressAutocomplete name="add-pipeline-projectAddress" value={pipelineProjectAddress} onChange={setPipelineProjectAddress} />
-                  </div>
-                </div>
-
-                <h4 className="field-label" style={{ marginTop: 12 }}>Contractors Bidding (optional)</h4>
-                {biddingCompanies.map((row, i) => (
-                  <div key={i} className="bidding-company-row">
-                    <CompanyContactFields
-                      idPrefix={`add-pipeline-bidder-${i}`}
-                      companies={companies}
-                      contacts={contacts}
-                      companyLabel="Contractor"
-                      companyCategory="Contractor"
-                      companyValue={row.company}
-                      contactValue={row.contact}
-                      emailValue={row.email}
-                      phoneValue={row.phone}
-                      onCompanyChange={v => updateBiddingCompanyRow(i, "company", v)}
-                      onContactChange={v => updateBiddingCompanyRow(i, "contact", v)}
-                      onEmailChange={v => updateBiddingCompanyRow(i, "email", v)}
-                      onPhoneChange={v => updateBiddingCompanyRow(i, "phone", v)}
-                    />
-                    <button className="btn btn-danger" onClick={() => removeBiddingCompanyRow(i)}>Remove</button>
-                  </div>
-                ))}
-                <button className="btn btn-secondary" onClick={addBiddingCompanyRow}>+ Add Contractor</button>
-
-                <h4 className="field-label" style={{ marginTop: 12 }}>Assigned Team (optional)</h4>
-                <div className="form-grid-2">
-                  <div>
-                    <label className="field-label">Salesperson</label>
-                    <select className="field" value={pipelineSalespersonId} onChange={e => setPipelineSalespersonId(e.target.value)}>
-                      <option value="">Unassigned</option>
-                      {users.map(u => (
-                        <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="field-label">Project Point Person</label>
-                    <select className="field" value={pipelineProjectPointPersonId} onChange={e => setPipelineProjectPointPersonId(e.target.value)}>
-                      <option value="">Unassigned</option>
-                      {users.map(u => (
-                        <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <h4 className="field-label" style={{ marginTop: 12 }}>Tower Details (optional)</h4>
-                <div className="form-grid-2">
-                  <input className="field" name="add-pipeline-towerManufacturer" autoComplete="off" placeholder="Tower Manufacturer" value={pipelineTowerManufacturer} onChange={e => setPipelineTowerManufacturer(e.target.value)} />
-                  <input className="field" name="add-pipeline-modelNumber" autoComplete="off" placeholder="Model Number" value={pipelineModelNumber} onChange={e => setPipelineModelNumber(e.target.value)} />
-                  <input className="field" name="add-pipeline-serialNumber" autoComplete="off" placeholder="Serial Number" value={pipelineSerialNumber} onChange={e => setPipelineSerialNumber(e.target.value)} />
-                </div>
-
-                <h4 className="field-label" style={{ marginTop: 12 }}>Notes</h4>
-                <input className="field" name="pipeline-notes" autoComplete="off" placeholder="Notes" value={pipelineNotes} onChange={e => setPipelineNotes(e.target.value)} />
-
-                <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={addPipelineEntry}>ADD</button>
-              </div>
-            </div>
-          )}
 
           {filteredPipeline.map(p => (
             <div
