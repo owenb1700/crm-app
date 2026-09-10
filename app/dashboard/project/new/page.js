@@ -1,0 +1,356 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth, db } from "../../../../lib/firebase";
+import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
+import { ensureCompanyAndContact, primaryEmail, primaryPhone } from "../../../../lib/directory";
+import { ensureTowerModel } from "../../../../lib/towerModels";
+import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
+import AddressAutocomplete from "../../../components/AddressAutocomplete";
+import SearchableSelect from "../../../components/SearchableSelect";
+import DashboardHeader from "../../../components/DashboardHeader";
+
+const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
+const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
+const BLANK_EQUIPMENT_ROW = { type: "", manufacturer: "", model: "", serial: "", yearInstalled: "" };
+
+const clearSession = () => {
+  localStorage.removeItem("loginTimestamp");
+};
+
+// A project can have several pieces of equipment on file; only the first
+// one is mirrored into the legacy single-equipment fields
+// (equipmentType/towerManufacturer/modelNumber/serialNumber/dateInstalled)
+// that the project edit form, Towers list, tower-by-serial lookup, and
+// search still read -- those haven't been reworked to show more than one
+// yet, so equipment #2+ is saved but only visible via the `equipment` array.
+export default function NewProject() {
+  const router = useRouter();
+
+  const [uid, setUid] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [companies, setCompanies] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [towerModels, setTowerModels] = useState([]);
+
+  const [projectName, setProjectName] = useState("");
+  const [company, setCompany] = useState("");
+  const [contact, setContact] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [category, setCategory] = useState("");
+  const [projectValue, setProjectValue] = useState("");
+  const [nextDate, setNextDate] = useState("");
+  const [projectAddress, setProjectAddress] = useState("");
+  const [notes, setNotes] = useState("");
+  const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
+
+  const contractorOptions = companies.filter(c => c.category === "Contractor").map(c => c.name);
+  const matchingContacts = contacts.filter(
+    c => (c.companyName || "").toLowerCase() === (company || "").toLowerCase()
+  );
+
+  const handleContactChange = (value) => {
+    setContact(value);
+    const match = matchingContacts.find(c => c.name.toLowerCase() === value.toLowerCase());
+    if (match) {
+      setEmail(primaryEmail(match));
+      setPhone(primaryPhone(match));
+    }
+  };
+
+  const addEquipmentRow = () => {
+    setEquipmentRows(prev => [...prev, { ...BLANK_EQUIPMENT_ROW }]);
+  };
+
+  const updateEquipmentRow = (index, field, value) => {
+    setEquipmentRows(prev => prev.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
+  };
+
+  const removeEquipmentRow = (index) => {
+    setEquipmentRows(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const adjustWeekend = (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    if (day === 6) d.setDate(d.getDate() + 2);
+    if (day === 0) d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
+  };
+
+  useEffect(() => {
+    let timer;
+
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      const loginTimestamp = Number(localStorage.getItem("loginTimestamp") || 0);
+      const elapsed = Date.now() - loginTimestamp;
+
+      if (!user || !loginTimestamp || elapsed > SESSION_LENGTH_MS) {
+        clearSession();
+        signOut(auth);
+        router.push("/");
+        return;
+      }
+
+      timer = setTimeout(() => {
+        clearSession();
+        signOut(auth);
+        router.push("/");
+      }, SESSION_LENGTH_MS - elapsed);
+
+      setUid(user.uid);
+
+      try {
+        const profileSnap = await getDoc(doc(db, "users", user.uid));
+        if (!profileSnap.exists()) {
+          router.push("/dashboard");
+          return;
+        }
+        if (profileSnap.data().disabled) {
+          clearSession();
+          await signOut(auth);
+          router.push("/");
+          return;
+        }
+
+        const [companiesSnap, contactsSnap, towerModelsSnap] = await Promise.all([
+          getDocs(collection(db, "companies")),
+          getDocs(collection(db, "contacts")),
+          getDocs(collection(db, "towerModels"))
+        ]);
+        setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setTowerModels(towerModelsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoaded(true);
+      } catch (err) {
+        setLoadError(err.message || "Something went wrong loading this page.");
+      }
+    });
+
+    return () => {
+      unsub();
+      if (timer) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const addProject = async () => {
+    const missing = [];
+    if (!projectName) missing.push("Project Name");
+    if (!contact) missing.push("Contact");
+    if (!nextDate) missing.push("Next Date");
+    if (!projectAddress) missing.push("Project Address");
+    if (missing.length) {
+      return alert(`Please fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
+    }
+
+    setSaving(true);
+    try {
+      const equipment = equipmentRows.filter(r => r.type || r.manufacturer || r.model || r.serial || r.yearInstalled);
+      const first = equipment[0] || {};
+
+      const ref = await addDoc(collection(db, "customers"), {
+        projectName,
+        company,
+        contact,
+        email,
+        phone,
+        category: category || null,
+        projectValue: projectValue || null,
+        equipment,
+        equipmentType: first.type || null,
+        towerManufacturer: first.manufacturer || null,
+        modelNumber: first.model || null,
+        serialNumber: first.serial || null,
+        dateInstalled: first.yearInstalled || null,
+        projectAddress: projectAddress || null,
+        nextCheckIn: adjustWeekend(nextDate),
+        lastContact: new Date().toISOString().split("T")[0],
+        activityLog: [],
+        ownerId: uid,
+        collaboratorIds: [],
+        createdAt: new Date().toISOString()
+      });
+
+      await setDoc(doc(db, "customers", ref.id, "private", "data"), {
+        notes,
+        notesHistory: []
+      });
+
+      await ensureCompanyAndContact({
+        companies, contacts, companyName: company, category: "Contractor",
+        contactName: contact, email, phone, uid
+      });
+
+      await Promise.all(
+        equipment
+          .filter(row => row.manufacturer || row.model)
+          .map(row => ensureTowerModel({ towerModels, manufacturer: row.manufacturer, model: row.model, uid }))
+      );
+
+      router.push(`/dashboard/project/${ref.id}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loadError) {
+    return (
+      <div className="dashboard-page">
+        <div className="admin-card" style={{ maxWidth: 480 }}>
+          <h3 className="modal-title">Couldn't load this page</h3>
+          <p className="modal-subtitle">{loadError}</p>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>Back to Dashboard</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!loaded) {
+    return <div className="dashboard-page">Loading...</div>;
+  }
+
+  return (
+    <div className="dashboard-page">
+      <div className="dashboard-header">
+        <div className="dashboard-brand">
+          <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
+          <h1 className="dashboard-title">Add Project</h1>
+        </div>
+        <div className="dashboard-header-actions">
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
+          <DashboardHeader uid={uid} />
+        </div>
+      </div>
+
+      <div className="project-page">
+        <div className="project-section">
+          <input className="field" autoComplete="off" placeholder="Project Name" value={projectName} onChange={e => setProjectName(e.target.value)} />
+
+          <div>
+            <label className="field-label">Contractor</label>
+            <SearchableSelect
+              options={contractorOptions}
+              value={company}
+              onChange={setCompany}
+              placeholder="Select or search contractor..."
+              newLabel="contractor"
+            />
+          </div>
+
+          <div>
+            <label className="field-label">Contact</label>
+            <input
+              className="field"
+              list="new-project-contacts"
+              autoComplete="off"
+              value={contact}
+              onChange={e => handleContactChange(e.target.value)}
+            />
+            <datalist id="new-project-contacts">
+              {matchingContacts.map(c => <option key={c.id} value={c.name} />)}
+            </datalist>
+          </div>
+
+          <div>
+            <label className="field-label">Email</label>
+            <input className="field" autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <label className="field-label">Phone</label>
+            <input className="field" autoComplete="off" value={phone} onChange={e => setPhone(e.target.value)} />
+          </div>
+
+          <select className="field" value={category} onChange={e => setCategory(e.target.value)}>
+            <option value="">Select category...</option>
+            {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+
+          <input className="field" autoComplete="off" placeholder="Project Value" value={projectValue} onChange={e => setProjectValue(e.target.value)} />
+
+          <div>
+            <label className="field-label">Next Date</label>
+            <input className="field" type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
+          </div>
+
+          <div>
+            <label className="field-label">Project Address</label>
+            <AddressAutocomplete placeholder="Project Address (required)" value={projectAddress} onChange={setProjectAddress} />
+          </div>
+
+          <input className="field" autoComplete="off" placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
+        </div>
+
+        <div className="project-section">
+          <h4 className="field-label" style={{ marginTop: 0 }}>Equipment & Site Details (optional)</h4>
+          {equipmentRows.map((row, i) => (
+            <div
+              key={i}
+              style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr) auto", gap: 8, alignItems: "center", marginBottom: 8 }}
+            >
+              <select
+                className="field"
+                style={{ marginBottom: 0 }}
+                value={row.type}
+                onChange={e => updateEquipmentRow(i, "type", e.target.value)}
+              >
+                <option value="">Type of Equipment...</option>
+                {PRODUCT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <input
+                className="field"
+                style={{ marginBottom: 0 }}
+                list={`new-project-equipment-manufacturers-${i}`}
+                autoComplete="off"
+                placeholder="Tower Manufacturer"
+                value={row.manufacturer}
+                onChange={e => updateEquipmentRow(i, "manufacturer", e.target.value)}
+              />
+              <datalist id={`new-project-equipment-manufacturers-${i}`}>
+                {PRODUCT_MANUFACTURERS.map(m => <option key={m} value={m} />)}
+              </datalist>
+              <input
+                className="field"
+                style={{ marginBottom: 0 }}
+                autoComplete="off"
+                placeholder="Model Number"
+                value={row.model}
+                onChange={e => updateEquipmentRow(i, "model", e.target.value)}
+              />
+              <input
+                className="field"
+                style={{ marginBottom: 0 }}
+                autoComplete="off"
+                placeholder="Serial Number"
+                value={row.serial}
+                onChange={e => updateEquipmentRow(i, "serial", e.target.value)}
+              />
+              <input
+                className="field"
+                style={{ marginBottom: 0 }}
+                type="number"
+                placeholder="Year Installed"
+                min="1900"
+                max="2100"
+                value={row.yearInstalled}
+                onChange={e => updateEquipmentRow(i, "yearInstalled", e.target.value)}
+              />
+              <button className="btn btn-danger" onClick={() => removeEquipmentRow(i)}>Remove</button>
+            </div>
+          ))}
+          <button className="btn btn-secondary" onClick={addEquipmentRow}>+ Add Equipment</button>
+        </div>
+
+        <button className="btn btn-primary btn-block" disabled={saving} onClick={addProject}>
+          {saving ? "Adding..." : "ADD"}
+        </button>
+      </div>
+    </div>
+  );
+}

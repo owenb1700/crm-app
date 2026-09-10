@@ -100,23 +100,6 @@ export default function Dashboard() {
   const [requestedIds, setRequestedIds] = useState(new Set()); // customerIds I've just requested (optimistic)
   const [teamFilterOwner, setTeamFilterOwner] = useState("all");
 
-  // FORM
-  const [projectName, setProjectName] = useState("");
-  const [company, setCompany] = useState("");
-  const [contact, setContact] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [nextDate, setNextDate] = useState("");
-  const [notes, setNotes] = useState("");
-  const [category, setCategory] = useState("");
-  const [projectValue, setProjectValue] = useState("");
-  const [equipmentType, setEquipmentType] = useState("");
-  const [towerManufacturer, setTowerManufacturer] = useState("");
-  const [modelNumber, setModelNumber] = useState("");
-  const [serialNumber, setSerialNumber] = useState("");
-  const [dateInstalled, setDateInstalled] = useState("");
-  const [projectAddress, setProjectAddress] = useState("");
-
   // PIPELINE FORM
   const [pipelineTitle, setPipelineTitle] = useState("");
   const [pipelineStage, setPipelineStage] = useState("Pre-Bid");
@@ -135,9 +118,6 @@ export default function Dashboard() {
   const [pipelineProjectPointPersonId, setPipelineProjectPointPersonId] = useState("");
   const [biddingCompanies, setBiddingCompanies] = useState([]);
   const [showAddPipelineModal, setShowAddPipelineModal] = useState(false);
-
-  // NEW MODAL STATE
-  const [showAddModal, setShowAddModal] = useState(false);
 
   // EDIT
   const [editingId, setEditingId] = useState(null);
@@ -174,24 +154,6 @@ export default function Dashboard() {
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 5000);
-  };
-
-  const clearForm = () => {
-    setProjectName("");
-    setCompany("");
-    setContact("");
-    setEmail("");
-    setPhone("");
-    setNextDate("");
-    setNotes("");
-    setCategory("");
-    setProjectValue("");
-    setEquipmentType("");
-    setTowerManufacturer("");
-    setModelNumber("");
-    setSerialNumber("");
-    setDateInstalled("");
-    setProjectAddress("");
   };
 
   const formatPhone = (phone) => {
@@ -715,57 +677,6 @@ export default function Dashboard() {
   }, [myProfile, role, view]);
 
   // ADD
-  const addCustomer = async () => {
-    const missing = [];
-    if (!projectName) missing.push("Project Name");
-    if (!contact) missing.push("Contact");
-    if (!nextDate) missing.push("Next Check-In date");
-    if (!projectAddress) missing.push("Project Address");
-    if (missing.length) {
-      return alert(`Please fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
-    }
-
-    const ref = await addDoc(col, {
-      projectName,
-      company,
-      contact,
-      email,
-      phone,
-      category: category || null,
-      projectValue: projectValue || null,
-      equipmentType: equipmentType || null,
-      towerManufacturer: towerManufacturer || null,
-      modelNumber: modelNumber || null,
-      serialNumber: serialNumber || null,
-      dateInstalled: dateInstalled || null,
-      projectAddress: projectAddress || null,
-      nextCheckIn: adjustWeekend(nextDate),
-      lastContact: new Date().toISOString().split("T")[0],
-      activityLog: [],
-      ownerId: uid,
-      collaboratorIds: [],
-      createdAt: new Date().toISOString()
-    });
-
-    await setDoc(doc(db, "customers", ref.id, "private", "data"), {
-      notes,
-      notesHistory: []
-    });
-
-    ensureCompanyAndContact({
-      companies, contacts, companyName: company, category: "Contractor",
-      contactName: contact, email, phone, uid
-    }).then(loadDirectory);
-
-    ensureTowerModel({ towerModels, manufacturer: towerManufacturer, model: modelNumber, uid }).then(loadTowerModels);
-
-    clearForm();
-    setShowAddModal(false);
-
-    showToast("Customer added");
-    loadCustomers(uid, role === "admin");
-  };
-
   // PIPELINE
   const clearPipelineForm = () => {
     setPipelineTitle("");
@@ -1749,54 +1660,8 @@ export default function Dashboard() {
         <>
           {/* ADD PROJECT BUTTON */}
           <div style={{ marginBottom: 20 }}>
-            <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>ADD PROJECT</button>
+            <button className="btn btn-primary" onClick={() => router.push("/dashboard/project/new")}>ADD PROJECT</button>
           </div>
-
-          {/* ADD MODAL */}
-          {showAddModal && (
-            <div className="modal-overlay">
-              <div className="modal-card">
-                <button className="modal-close" onClick={() => { clearForm(); setShowAddModal(false); }}>✕</button>
-
-                <h3 className="modal-title">Add Project</h3>
-
-                <input className="field" name="add-projectName" autoComplete="off" placeholder="Project Name" value={projectName} onChange={e => setProjectName(e.target.value)} />
-                <CompanyContactFields
-                  idPrefix="add-project"
-                  companies={companies}
-                  contacts={contacts}
-                  companyLabel="Contractor"
-                  companyCategory="Contractor"
-                  companyValue={company}
-                  contactValue={contact}
-                  emailValue={email}
-                  phoneValue={phone}
-                  onCompanyChange={setCompany}
-                  onContactChange={setContact}
-                  onEmailChange={setEmail}
-                  onPhoneChange={setPhone}
-                />
-                <select className="field" value={category} onChange={e => setCategory(e.target.value)}>
-                  <option value="">Select category...</option>
-                  {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
-                <input className="field" name="add-projectValue" autoComplete="off" placeholder="Project Value" value={projectValue} onChange={e => setProjectValue(e.target.value)} />
-                <input className="field" type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
-                <AddressAutocomplete name="add-projectAddress" placeholder="Project Address (required)" value={projectAddress} onChange={setProjectAddress} />
-                <input className="field" name="add-notes" autoComplete="off" placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
-
-                <h4 className="field-label" style={{ marginTop: 12 }}>Equipment & Site Details (optional)</h4>
-                <input className="field" name="add-equipmentType" autoComplete="off" placeholder="Type of Equipment" value={equipmentType} onChange={e => setEquipmentType(e.target.value)} />
-                <input className="field" name="add-towerManufacturer" autoComplete="off" placeholder="Tower Manufacturer" value={towerManufacturer} onChange={e => setTowerManufacturer(e.target.value)} />
-                <input className="field" name="add-modelNumber" autoComplete="off" placeholder="Model Number" value={modelNumber} onChange={e => setModelNumber(e.target.value)} />
-                <input className="field" name="add-serialNumber" autoComplete="off" placeholder="Serial Number" value={serialNumber} onChange={e => setSerialNumber(e.target.value)} />
-                <div className="field-label">Year Installed</div>
-                <input className="field" type="number" placeholder="YYYY" min="1900" max="2100" value={dateInstalled} onChange={e => setDateInstalled(e.target.value)} />
-
-                <button className="btn btn-primary btn-block" onClick={addCustomer}>ADD</button>
-              </div>
-            </div>
-          )}
 
           {/* SEARCH */}
           <div className="toolbar">
