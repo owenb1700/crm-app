@@ -679,12 +679,12 @@ export default function Dashboard() {
     const original = customers.find(c => c.id === editingId);
     const payload = { ...editData };
 
-    // Closing a project schedules a 1-year "how are things going" check-in
+    // Closing a project schedules a 6-month "how are things going" check-in
     // automatically, so it resurfaces on the Home calendar even though it's
     // now hidden from the active My Dashboard list.
     if (editData.category === "Project Closed" && original?.category !== "Project Closed") {
       const followUp = new Date();
-      followUp.setFullYear(followUp.getFullYear() + 1);
+      followUp.setMonth(followUp.getMonth() + 6);
       payload.nextCheckIn = adjustWeekend(followUp.toISOString());
     }
 
@@ -711,13 +711,13 @@ export default function Dashboard() {
 
   const handleFollowUp = async (c) => {
     const next = new Date();
-    next.setDate(next.getDate() + 7);
+    next.setDate(next.getDate() + 14);
 
     await updateDoc(doc(db, "customers", c.id), {
       nextCheckIn: adjustWeekend(next.toISOString())
     });
 
-    showToast("Follow-up scheduled");
+    showToast("Follow-up scheduled for 2 weeks");
     loadCustomers(uid, role === "admin");
   };
 
@@ -733,15 +733,15 @@ export default function Dashboard() {
     loadCustomers(uid, role === "admin");
   };
 
-  const followUpAnotherYear = async (c) => {
+  const followUpIn6Months = async (c) => {
     const next = new Date();
-    next.setFullYear(next.getFullYear() + 1);
+    next.setMonth(next.getMonth() + 6);
 
     await updateDoc(doc(db, "customers", c.id), {
       nextCheckIn: adjustWeekend(next.toISOString())
     });
 
-    showToast("Follow-up scheduled for 1 year");
+    showToast("Follow-up scheduled for 6 months");
     loadCustomers(uid, role === "admin");
   };
 
@@ -779,11 +779,11 @@ export default function Dashboard() {
   const confirmCompleted = async () => {
     // Marking a project completed closes it out the same way changing its
     // category to "Project Closed" does: it drops off My Dashboard, moves
-    // into Past Projects, and gets the same 1-year follow-up (with the
-    // same Snooze 3 Months / Follow Up in 1 Year options once due) as
+    // into Past Projects, and gets the same 6-month follow-up (with the
+    // same Snooze 3 Months / Follow Up in 6 Months options once due) as
     // every other closed project -- one unified process either way.
     const d = new Date();
-    d.setFullYear(d.getFullYear() + 1);
+    d.setMonth(d.getMonth() + 6);
 
     const entry = {
       type: "completed",
@@ -1541,7 +1541,7 @@ export default function Dashboard() {
                 {c._kind === "project" && c.category === "Project Closed" && (
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
                     <button className="btn btn-secondary" onClick={() => snoozeClosedFollowUp(c)}>Snooze 3 Months</button>
-                    <button className="btn btn-secondary" onClick={() => followUpAnotherYear(c)}>Follow Up in 1 Year</button>
+                    <button className="btn btn-secondary" onClick={() => followUpIn6Months(c)}>Follow Up in 6 Months</button>
                   </div>
                 )}
                 {c._kind === "pipeline" && (
@@ -1775,7 +1775,7 @@ export default function Dashboard() {
               <div className="modal-card">
                 <h3 className="modal-title">Mark Completed</h3>
                 <p className="modal-subtitle" style={{ marginBottom: 12 }}>
-                  This closes the project out and moves it to Past Projects. You'll be reminded to check back in on it in a year.
+                  This closes the project out and moves it to Past Projects. You'll be reminded to check back in on it in 6 months.
                 </p>
 
                 <label className="field-label">How was contact made?</label>
