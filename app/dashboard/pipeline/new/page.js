@@ -31,6 +31,7 @@ export default function NewPipelineEntry() {
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [towerModels, setTowerModels] = useState([]);
+  const [products, setProducts] = useState([]);
 
   const [title, setTitle] = useState("");
   const [stage, setStage] = useState("Pre-Bid");
@@ -46,7 +47,6 @@ export default function NewPipelineEntry() {
   const [projectPointPersonId, setProjectPointPersonId] = useState("");
   const [towerManufacturer, setTowerManufacturer] = useState("");
   const [modelNumber, setModelNumber] = useState("");
-  const [serialNumber, setSerialNumber] = useState("");
   const [notes, setNotes] = useState("");
 
   const engineeringFirmOptions = companies.filter(c => c.category === "Engineering Firm").map(c => c.name);
@@ -54,6 +54,17 @@ export default function NewPipelineEntry() {
   const contactsForCompany = (name) => contacts.filter(
     c => (c.companyName || "").toLowerCase() === (name || "").toLowerCase()
   );
+
+  // Sourced from the actual Products directory, not a fixed list -- this
+  // is equipment a real sale would draw from, unlike Add Project's Type
+  // of Equipment dropdown (which is just the PRODUCT_TYPES categories).
+  const manufacturerOptions = Array.from(new Set(products.map(p => p.manufacturer).filter(Boolean))).sort();
+  const modelOptionsFor = (manufacturer) => Array.from(new Set(
+    products
+      .filter(p => (p.manufacturer || "").toLowerCase() === (manufacturer || "").toLowerCase())
+      .map(p => p.model)
+      .filter(Boolean)
+  )).sort();
 
   const handleContactChange = (value) => {
     setContact(value);
@@ -121,16 +132,18 @@ export default function NewPipelineEntry() {
           return;
         }
 
-        const [usersSnap, companiesSnap, contactsSnap, towerModelsSnap] = await Promise.all([
+        const [usersSnap, companiesSnap, contactsSnap, towerModelsSnap, productsSnap] = await Promise.all([
           getDocs(collection(db, "users")),
           getDocs(collection(db, "companies")),
           getDocs(collection(db, "contacts")),
-          getDocs(collection(db, "towerModels"))
+          getDocs(collection(db, "towerModels")),
+          getDocs(collection(db, "products"))
         ]);
         setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setTowerModels(towerModelsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setProducts(productsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setLoaded(true);
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading this page.");
@@ -198,7 +211,6 @@ export default function NewPipelineEntry() {
         biddingCompanies: cleanBidders,
         towerManufacturer: towerManufacturer || null,
         modelNumber: modelNumber || null,
-        serialNumber: serialNumber || null,
         salespersonId: salespersonId || null,
         projectPointPersonId: projectPointPersonId || null,
         trackedByIds: [],
@@ -377,11 +389,28 @@ export default function NewPipelineEntry() {
         </div>
 
         <div className="project-section">
-          <h4 className="field-label" style={{ marginTop: 0 }}>Tower Details (optional)</h4>
+          <h4 className="field-label" style={{ marginTop: 0 }}>Equipment Details (optional)</h4>
           <div className="form-grid-2">
-            <input className="field" autoComplete="off" placeholder="Tower Manufacturer" value={towerManufacturer} onChange={e => setTowerManufacturer(e.target.value)} />
-            <input className="field" autoComplete="off" placeholder="Model Number" value={modelNumber} onChange={e => setModelNumber(e.target.value)} />
-            <input className="field" autoComplete="off" placeholder="Serial Number" value={serialNumber} onChange={e => setSerialNumber(e.target.value)} />
+            <div>
+              <label className="field-label">Manufacturer</label>
+              <SearchableSelect
+                options={manufacturerOptions}
+                value={towerManufacturer}
+                onChange={setTowerManufacturer}
+                placeholder="Select or search manufacturer..."
+                newLabel="manufacturer"
+              />
+            </div>
+            <div>
+              <label className="field-label">Model</label>
+              <SearchableSelect
+                options={modelOptionsFor(towerManufacturer)}
+                value={modelNumber}
+                onChange={setModelNumber}
+                placeholder="Select or search model..."
+                newLabel="model"
+              />
+            </div>
           </div>
         </div>
 
