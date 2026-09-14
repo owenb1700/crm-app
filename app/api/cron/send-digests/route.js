@@ -1,5 +1,7 @@
-import nodemailer from "nodemailer";
 import { getAdminDb } from "../../../../lib/firebaseAdmin";
+import { sendRawEmail } from "../../../../lib/mailer";
+import { renderEmail } from "../../../../lib/emailTemplate";
+import { generateIncidentCode } from "../../../../lib/adminAlert";
 
 const BASE_URL = "https://crm-app-coral-five.vercel.app";
 
@@ -61,33 +63,21 @@ function buildDigestHtml({ customers, pipelineEntries, uid, daysAhead, includeOv
 
   const total = dueThisWeek.length + overdue.length + pipelineDue.length;
 
+  const bodyHtml = `
+    ${section(`Due Within ${daysAhead} Day${daysAhead === 1 ? "" : "s"}`, dueThisWeek, c => row(c.projectName || c.company, c.company, c.nextCheckIn, `${BASE_URL}/dashboard/project/${c.id}`))}
+    ${section("Overdue", overdue, c => row(c.projectName || c.company, c.company, c.nextCheckIn, `${BASE_URL}/dashboard/project/${c.id}`))}
+    ${section("Pipeline Follow-Ups Coming Up", pipelineDue, p => row(p.title, p.company, p.nextCheckIn, `${BASE_URL}/dashboard/pipeline/${p.id}`))}
+    ${total === 0 ? '<p style="color:#6b7280;">Nothing due right now.</p>' : ""}
+  `;
+
   return {
     total,
-    html: `
-      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;">
-        <h2 style="color:#111827;">Your Upcoming Tasks</h2>
-        <p style="color:#6b7280;">Your scheduled digest, sent automatically.</p>
-        ${section(`Due Within ${daysAhead} Day${daysAhead === 1 ? "" : "s"}`, dueThisWeek, c => row(c.projectName || c.company, c.company, c.nextCheckIn, `${BASE_URL}/dashboard/project/${c.id}`))}
-        ${section("Overdue", overdue, c => row(c.projectName || c.company, c.company, c.nextCheckIn, `${BASE_URL}/dashboard/project/${c.id}`))}
-        ${section("Pipeline Follow-Ups Coming Up", pipelineDue, p => row(p.title, p.company, p.nextCheckIn, `${BASE_URL}/dashboard/pipeline/${p.id}`))}
-        ${total === 0 ? '<p style="color:#6b7280;">Nothing due right now.</p>' : ""}
-      </div>
-    `
+    html: renderEmail({
+      heading: "Your Upcoming Tasks",
+      intro: "Your scheduled digest, sent automatically.",
+      bodyHtml
+    })
   };
-}
-
-async function sendDigestEmail(to, html, subject = "Your Upcoming Tasks") {
-  const { GMAIL_USER, GMAIL_APP_PASSWORD } = process.env;
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD }
-  });
-  await transporter.sendMail({
-    from: `CRM Updates <${GMAIL_USER}>`,
-    to,
-    subject,
-    html
-  });
 }
 
 // Runs daily (see vercel.json) at 4:00 AM Central. Every user's
@@ -142,7 +132,7 @@ export async function GET(req) {
           daysAhead: schedule.daysAhead || 7,
           includeOverdue: schedule.includeOverdue !== false
         });
-        await sendDigestEmail(user.email, html);
+        await sendRawEmail(user.email, "Your Upcoming Tasks", html);
         sent.push({ email: user.email, total });
       } catch (err) {
         failed.push({ email: user.email, error: err.message });
@@ -154,18 +144,24 @@ export async function GET(req) {
   // ever looks at this route's response. On a real (non-test) run, tell
   // every admin so a missed digest gets noticed the same day instead of
   // whenever someone happens to mention it.
+  let alertCode = null;
   if (!testEmail && failed.length > 0) {
+    alertCode = generateIncidentCode();
     const admins = users.filter(u => u.role === "admin" && u.email && !u.disabled);
     const summary = failed.map(f => `<li>${f.email}: ${f.error}</li>`).join("");
-    const alertHtml = `
-      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;">
-        <h2 style="color:#111827;">Digest Send Failures</h2>
-        <p style="color:#6b7280;">${failed.length} of ${sent.length + failed.length} scheduled digest emails failed to send today.</p>
+    const alertHtml = renderEmail({
+      heading: "Digest Send Failures",
+      bodyHtml: `
+        <p style="margin:0 0 16px;font-size:13px;color:#374151;">
+          Incident code <strong style="font-family:monospace;background:#f3f4f6;padding:2px 6px;border-radius:4px;">${alertCode}</strong>
+          -- paste this code (or this whole email) back into Claude Code to look into it.
+        </p>
+        <p style="margin:0 0 12px;color:#6b7280;">${failed.length} of ${sent.length + failed.length} scheduled digest emails failed to send today.</p>
         <ul style="color:#374151;">${summary}</ul>
-      </div>
-    `;
-    await Promise.all(admins.map(a => sendDigestEmail(a.email, alertHtml, "Digest Send Failures").catch(() => {})));
+      `
+    });
+    await Promise.all(admins.map(a => sendRawEmail(a.email, `CRM Alert [${alertCode}]: Digest Send Failures`, alertHtml).catch(() => {})));
   }
 
-  return Response.json({ ok: true, dayOfWeek: todayCentral, sent, failed, userCount: users.length });
+  return Response.json({ ok: true, dayOfWeek: todayCentral, sent, failed, userCount: users.length, alertCode });
 }

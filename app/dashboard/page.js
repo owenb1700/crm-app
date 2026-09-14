@@ -369,13 +369,23 @@ export default function Dashboard() {
 
   const sendNotificationEmail = async (to, subject, html) => {
     try {
-      await fetch("/api/send-email", {
+      const res = await fetch("/api/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to, subject, html })
       });
-    } catch {
-      // best-effort -- don't let a failed email break the actual action
+      // A non-network failure (Gmail rejected it, etc.) already alerts
+      // every admin server-side (see /api/send-email) -- this just keeps
+      // it out of a silent void in the browser console too.
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error(`Failed to send "${subject}" to ${to}:`, data.error, data.code ? `(code ${data.code})` : "");
+      }
+    } catch (err) {
+      // best-effort -- don't let a failed email break the actual action,
+      // but a true network failure here (offline, etc.) is at least worth
+      // seeing in devtools.
+      console.error(`Failed to send "${subject}" to ${to}:`, err.message);
     }
   };
 
@@ -446,9 +456,20 @@ export default function Dashboard() {
         });
         await notifyUser(c.ownerId, { type: "reactivated", message, link: `/dashboard/project/${c.id}` });
         reactivated.add(c.id);
-      } catch {
+      } catch (err) {
         // Leave it closed for now -- it'll be picked up next time someone
         // with permission (its owner, or an admin) loads the dashboard.
+        // Still tell an admin, though -- otherwise a reminder that keeps
+        // failing (a permissions bug, say) never surfaces to anyone.
+        fetch("/api/report-issue", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            area: "Reactivation reminder",
+            message: `Failed to reactivate "${label}" (customer ${c.id})`,
+            detail: err.message
+          })
+        }).catch(() => {});
       }
     }));
 
@@ -651,7 +672,7 @@ export default function Dashboard() {
         })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to send");
+      if (!res.ok) throw new Error(data.code ? `${data.error} (code ${data.code}, and an admin has been emailed)` : (data.error || "Failed to send"));
       showToast(`Test digest sent to ${auth.currentUser?.email}`);
     } catch (err) {
       alert(err.message || "Couldn't send test digest");
