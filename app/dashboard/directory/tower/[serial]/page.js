@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../../lib/firebase";
 import { doc, getDoc, getDocs, collection } from "firebase/firestore";
+import { equipmentRowsFrom } from "../../../../../lib/equipment";
 import DashboardHeader from "../../../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -12,6 +13,12 @@ const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
 };
+
+// A record can carry equipment for more than one physical tower now, so
+// matching (and pulling manufacturer/model for display) has to look at
+// whichever specific equipment row actually has this serial, not just any
+// truthy field anywhere on the record.
+const matchingRow = (record, key) => equipmentRowsFrom(record).find(r => r.serial.trim().toLowerCase() === key);
 
 export default function TowerDetail() {
   const params = useParams();
@@ -36,20 +43,17 @@ export default function TowerDetail() {
     const key = serial.trim().toLowerCase();
     const matchingCustomers = customersSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter(c => (c.serialNumber || "").trim().toLowerCase() === key);
+      .filter(c => matchingRow(c, key));
     const matchingPipeline = pipelineSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter(p => (p.serialNumber || "").trim().toLowerCase() === key);
+      .filter(p => matchingRow(p, key));
 
     setProjects(matchingCustomers);
     setPipelineJobs(matchingPipeline);
 
-    const manufacturer = matchingCustomers.find(p => p.towerManufacturer)?.towerManufacturer
-      || matchingPipeline.find(p => p.towerManufacturer)?.towerManufacturer
-      || "";
-    const model = matchingCustomers.find(p => p.modelNumber)?.modelNumber
-      || matchingPipeline.find(p => p.modelNumber)?.modelNumber
-      || "";
+    const firstMatch = matchingRow(matchingCustomers[0] || {}, key) || matchingRow(matchingPipeline[0] || {}, key) || {};
+    const manufacturer = firstMatch.manufacturer || "";
+    const model = firstMatch.model || "";
     const mfrLower = manufacturer.toLowerCase();
     const modelLower = model.toLowerCase();
     const matchedModel = towerModelsSnap.docs
@@ -136,12 +140,10 @@ export default function TowerDetail() {
     );
   }
 
-  const manufacturer = projects.find(p => p.towerManufacturer)?.towerManufacturer
-    || pipelineJobs.find(p => p.towerManufacturer)?.towerManufacturer
-    || "";
-  const model = projects.find(p => p.modelNumber)?.modelNumber
-    || pipelineJobs.find(p => p.modelNumber)?.modelNumber
-    || "";
+  const displayKey = serial.trim().toLowerCase();
+  const displayMatch = matchingRow(projects[0] || {}, displayKey) || matchingRow(pipelineJobs[0] || {}, displayKey) || {};
+  const manufacturer = displayMatch.manufacturer || "";
+  const model = displayMatch.model || "";
 
   // Every distinct company/contact pair that touched this tower, across
   // both the project's own company/contact and every contractor bidding

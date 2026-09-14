@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { doc, getDoc, getDocs, collection } from "firebase/firestore";
 import { primaryEmail, primaryPhone } from "../../../lib/directory";
+import { equipmentRowsFrom } from "../../../lib/equipment";
 import DashboardHeader from "../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -112,28 +113,33 @@ function SearchPageContent() {
   const q = (searchParams.get("q") || "").trim().toLowerCase();
 
   // Towers aren't their own collection -- same derive-by-serial-number
-  // logic as the Towers directory page, so a serial number search here
-  // lands on the same tower record that page would show.
+  // logic as the Towers directory page (every equipment row, not just the
+  // first), so a serial number search here lands on the same tower record
+  // that page would show.
   const towersBySerial = {};
   [...customers, ...pipelineEntries].forEach(entry => {
-    const serial = (entry.serialNumber || "").trim();
-    if (!serial) return;
-    const key = serial.toLowerCase();
-    if (!towersBySerial[key]) {
-      towersBySerial[key] = { serial, manufacturer: "", model: "", address: "" };
-    }
-    const t = towersBySerial[key];
-    if (!t.manufacturer && entry.towerManufacturer) t.manufacturer = entry.towerManufacturer;
-    if (!t.model && entry.modelNumber) t.model = entry.modelNumber;
-    if (!t.address && entry.projectAddress) t.address = entry.projectAddress;
+    equipmentRowsFrom(entry).forEach(row => {
+      const serial = (row.serial || "").trim();
+      if (!serial) return;
+      const key = serial.toLowerCase();
+      if (!towersBySerial[key]) {
+        towersBySerial[key] = { serial, manufacturer: "", model: "", address: "" };
+      }
+      const t = towersBySerial[key];
+      if (!t.manufacturer && row.manufacturer) t.manufacturer = row.manufacturer;
+      if (!t.model && row.model) t.model = row.model;
+      if (!t.address && entry.projectAddress) t.address = entry.projectAddress;
+    });
   });
 
+  const equipmentFields = (record) => equipmentRowsFrom(record).flatMap(r => [r.type, r.manufacturer, r.model, r.serial, r.yearInstalled]);
+
   const projectResults = q ? customers.filter(c => matches(q, [
-    c.projectName, c.company, c.contact, c.email, c.phone, c.projectAddress, c.serialNumber, c.towerManufacturer, c.modelNumber
+    c.projectName, c.company, c.contact, c.email, c.phone, c.projectAddress, ...equipmentFields(c)
   ])) : [];
 
   const pipelineResults = q ? pipelineEntries.filter(p => matches(q, [
-    p.title, p.company, p.contact, p.email, p.phone, p.projectAddress, p.serialNumber, p.towerManufacturer, p.modelNumber,
+    p.title, p.company, p.contact, p.email, p.phone, p.projectAddress, ...equipmentFields(p),
     ...(p.biddingCompanies || []).flatMap(b => [b.company, b.contact])
   ])) : [];
 

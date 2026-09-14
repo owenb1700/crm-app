@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../lib/firebase";
 import { doc, getDoc, getDocs, collection } from "firebase/firestore";
+import { equipmentRowsFrom } from "../../../../lib/equipment";
 import DashboardHeader from "../../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -82,28 +83,32 @@ export default function TowersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Every project/pipeline entry with a serial number is one work record
-  // for a tower. Group them by serial (case-insensitive) into one card per
-  // physical tower, with a running count of how much work references it.
+  // Every distinct piece of equipment with a serial number, across every
+  // project/pipeline entry's full equipment list (not just the first item
+  // each used to be limited to), is one work record for a tower. Group
+  // them by serial (case-insensitive) into one card per physical tower,
+  // with a running count of how much work references it.
   const towersBySerial = {};
   [...customers, ...pipelineEntries].forEach(entry => {
-    const serial = (entry.serialNumber || "").trim();
-    if (!serial) return;
-    const key = serial.toLowerCase();
-    if (!towersBySerial[key]) {
-      towersBySerial[key] = {
-        serial,
-        manufacturer: entry.towerManufacturer || "",
-        model: entry.modelNumber || "",
-        address: entry.projectAddress || "",
-        count: 0
-      };
-    }
-    const t = towersBySerial[key];
-    if (!t.manufacturer && entry.towerManufacturer) t.manufacturer = entry.towerManufacturer;
-    if (!t.model && entry.modelNumber) t.model = entry.modelNumber;
-    if (!t.address && entry.projectAddress) t.address = entry.projectAddress;
-    t.count += 1;
+    equipmentRowsFrom(entry).forEach(row => {
+      const serial = (row.serial || "").trim();
+      if (!serial) return;
+      const key = serial.toLowerCase();
+      if (!towersBySerial[key]) {
+        towersBySerial[key] = {
+          serial,
+          manufacturer: row.manufacturer || "",
+          model: row.model || "",
+          address: entry.projectAddress || "",
+          count: 0
+        };
+      }
+      const t = towersBySerial[key];
+      if (!t.manufacturer && row.manufacturer) t.manufacturer = row.manufacturer;
+      if (!t.model && row.model) t.model = row.model;
+      if (!t.address && entry.projectAddress) t.address = entry.projectAddress;
+      t.count += 1;
+    });
   });
 
   const q = searchQuery.trim().toLowerCase();

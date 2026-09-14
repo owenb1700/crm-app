@@ -15,12 +15,23 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { ensureCompanyAndContact } from "../../../../lib/directory";
 import { ensureTowerModel } from "../../../../lib/towerModels";
+import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
+import { equipmentRowsFrom as sharedEquipmentRowsFrom } from "../../../../lib/equipment";
 import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import DashboardHeader from "../../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
+const BLANK_EQUIPMENT_ROW = { type: "", manufacturer: "", model: "", serial: "", yearInstalled: "" };
+
+// The shared helper returns [] when a record has no equipment at all --
+// fine for display, but the edit form always wants at least one row to
+// show, so wrap it here for that one difference.
+const equipmentRowsFrom = (customer) => {
+  const rows = sharedEquipmentRowsFrom(customer);
+  return rows.length ? rows : [{ ...BLANK_EQUIPMENT_ROW }];
+};
 
 const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
@@ -35,8 +46,7 @@ const formatBytes = (bytes) => {
 
 const EDITABLE_FIELDS = [
   "projectName", "company", "contact", "email", "phone", "category", "projectValue",
-  "nextCheckIn", "lastContact",
-  "equipmentType", "towerManufacturer", "modelNumber", "serialNumber", "dateInstalled", "projectAddress"
+  "nextCheckIn", "lastContact", "projectAddress"
 ];
 
 export default function ProjectDetail() {
@@ -62,6 +72,7 @@ export default function ProjectDetail() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
+  const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
 
   const formatPhone = (phone) => {
     if (!phone) return "";
@@ -197,19 +208,27 @@ export default function ProjectDetail() {
       projectValue: customer.projectValue || "",
       nextCheckIn: formatDate(customer.nextCheckIn),
       lastContact: formatDate(customer.lastContact),
-      equipmentType: customer.equipmentType || "",
-      towerManufacturer: customer.towerManufacturer || "",
-      modelNumber: customer.modelNumber || "",
-      serialNumber: customer.serialNumber || "",
-      dateInstalled: customer.dateInstalled || "",
       projectAddress: customer.projectAddress || ""
     });
+    setEquipmentRows(equipmentRowsFrom(customer));
     setIsEditing(true);
   };
 
   const cancelEdit = () => {
     setIsEditing(false);
     setEditData({});
+  };
+
+  const addEquipmentRow = () => {
+    setEquipmentRows(prev => [...prev, { ...BLANK_EQUIPMENT_ROW }]);
+  };
+
+  const updateEquipmentRow = (index, field, value) => {
+    setEquipmentRows(prev => prev.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
+  };
+
+  const removeEquipmentRow = (index) => {
+    setEquipmentRows(prev => prev.filter((_, i) => i !== index));
   };
 
   const saveEdit = async () => {
@@ -225,6 +244,15 @@ export default function ProjectDetail() {
     EDITABLE_FIELDS.forEach(f => {
       payload[f] = editData[f] || null;
     });
+
+    const equipment = equipmentRows.filter(r => r.type || r.manufacturer || r.model || r.serial || r.yearInstalled);
+    const first = equipment[0] || {};
+    payload.equipment = equipment;
+    payload.equipmentType = first.type || null;
+    payload.towerManufacturer = first.manufacturer || null;
+    payload.modelNumber = first.model || null;
+    payload.serialNumber = first.serial || null;
+    payload.dateInstalled = first.yearInstalled || null;
 
     // Closing a project schedules a 1-year "how are things going" check-in
     // automatically, so it resurfaces on the Home calendar even though it's
@@ -242,7 +270,11 @@ export default function ProjectDetail() {
       contactName: editData.contact, email: editData.email, phone: editData.phone, uid
     });
 
-    ensureTowerModel({ towerModels, manufacturer: editData.towerManufacturer, model: editData.modelNumber, uid });
+    await Promise.all(
+      equipment
+        .filter(row => row.manufacturer || row.model)
+        .map(row => ensureTowerModel({ towerModels, manufacturer: row.manufacturer, model: row.model, uid }))
+    );
 
     setIsEditing(false);
     await loadProject(uid, role);
@@ -373,6 +405,9 @@ export default function ProjectDetail() {
     return <div className="dashboard-page">Loading...</div>;
   }
 
+  const displayEquipment = equipmentRowsFrom(customer);
+  const hasDisplayEquipment = displayEquipment.some(r => r.type || r.manufacturer || r.model || r.serial || r.yearInstalled);
+
   return (
     <div className="dashboard-page">
       <div className="dashboard-header">
@@ -451,21 +486,62 @@ export default function ProjectDetail() {
             <input className="field" type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Equipment & Site Details</h4>
-
-            <h4 className="field-label">Type of Equipment</h4>
-            <input className="field" name="detail-equipmentType" autoComplete="off" value={editData.equipmentType} onChange={e => setEditData({ ...editData, equipmentType: e.target.value })} />
-
-            <h4 className="field-label">Tower Manufacturer</h4>
-            <input className="field" name="detail-towerManufacturer" autoComplete="off" value={editData.towerManufacturer} onChange={e => setEditData({ ...editData, towerManufacturer: e.target.value })} />
-
-            <h4 className="field-label">Model Number</h4>
-            <input className="field" name="detail-modelNumber" autoComplete="off" value={editData.modelNumber} onChange={e => setEditData({ ...editData, modelNumber: e.target.value })} />
-
-            <h4 className="field-label">Serial Number</h4>
-            <input className="field" name="detail-serialNumber" autoComplete="off" value={editData.serialNumber} onChange={e => setEditData({ ...editData, serialNumber: e.target.value })} />
-
-            <h4 className="field-label">Year Installed</h4>
-            <input className="field" type="number" placeholder="YYYY" min="1900" max="2100" value={editData.dateInstalled} onChange={e => setEditData({ ...editData, dateInstalled: e.target.value })} />
+            {equipmentRows.map((row, i) => (
+              <div
+                key={i}
+                style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr) auto", gap: 8, alignItems: "center", marginBottom: 8 }}
+              >
+                <select
+                  className="field"
+                  style={{ marginBottom: 0 }}
+                  value={row.type}
+                  onChange={e => updateEquipmentRow(i, "type", e.target.value)}
+                >
+                  <option value="">Type of Equipment...</option>
+                  {PRODUCT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <input
+                  className="field"
+                  style={{ marginBottom: 0 }}
+                  list={`detail-equipment-manufacturers-${i}`}
+                  autoComplete="off"
+                  placeholder="Tower Manufacturer"
+                  value={row.manufacturer}
+                  onChange={e => updateEquipmentRow(i, "manufacturer", e.target.value)}
+                />
+                <datalist id={`detail-equipment-manufacturers-${i}`}>
+                  {PRODUCT_MANUFACTURERS.map(m => <option key={m} value={m} />)}
+                </datalist>
+                <input
+                  className="field"
+                  style={{ marginBottom: 0 }}
+                  autoComplete="off"
+                  placeholder="Model Number"
+                  value={row.model}
+                  onChange={e => updateEquipmentRow(i, "model", e.target.value)}
+                />
+                <input
+                  className="field"
+                  style={{ marginBottom: 0 }}
+                  autoComplete="off"
+                  placeholder="Serial Number"
+                  value={row.serial}
+                  onChange={e => updateEquipmentRow(i, "serial", e.target.value)}
+                />
+                <input
+                  className="field"
+                  style={{ marginBottom: 0 }}
+                  type="number"
+                  placeholder="Year Installed"
+                  min="1900"
+                  max="2100"
+                  value={row.yearInstalled}
+                  onChange={e => updateEquipmentRow(i, "yearInstalled", e.target.value)}
+                />
+                <button className="btn btn-danger" onClick={() => removeEquipmentRow(i)}>Remove</button>
+              </div>
+            ))}
+            <button className="btn btn-secondary" onClick={addEquipmentRow}>+ Add Equipment</button>
           </div>
         ) : (
           <>
@@ -485,11 +561,22 @@ export default function ProjectDetail() {
 
             <div className="project-section">
               <h4 className="field-label">Equipment & Site Details</h4>
-              <p><strong>Type of Equipment:</strong> {customer.equipmentType || "—"}</p>
-              <p><strong>Tower Manufacturer:</strong> {customer.towerManufacturer || "—"}</p>
-              <p><strong>Model Number:</strong> {customer.modelNumber || "—"}</p>
-              <p><strong>Serial Number:</strong> {customer.serialNumber || "—"}</p>
-              <p><strong>Year Installed:</strong> {customer.dateInstalled || "—"}</p>
+              {!hasDisplayEquipment ? (
+                <p className="private-note-hint">No equipment on file.</p>
+              ) : (
+                displayEquipment.map((row, i) => (
+                  <div key={i} style={{ marginBottom: i < displayEquipment.length - 1 ? 14 : 0 }}>
+                    {displayEquipment.length > 1 && (
+                      <div className="field-label" style={{ marginBottom: 4 }}>Equipment {i + 1}</div>
+                    )}
+                    <p><strong>Type of Equipment:</strong> {row.type || "—"}</p>
+                    <p><strong>Tower Manufacturer:</strong> {row.manufacturer || "—"}</p>
+                    <p><strong>Model Number:</strong> {row.model || "—"}</p>
+                    <p><strong>Serial Number:</strong> {row.serial || "—"}</p>
+                    <p><strong>Year Installed:</strong> {row.yearInstalled || "—"}</p>
+                  </div>
+                ))
+              )}
             </div>
           </>
         )}
