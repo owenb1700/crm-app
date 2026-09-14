@@ -25,6 +25,7 @@ import {
 } from "firebase/firestore";
 import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf } from "../../lib/directory";
 import FirmTypeSelect from "../components/FirmTypeSelect";
+import UserSettingsModal from "../components/UserSettingsModal";
 import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
 
@@ -32,8 +33,6 @@ const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
 
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const DEFAULT_DIGEST_SCHEDULE = { dayOfWeek: 0, daysAhead: 7, includeOverdue: true };
 
 // "member" and "estimating" are stored as-is in Firestore (estimating has
 // identical permissions to member for now, just a distinct label/identity)
@@ -85,10 +84,6 @@ export default function Dashboard() {
   const [notifications, setNotifications] = useState([]);
   const [notificationsError, setNotificationsError] = useState(null);
   const [showAlertsPanel, setShowAlertsPanel] = useState(false);
-  const [digestSchedules, setDigestSchedules] = useState([]);
-  const [notifyCollabRequest, setNotifyCollabRequest] = useState(true);
-  const [notifyCollabApproved, setNotifyCollabApproved] = useState(true);
-  const [sendingTestDigest, setSendingTestDigest] = useState(false);
 
   const [customers, setCustomers] = useState([]);
   const [notesById, setNotesById] = useState({});
@@ -690,116 +685,6 @@ export default function Dashboard() {
     await loadCustomers(uid, role === "admin");
   };
 
-  const addDigestSchedule = () => {
-    setDigestSchedules(prev => [...prev, { ...DEFAULT_DIGEST_SCHEDULE }]);
-  };
-
-  const updateDigestSchedule = (index, field, value) => {
-    setDigestSchedules(prev => prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)));
-  };
-
-  const removeDigestSchedule = (index) => {
-    setDigestSchedules(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const saveNotificationSettings = async () => {
-    await updateDoc(doc(db, "users", uid), {
-      digestSchedules,
-      notifyCollabRequest,
-      notifyCollabApproved
-    });
-    setMyProfile(prev => ({ ...(prev || {}), digestSchedules, notifyCollabRequest, notifyCollabApproved }));
-    showToast("Notification settings saved");
-    setShowUserSettings(false);
-  };
-
-  // There's no server-side cron actually sending scheduled digests yet --
-  // digestSchedules only ever configured *when* one would send, nothing
-  // ever built the content or sent it. This composes a real one from the
-  // signed-in user's own live data (same nextCheckIn/ownership fields
-  // everything else on this page already reads) and sends it through the
-  // same /api/send-email route every other email in the app uses.
-  const buildDigestHtml = () => {
-    const now = new Date();
-    const weekOut = new Date();
-    weekOut.setDate(weekOut.getDate() + 7);
-    const baseUrl = "https://crm-app-coral-five.vercel.app";
-
-    const mine = customers.filter(c => c.ownerId === uid && c.category !== "Project Closed");
-    const dueThisWeek = mine
-      .filter(c => c.nextCheckIn && new Date(c.nextCheckIn) >= now && new Date(c.nextCheckIn) <= weekOut)
-      .sort((a, b) => new Date(a.nextCheckIn) - new Date(b.nextCheckIn));
-    const overdue = mine
-      .filter(c => c.nextCheckIn && new Date(c.nextCheckIn) < now)
-      .sort((a, b) => new Date(a.nextCheckIn) - new Date(b.nextCheckIn));
-
-    const pipelineDue = pipelineEntries
-      .filter(p => p.outcome === "Won" && p.nextCheckIn && (p.projectPointPersonId || p.salespersonId || p.ownerId) === uid)
-      .filter(p => new Date(p.nextCheckIn) >= now && new Date(p.nextCheckIn) <= weekOut)
-      .sort((a, b) => new Date(a.nextCheckIn) - new Date(b.nextCheckIn));
-
-    const row = (name, company, date, link) => `
-      <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">
-          <a href="${link}" style="color:#2563eb;text-decoration:none;font-weight:600;">${name}</a>
-          ${company ? `<div style="color:#6b7280;font-size:13px;">${company}</div>` : ""}
-        </td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#374151;white-space:nowrap;">${formatDate(date)}</td>
-      </tr>`;
-
-    const section = (title, items, getRow) => (items.length ? `
-      <h3 style="margin:24px 0 8px;font-size:15px;color:#111827;">${title} (${items.length})</h3>
-      <table style="width:100%;border-collapse:collapse;">${items.map(getRow).join("")}</table>
-    ` : "");
-
-    // Same windows as the scheduled digest: reminder dates are local
-    // "YYYY-MM-DD" strings, compared as strings against today's local date.
-    const escapeHtml = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    const todayKey = toLocalDateKey(now);
-    const weekOutKey = toLocalDateKey(weekOut);
-    const sortedReminders = [...reminders].filter(r => r.date).sort((a, b) => a.date.localeCompare(b.date));
-    const remindersDue = sortedReminders.filter(r => r.date >= todayKey && r.date <= weekOutKey);
-    const remindersOverdue = sortedReminders.filter(r => r.date < todayKey);
-    const reminderRow = (r) => row(escapeHtml(r.subject), escapeHtml(r.notes), r.date, `${baseUrl}/dashboard`);
-
-    const total = dueThisWeek.length + overdue.length + pipelineDue.length + remindersDue.length + remindersOverdue.length;
-
-    return `
-      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;">
-        <h2 style="color:#111827;">Your Upcoming Tasks</h2>
-        <p style="color:#6b7280;">Test send -- this reflects your real, live data right now.</p>
-        ${section("Reminders Due This Week", remindersDue, reminderRow)}
-        ${section("Overdue Reminders", remindersOverdue, reminderRow)}
-        ${section("Due This Week", dueThisWeek, c => row(c.projectName || c.company, c.company, c.nextCheckIn, `${baseUrl}/dashboard/project/${c.id}`))}
-        ${section("Overdue", overdue, c => row(c.projectName || c.company, c.company, c.nextCheckIn, `${baseUrl}/dashboard/project/${c.id}`))}
-        ${section("Pipeline Follow-Ups Due This Week", pipelineDue, p => row(p.title, p.company, p.nextCheckIn, `${baseUrl}/dashboard/pipeline/${p.id}`))}
-        ${total === 0 ? '<p style="color:#6b7280;">Nothing due right now.</p>' : ""}
-      </div>
-    `;
-  };
-
-  const sendTestDigest = async () => {
-    setSendingTestDigest(true);
-    try {
-      const res = await fetch("/api/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: auth.currentUser?.email,
-          subject: "Your Upcoming Tasks (Test Digest)",
-          html: buildDigestHtml()
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.code ? `${data.error} (code ${data.code}, and an admin has been emailed)` : (data.error || "Failed to send"));
-      showToast(`Test digest sent to ${auth.currentUser?.email}`);
-    } catch (err) {
-      alert(err.message || "Couldn't send test digest");
-    } finally {
-      setSendingTestDigest(false);
-    }
-  };
-
   const logout = async () => {
     clearSession();
     await signOut(auth);
@@ -872,22 +757,6 @@ export default function Dashboard() {
         } else {
           setMyProfile(profile);
 
-          // Carry forward whoever was on the old fixed Sunday/Wednesday
-          // digests into the equivalent custom schedules the first time
-          // they load this after the rework, so no one silently stops
-          // getting emails they were relying on. Once they hit Save here,
-          // digestSchedules is written and this fallback no longer applies.
-          if (profile.digestSchedules) {
-            setDigestSchedules(profile.digestSchedules);
-          } else {
-            const carried = [];
-            if (profile.notifySundayDigest !== false) carried.push({ dayOfWeek: 0, daysAhead: 7, includeOverdue: true });
-            if (profile.notifyWednesdayDigest !== false) carried.push({ dayOfWeek: 3, daysAhead: 5, includeOverdue: true });
-            setDigestSchedules(carried);
-          }
-
-          setNotifyCollabRequest(profile.notifyCollabRequest !== false);
-          setNotifyCollabApproved(profile.notifyCollabApproved !== false);
           await loadCustomers(user.uid, profile.role === "admin");
           await loadPipeline();
           await loadDirectory();
@@ -1714,93 +1583,16 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {showUserSettings && (
-        <div className="modal-overlay" onClick={() => setShowUserSettings(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowUserSettings(false)}>✕</button>
-            <h3 className="modal-title">User Settings</h3>
-
-            <h4 className="field-label" style={{ marginTop: 4 }}>Digest Emails</h4>
-            <p className="private-note-hint">Each one sends at 4:00 AM Central on the day you pick.</p>
-
-            {digestSchedules.map((s, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                <select
-                  className="field"
-                  style={{ marginBottom: 0, width: 130 }}
-                  value={s.dayOfWeek}
-                  onChange={e => updateDigestSchedule(i, "dayOfWeek", Number(e.target.value))}
-                >
-                  {DAY_NAMES.map((d, idx) => <option key={idx} value={idx}>{d}</option>)}
-                </select>
-                <span style={{ fontSize: 13 }}>next</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={60}
-                  className="field"
-                  style={{ marginBottom: 0, width: 60 }}
-                  value={s.daysAhead}
-                  onChange={e => updateDigestSchedule(i, "daysAhead", Number(e.target.value) || 1)}
-                />
-                <span style={{ fontSize: 13 }}>days</span>
-                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13 }}>
-                  <input
-                    type="checkbox"
-                    checked={s.includeOverdue !== false}
-                    onChange={e => updateDigestSchedule(i, "includeOverdue", e.target.checked)}
-                  />
-                  Include overdue
-                </label>
-                <button type="button" className="btn btn-secondary" onClick={() => removeDigestSchedule(i)}>×</button>
-              </div>
-            ))}
-
-            {digestSchedules.length === 0 && (
-              <p className="private-note-hint" style={{ marginTop: 8 }}>No digest emails scheduled.</p>
-            )}
-
-            <button
-              type="button"
-              className="link-muted"
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 10, fontSize: 13 }}
-              onClick={addDigestSchedule}
-            >
-              + Add another schedule
-            </button>
-
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 18 }}>
-              <input
-                type="checkbox"
-                checked={notifyCollabRequest}
-                onChange={e => setNotifyCollabRequest(e.target.checked)}
-              />
-              Someone requests to collaborate on my entry
-            </label>
-
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-              <input
-                type="checkbox"
-                checked={notifyCollabApproved}
-                onChange={e => setNotifyCollabApproved(e.target.checked)}
-              />
-              My collaboration request is approved
-            </label>
-
-            <button className="btn btn-primary btn-block" style={{ marginTop: 16 }} onClick={saveNotificationSettings}>
-              Save
-            </button>
-
-            <button
-              className="btn btn-secondary btn-block"
-              style={{ marginTop: 8 }}
-              disabled={sendingTestDigest}
-              onClick={sendTestDigest}
-            >
-              {sendingTestDigest ? "Sending..." : "Send Test Digest Now"}
-            </button>
-          </div>
-        </div>
+      {showUserSettings && myProfile && (
+        <UserSettingsModal
+          uid={uid}
+          profile={myProfile}
+          onClose={() => setShowUserSettings(false)}
+          onSaved={(patch) => {
+            setMyProfile(prev => ({ ...(prev || {}), ...patch }));
+            showToast("Settings saved");
+          }}
+        />
       )}
 
       {view !== "admin" && (

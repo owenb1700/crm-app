@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../../lib/firebase";
 import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
+import UserSettingsModal from "./UserSettingsModal";
 
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const ROLE_LABELS = { admin: "Admin", member: "Salesperson", estimating: "Estimating Department" };
 const roleLabel = (role) => ROLE_LABELS[role] || role;
 
@@ -26,14 +26,10 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
   const router = useRouter();
 
   const [profile, setProfile] = useState(null);
-  const [digestSchedules, setDigestSchedules] = useState([]);
-  const [notifyCollabRequest, setNotifyCollabRequest] = useState(true);
-  const [notifyCollabApproved, setNotifyCollabApproved] = useState(true);
 
   const [notifications, setNotifications] = useState([]);
   const [notificationsError, setNotificationsError] = useState(null);
   const [showUserSettings, setShowUserSettings] = useState(false);
-  const [savedMsg, setSavedMsg] = useState("");
 
   useEffect(() => {
     if (!uid) return;
@@ -42,24 +38,7 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
       try {
         const snap = await getDoc(doc(db, "users", uid));
         if (!snap.exists()) return;
-        const p = snap.data();
-        setProfile(p);
-
-        // Carry forward whoever was on the old fixed Sunday/Wednesday
-        // digests into the equivalent custom schedules the first time
-        // they load this after the rework -- once they hit Save, a real
-        // digestSchedules is written and this fallback no longer applies.
-        if (p.digestSchedules) {
-          setDigestSchedules(p.digestSchedules);
-        } else {
-          const carried = [];
-          if (p.notifySundayDigest !== false) carried.push({ dayOfWeek: 0, daysAhead: 7, includeOverdue: true });
-          if (p.notifyWednesdayDigest !== false) carried.push({ dayOfWeek: 3, daysAhead: 5, includeOverdue: true });
-          setDigestSchedules(carried);
-        }
-
-        setNotifyCollabRequest(p.notifyCollabRequest !== false);
-        setNotifyCollabApproved(p.notifyCollabApproved !== false);
+        setProfile(snap.data());
       } catch {
         // Profile load failing shouldn't break the header -- name/role just
         // won't show. The page's own auth guard already handles a truly
@@ -95,29 +74,6 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
     const unread = notifications.filter(n => !n.read);
     await Promise.all(unread.map(n => updateDoc(doc(db, "notifications", n.id), { read: true })));
     setNotifications(prev => prev.map(x => ({ ...x, read: true })));
-  };
-
-  const addDigestSchedule = () => {
-    setDigestSchedules(prev => [...prev, { dayOfWeek: 0, daysAhead: 7, includeOverdue: true }]);
-  };
-
-  const updateDigestSchedule = (index, field, value) => {
-    setDigestSchedules(prev => prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)));
-  };
-
-  const removeDigestSchedule = (index) => {
-    setDigestSchedules(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const saveNotificationSettings = async () => {
-    await updateDoc(doc(db, "users", uid), {
-      digestSchedules,
-      notifyCollabRequest,
-      notifyCollabApproved
-    });
-    setProfile(prev => ({ ...(prev || {}), digestSchedules, notifyCollabRequest, notifyCollabApproved }));
-    setSavedMsg("Saved!");
-    setTimeout(() => setSavedMsg(""), 1500);
   };
 
   const logout = async () => {
@@ -223,86 +179,13 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
         </div>
       </div>
 
-      {showUserSettings && (
-        <div className="modal-overlay" onClick={() => setShowUserSettings(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
-            <h3 className="modal-title">User Settings</h3>
-
-            <h4 className="field-label" style={{ marginTop: 4 }}>Digest Emails</h4>
-            <p className="private-note-hint">Each one sends at 4:00 AM Central on the day you pick.</p>
-
-            {digestSchedules.map((s, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                <select
-                  className="field"
-                  style={{ marginBottom: 0, width: 130 }}
-                  value={s.dayOfWeek}
-                  onChange={e => updateDigestSchedule(i, "dayOfWeek", Number(e.target.value))}
-                >
-                  {DAY_NAMES.map((d, idx) => <option key={idx} value={idx}>{d}</option>)}
-                </select>
-                <span style={{ fontSize: 13 }}>next</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={60}
-                  className="field"
-                  style={{ marginBottom: 0, width: 60 }}
-                  value={s.daysAhead}
-                  onChange={e => updateDigestSchedule(i, "daysAhead", Number(e.target.value) || 1)}
-                />
-                <span style={{ fontSize: 13 }}>days</span>
-                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13 }}>
-                  <input
-                    type="checkbox"
-                    checked={s.includeOverdue !== false}
-                    onChange={e => updateDigestSchedule(i, "includeOverdue", e.target.checked)}
-                  />
-                  Include overdue
-                </label>
-                <button type="button" className="btn btn-secondary" onClick={() => removeDigestSchedule(i)}>×</button>
-              </div>
-            ))}
-
-            {digestSchedules.length === 0 && (
-              <p className="private-note-hint" style={{ marginTop: 8 }}>No digest emails scheduled.</p>
-            )}
-
-            <button
-              type="button"
-              className="link-muted"
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 10, fontSize: 13 }}
-              onClick={addDigestSchedule}
-            >
-              + Add another schedule
-            </button>
-
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 18 }}>
-              <input
-                type="checkbox"
-                checked={notifyCollabRequest}
-                onChange={e => setNotifyCollabRequest(e.target.checked)}
-              />
-              Someone requests to collaborate on my entry
-            </label>
-
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-              <input
-                type="checkbox"
-                checked={notifyCollabApproved}
-                onChange={e => setNotifyCollabApproved(e.target.checked)}
-              />
-              My collaboration request is approved
-            </label>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 16 }}>
-              <button className="btn btn-primary btn-block" onClick={saveNotificationSettings}>
-                Save
-              </button>
-              {savedMsg && <span style={{ fontSize: 13, color: "#16a34a" }}>{savedMsg}</span>}
-            </div>
-          </div>
-        </div>
+      {showUserSettings && profile && (
+        <UserSettingsModal
+          uid={uid}
+          profile={profile}
+          onClose={() => setShowUserSettings(false)}
+          onSaved={(patch) => setProfile(prev => ({ ...(prev || {}), ...patch }))}
+        />
       )}
     </>
   );
