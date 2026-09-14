@@ -119,6 +119,7 @@ export default function Dashboard() {
   const [completedOutcome, setCompletedOutcome] = useState("Won");
   const [wonStartDate, setWonStartDate] = useState("");
   const [lostNotes, setLostNotes] = useState("");
+  const [lostTo, setLostTo] = useState("");
   const [prospectingNextDate, setProspectingNextDate] = useState(() => {
     const d = new Date();
     d.setMonth(d.getMonth() + 3);
@@ -932,6 +933,7 @@ export default function Dashboard() {
     setCompletedOutcome("Won");
     setWonStartDate("");
     setLostNotes("");
+    setLostTo("");
     const d = new Date();
     d.setMonth(d.getMonth() + 3);
     setProspectingNextDate(d.toISOString().split("T")[0]);
@@ -942,7 +944,7 @@ export default function Dashboard() {
       return alert("Please enter the estimated job start date");
     }
     if (completedOutcome === "Lost" && !lostNotes.trim()) {
-      return alert("Please enter notes on why the job was lost and who won it");
+      return alert("Please enter why the job was lost");
     }
     if (completedOutcome === "Prospecting Only" && !prospectingNextDate) {
       return alert("Please choose the next alert date");
@@ -965,7 +967,7 @@ export default function Dashboard() {
       outcome: completedOutcome,
       timestamp: new Date().toISOString(),
       ...(completedOutcome === "Won" && { startDate: wonStartDate }),
-      ...(completedOutcome === "Lost" && { notes: lostNotes.trim() })
+      ...(completedOutcome === "Lost" && { notes: lostNotes.trim(), lostTo: lostTo.trim() || null })
     };
 
     const payload = {
@@ -989,12 +991,18 @@ export default function Dashboard() {
       payload.nextCheckIn = null;
     }
 
+    // Kept on the project itself (not just the activity log) so Past
+    // Projects can show why it was lost and who won it at a glance.
+    payload.lostReason = completedOutcome === "Lost" ? lostNotes.trim() : null;
+    payload.lostTo = completedOutcome === "Lost" ? (lostTo.trim() || null) : null;
+
     await updateDoc(doc(db, "customers", completedTarget.id), payload);
 
     setCompletedTarget(null);
     setCompletedOutcome("Won");
     setWonStartDate("");
     setLostNotes("");
+    setLostTo("");
 
     showToast("Marked completed — moved to Past Projects");
     loadCustomers(uid, role === "admin");
@@ -1114,13 +1122,26 @@ export default function Dashboard() {
     return formatDate(c.lastContact) || c.createdAt || "";
   };
 
+  // Why a lost project was lost and who won it. Projects closed before these
+  // were stored on the project itself only have them on their "completed"
+  // activity entry, where the reason used to be one combined note.
+  const lostInfoOf = (c) => {
+    const entry = [...(c.activityLog || [])].reverse().find(a => a.type === "completed" && a.outcome === "Lost");
+    return {
+      reason: c.lostReason || entry?.notes || "",
+      winner: c.lostTo || entry?.lostTo || ""
+    };
+  };
+
   const pastProjectsList = useMemo(() => {
     let list = customers.filter(c => c.category === "Project Closed");
     if (pastProjectsSearch.trim()) {
       const q = pastProjectsSearch.toLowerCase();
       list = list.filter(c =>
         (c.projectName || "").toLowerCase().includes(q) ||
-        (c.company || "").toLowerCase().includes(q)
+        (c.company || "").toLowerCase().includes(q) ||
+        lostInfoOf(c).reason.toLowerCase().includes(q) ||
+        lostInfoOf(c).winner.toLowerCase().includes(q)
       );
     }
     return list.sort((a, b) =>
@@ -1137,7 +1158,9 @@ export default function Dashboard() {
       list = list.filter(p =>
         (p.title || "").toLowerCase().includes(q) ||
         (p.company || "").toLowerCase().includes(q) ||
-        (p.wonByContractor || "").toLowerCase().includes(q)
+        (p.wonByContractor || "").toLowerCase().includes(q) ||
+        (p.lostReason || "").toLowerCase().includes(q) ||
+        (p.lostTo || "").toLowerCase().includes(q)
       );
     }
     return list.sort((a, b) => (b.resolvedAt || "").localeCompare(a.resolvedAt || ""));
@@ -2064,8 +2087,13 @@ export default function Dashboard() {
 
                 {completedOutcome === "Lost" && (
                   <div style={{ marginTop: 10 }}>
-                    <label className="field-label">Why was it lost, and who won it?</label>
-                    <input className="field" autoComplete="off" value={lostNotes} onChange={e => setLostNotes(e.target.value)} />
+                    <label className="field-label" htmlFor="lost-reason">Why was it lost?</label>
+                    <textarea id="lost-reason" className="field" style={{ width: "100%", height: 70 }} value={lostNotes} onChange={e => setLostNotes(e.target.value)} />
+                    <label className="field-label" htmlFor="lost-to">Who won it? (optional)</label>
+                    <input id="lost-to" className="field" list="lost-to-options" autoComplete="off" value={lostTo} onChange={e => setLostTo(e.target.value)} />
+                    <datalist id="lost-to-options">
+                      {companies.map(co => <option key={co.id} value={co.name} />)}
+                    </datalist>
                   </div>
                 )}
 
@@ -2339,7 +2367,20 @@ export default function Dashboard() {
               <div className="customer-card-middle">
                 {c.company && <div className="private-note-hint">{c.company}</div>}
                 <div className="private-note-hint">Owned by {ownerLabel(c.ownerId)}</div>
-                {closedDateOf(c) && <div className="customer-dates">Closed: {closedDateOf(c).slice(0, 10)}</div>}
+                {c.closedOutcome === "Lost" ? (() => {
+                  const { reason, winner } = lostInfoOf(c);
+                  return (
+                    <>
+                      {closedDateOf(c) && <div className="customer-dates">Lost: {closedDateOf(c).slice(0, 10)}</div>}
+                      <div className="private-note-hint" style={{ whiteSpace: "pre-wrap" }}>
+                        <strong>Why:</strong> {reason || "No reason recorded"}
+                      </div>
+                      <div className="private-note-hint"><strong>Won by:</strong> {winner || "Not recorded"}</div>
+                    </>
+                  );
+                })() : (
+                  closedDateOf(c) && <div className="customer-dates">Closed: {closedDateOf(c).slice(0, 10)}</div>
+                )}
               </div>
             </div>
           ))}
@@ -2368,6 +2409,14 @@ export default function Dashboard() {
                 )}
                 <div className="private-note-hint">Owned by {ownerLabel(p.ownerId)}</div>
                 {p.resolvedAt && <div className="customer-dates">{p.outcome === "Won" ? "Won" : "Lost"}: {p.resolvedAt.slice(0, 10)}</div>}
+                {p.outcome === "Lost" && (
+                  <>
+                    <div className="private-note-hint" style={{ whiteSpace: "pre-wrap" }}>
+                      <strong>Why:</strong> {p.lostReason || "No reason recorded"}
+                    </div>
+                    <div className="private-note-hint"><strong>Won by:</strong> {p.lostTo || "Not recorded"}</div>
+                  </>
+                )}
               </div>
             </div>
           ))}

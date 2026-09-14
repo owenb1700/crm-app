@@ -680,7 +680,8 @@ export default function ProjectDetail() {
             <div key={i} className="notes-history-item">
               <div>{a.type} — {a.outcome}</div>
               {a.startDate && <div className="private-note-hint">Estimated start: {a.startDate}</div>}
-              {a.notes && <div className="private-note-hint">{a.notes}</div>}
+              {a.notes && <div className="private-note-hint">{a.outcome === "Lost" ? "Why: " : ""}{a.notes}</div>}
+              {a.lostTo && <div className="private-note-hint">Won by: {a.lostTo}</div>}
               <div className="notes-history-date">{a.timestamp}</div>
             </div>
           ))}
