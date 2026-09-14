@@ -13,7 +13,7 @@ import {
   getDocs
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { ensureCompanyAndContact } from "../../../../lib/directory";
+import { ensureCompanyAndContactBatch, OWNER_CATEGORY, BLANK_OWNER_ROW, cleanOwnerRows } from "../../../../lib/directory";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import { equipmentRowsFrom as sharedEquipmentRowsFrom } from "../../../../lib/equipment";
@@ -73,6 +73,11 @@ export default function ProjectDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
   const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
+  const [ownerRows, setOwnerRows] = useState([]);
+
+  const updateOwnerRow = (index, field, value) => {
+    setOwnerRows(prev => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
 
   const formatPhone = (phone) => {
     if (!phone) return "";
@@ -211,6 +216,7 @@ export default function ProjectDetail() {
       projectAddress: customer.projectAddress || ""
     });
     setEquipmentRows(equipmentRowsFrom(customer));
+    setOwnerRows(customer.owners || []);
     setIsEditing(true);
   };
 
@@ -253,6 +259,8 @@ export default function ProjectDetail() {
     payload.modelNumber = first.model || null;
     payload.serialNumber = first.serial || null;
     payload.dateInstalled = first.yearInstalled || null;
+    const owners = cleanOwnerRows(ownerRows);
+    payload.owners = owners;
 
     // Closing a project schedules a 1-year "how are things going" check-in
     // automatically, so it resurfaces on the Home calendar even though it's
@@ -265,10 +273,10 @@ export default function ProjectDetail() {
 
     await updateDoc(doc(db, "customers", projectId), payload);
 
-    ensureCompanyAndContact({
-      companies, contacts, companyName: editData.company, category: "Contractor",
-      contactName: editData.contact, email: editData.email, phone: editData.phone, uid
-    });
+    await ensureCompanyAndContactBatch([
+      { companyName: editData.company, category: "Contractor", contactName: editData.contact, email: editData.email, phone: editData.phone },
+      ...owners.map(r => ({ companyName: r.company, category: OWNER_CATEGORY, contactName: r.contact, email: r.email, phone: r.phone }))
+    ], { companies, contacts, uid });
 
     await Promise.all(
       equipment
@@ -485,6 +493,29 @@ export default function ProjectDetail() {
             <h4 className="field-label">Last Contact</h4>
             <input className="field" type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
 
+            <h4 className="field-label" style={{ marginTop: 16 }}>Owners & Building Engineers</h4>
+            {ownerRows.map((row, i) => (
+              <div key={i} className="bidding-company-row">
+                <CompanyContactFields
+                  idPrefix={`project-detail-owner-${i}`}
+                  companies={companies}
+                  contacts={contacts}
+                  companyLabel="Owner / Building Engineer"
+                  companyCategory={OWNER_CATEGORY}
+                  companyValue={row.company}
+                  contactValue={row.contact}
+                  emailValue={row.email}
+                  phoneValue={row.phone}
+                  onCompanyChange={v => updateOwnerRow(i, "company", v)}
+                  onContactChange={v => updateOwnerRow(i, "contact", v)}
+                  onEmailChange={v => updateOwnerRow(i, "email", v)}
+                  onPhoneChange={v => updateOwnerRow(i, "phone", v)}
+                />
+                <button className="btn btn-danger" onClick={() => setOwnerRows(prev => prev.filter((_, idx) => idx !== i))}>Remove</button>
+              </div>
+            ))}
+            <button className="btn btn-secondary" onClick={() => setOwnerRows(prev => [...prev, { ...BLANK_OWNER_ROW }])}>+ Add Owner / Building Engineer</button>
+
             <h4 className="field-label" style={{ marginTop: 16 }}>Equipment & Site Details</h4>
             {equipmentRows.map((row, i) => (
               <div
@@ -550,6 +581,27 @@ export default function ProjectDetail() {
               <p><strong>Contact:</strong> {customer.contact || "—"}</p>
               <p><strong>Email:</strong> {customer.email || "—"}</p>
               <p><strong>Phone:</strong> {formatPhone(customer.phone) || "—"}</p>
+            </div>
+
+            <div className="project-section">
+              <h4 className="field-label">Owners & Building Engineers</h4>
+              {(customer.owners || []).length === 0 && (
+                <p className="private-note-hint">None added yet.</p>
+              )}
+              {(customer.owners || []).map((row, i) => {
+                const firm = companies.find(c => c.name.toLowerCase() === (row.company || "").toLowerCase());
+                return (
+                  <div
+                    key={i}
+                    className="notes-history-item"
+                    style={{ cursor: firm ? "pointer" : "default" }}
+                    onClick={() => { if (firm) router.push(`/dashboard/directory/company/${firm.id}`); }}
+                  >
+                    <div><strong>{row.company || "—"}</strong>{row.contact ? ` — ${row.contact}` : ""}</div>
+                    <div className="notes-history-date">{[row.email, formatPhone(row.phone)].filter(Boolean).join(" | ")}</div>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="project-section">

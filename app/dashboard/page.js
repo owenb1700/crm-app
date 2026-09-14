@@ -23,7 +23,7 @@ import {
   query,
   where
 } from "firebase/firestore";
-import { ensureCompanyAndContact, ensureCompanyAndContactBatch } from "../../lib/directory";
+import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY } from "../../lib/directory";
 import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
 
@@ -308,6 +308,12 @@ export default function Dashboard() {
         captureEntries.push({
           companyName: c.company, category: "Contractor",
           contactName: c.contact, email: c.email, phone: c.phone
+        });
+        (c.owners || []).forEach(o => {
+          captureEntries.push({
+            companyName: o.company, category: OWNER_CATEGORY,
+            contactName: o.contact, email: o.email, phone: o.phone
+          });
         });
       });
 
@@ -1669,6 +1675,7 @@ export default function Dashboard() {
                       <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory")}>All Companies</a>
                       <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Contractor")}>Contractors</a>
                       <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Engineering%20Firm")}>Engineering Firms</a>
+                      <a className="tab-dropdown-item" onClick={() => router.push(`/dashboard/directory?category=${encodeURIComponent(OWNER_CATEGORY)}`)}>Owners & Building Engineers</a>
                     </>
                   )}
                   {myPermissions.towers && (

@@ -160,7 +160,10 @@ export default function TowerDetail() {
     peopleMap.get(key).roles.add(role);
   };
 
-  projects.forEach(p => addPerson(p.company, p.contact, "Customer"));
+  projects.forEach(p => {
+    addPerson(p.company, p.contact, "Contractor");
+    (p.owners || []).forEach(o => addPerson(o.company, o.contact, "Owner / Building Engineer"));
+  });
   pipelineJobs.forEach(p => {
     addPerson(p.company, p.contact, "Engineering Firm");
     (p.biddingCompanies || []).forEach(b => addPerson(b.company, b.contact, "Contractor"));

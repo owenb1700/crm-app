@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { doc, getDoc, getDocs, collection } from "firebase/firestore";
-import { primaryEmail, primaryPhone } from "../../../lib/directory";
+import { primaryEmail, primaryPhone, OWNER_CATEGORY } from "../../../lib/directory";
 import { equipmentRowsFrom } from "../../../lib/equipment";
 import DashboardHeader from "../../components/DashboardHeader";
 
@@ -135,7 +135,8 @@ function SearchPageContent() {
   const equipmentFields = (record) => equipmentRowsFrom(record).flatMap(r => [r.type, r.manufacturer, r.model, r.serial, r.yearInstalled]);
 
   const projectResults = q ? customers.filter(c => matches(q, [
-    c.projectName, c.company, c.contact, c.email, c.phone, c.projectAddress, ...equipmentFields(c)
+    c.projectName, c.company, c.contact, c.email, c.phone, c.projectAddress, ...equipmentFields(c),
+    ...(c.owners || []).flatMap(o => [o.company, o.contact])
   ])) : [];
 
   const pipelineResults = q ? pipelineEntries.filter(p => matches(q, [
@@ -145,7 +146,8 @@ function SearchPageContent() {
 
   const contractorResults = q ? companies.filter(c => c.category === "Contractor" && matches(q, [c.name, c.phone, c.address, c.website, c.notes])) : [];
   const engineeringResults = q ? companies.filter(c => c.category === "Engineering Firm" && matches(q, [c.name, c.phone, c.address, c.website, c.notes])) : [];
-  const otherCompanyResults = q ? companies.filter(c => c.category !== "Contractor" && c.category !== "Engineering Firm" && matches(q, [c.name, c.phone, c.address, c.website, c.notes])) : [];
+  const ownerResults = q ? companies.filter(c => c.category === OWNER_CATEGORY && matches(q, [c.name, c.phone, c.address, c.website, c.notes])) : [];
+  const otherCompanyResults = q ? companies.filter(c => c.category !== "Contractor" && c.category !== "Engineering Firm" && c.category !== OWNER_CATEGORY && matches(q, [c.name, c.phone, c.address, c.website, c.notes])) : [];
 
   const peopleResults = q ? contacts.filter(p => matches(q, [
     p.name, p.title, p.notes, p.companyName,
@@ -158,7 +160,7 @@ function SearchPageContent() {
   const productResults = q ? products.filter(p => matches(q, [p.name, p.type, p.manufacturer, p.model, p.notes])) : [];
 
   const totalResults = projectResults.length + pipelineResults.length + contractorResults.length +
-    engineeringResults.length + otherCompanyResults.length + peopleResults.length +
+    engineeringResults.length + ownerResults.length + otherCompanyResults.length + peopleResults.length +
     towerResults.length + towerModelResults.length + productResults.length;
 
   if (loadError) {
@@ -200,7 +202,7 @@ function SearchPageContent() {
       <form className="toolbar" onSubmit={runSearch}>
         <input
           className="field"
-          placeholder="Search projects, pipeline, contractors, engineering firms, people, towers, products..."
+          placeholder="Search projects, pipeline, contractors, engineering firms, owners, people, towers, products..."
           value={query}
           onChange={e => setQuery(e.target.value)}
           style={{ flex: 1, marginBottom: 0 }}
@@ -260,6 +262,19 @@ function SearchPageContent() {
       <Section
         title="Engineering Firms"
         items={engineeringResults}
+        render={c => (
+          <div key={c.id} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/directory/company/${c.id}`)}>
+            <div className="customer-card-left">
+              <div className="customer-name">{c.name}</div>
+              <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>{c.category}</span>
+            </div>
+          </div>
+        )}
+      />
+
+      <Section
+        title="Owners & Building Engineers"
+        items={ownerResults}
         render={c => (
           <div key={c.id} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/directory/company/${c.id}`)}>
             <div className="customer-card-left">

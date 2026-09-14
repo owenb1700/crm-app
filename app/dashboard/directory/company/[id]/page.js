@@ -127,7 +127,10 @@ export default function CompanyDetail() {
     setProjects(
       customersSnap.docs
         .map(d => ({ id: d.id, ...d.data() }))
-        .filter(c => (c.company || "").toLowerCase() === name)
+        .filter(c =>
+          (c.company || "").toLowerCase() === name ||
+          (c.owners || []).some(o => (o.company || "").toLowerCase() === name)
+        )
     );
     setPipelineJobs(
       pipelineSnap.docs

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { doc, getDoc, getDocs, collection, addDoc } from "firebase/firestore";
-import { COMPANY_CATEGORIES } from "../../../lib/directory";
+import { COMPANY_CATEGORIES, CATEGORY_TITLES } from "../../../lib/directory";
 import DashboardHeader from "../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -31,7 +31,8 @@ function DirectoryPageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newCategory, setNewCategory] = useState("Contractor");
+  // Adding a company from a filtered view defaults to that view's category.
+  const [newCategory, setNewCategory] = useState(COMPANY_CATEGORIES.includes(categoryFilter) ? categoryFilter : "Contractor");
 
   const loadAll = async () => {
     const [companiesSnap, contactsSnap, customersSnap, pipelineSnap] = await Promise.all([
@@ -97,7 +98,10 @@ function DirectoryPageContent() {
 
   const jobCounts = (companyName) => {
     const name = (companyName || "").toLowerCase();
-    const projectCount = customers.filter(c => (c.company || "").toLowerCase() === name).length;
+    const projectCount = customers.filter(c =>
+      (c.company || "").toLowerCase() === name ||
+      (c.owners || []).some(o => (o.company || "").toLowerCase() === name)
+    ).length;
     const pipelineCount = pipelineEntries.filter(p =>
       (p.company || "").toLowerCase() === name ||
       (p.biddingCompanies || []).some(b => (b.company || "").toLowerCase() === name)
@@ -123,7 +127,7 @@ function DirectoryPageContent() {
     });
 
     setNewName("");
-    setNewCategory("Contractor");
+    setNewCategory(COMPANY_CATEGORIES.includes(categoryFilter) ? categoryFilter : "Contractor");
     setShowAddModal(false);
     loadAll();
   };
@@ -174,7 +178,7 @@ function DirectoryPageContent() {
     return <div className="dashboard-page">Loading...</div>;
   }
 
-  const title = categoryFilter === "all" ? "All Companies" : `${categoryFilter}${categoryFilter.endsWith("s") ? "" : "s"}`;
+  const title = categoryFilter === "all" ? "All Companies" : (CATEGORY_TITLES[categoryFilter] || categoryFilter);
 
   return (
     <div className="dashboard-page">
@@ -222,7 +226,7 @@ function DirectoryPageContent() {
                 <div className="private-note-hint">Matched: {matchedPerson.name}{matchedPerson.title ? ` (${matchedPerson.title})` : ""}</div>
               )}
               <div className="private-note-hint">{contactCount(c.id)} people</div>
-              {categoryFilter !== "Contractor" && categoryFilter !== "Engineering Firm" && (
+              {categoryFilter === "all" && (
                 <>
                   <div className="private-note-hint">{projectCount} project{projectCount === 1 ? "" : "s"}</div>
                   <div className="private-note-hint">{pipelineCount} pipeline entr{pipelineCount === 1 ? "y" : "ies"}</div>

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../lib/firebase";
 import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
-import { ensureCompanyAndContact, primaryEmail, primaryPhone } from "../../../../lib/directory";
+import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, OWNER_CATEGORY, BLANK_OWNER_ROW, cleanOwnerRows } from "../../../../lib/directory";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
@@ -49,11 +49,25 @@ export default function NewProject() {
   const [projectAddress, setProjectAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
+  const [ownerRows, setOwnerRows] = useState([]);
 
   const contractorOptions = companies.filter(c => c.category === "Contractor").map(c => c.name);
-  const matchingContacts = contacts.filter(
-    c => (c.companyName || "").toLowerCase() === (company || "").toLowerCase()
+  const ownerOptions = companies.filter(c => c.category === OWNER_CATEGORY).map(c => c.name);
+  const contactsForCompany = (name) => contacts.filter(
+    c => (c.companyName || "").toLowerCase() === (name || "").toLowerCase()
   );
+  const matchingContacts = contactsForCompany(company);
+
+  const updateOwnerRow = (index, field, value) => {
+    setOwnerRows(prev => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
+
+  const handleOwnerContactChange = (index, value) => {
+    const match = contactsForCompany(ownerRows[index].company).find(c => c.name.toLowerCase() === value.toLowerCase());
+    setOwnerRows(prev => prev.map((row, i) => (i === index
+      ? { ...row, contact: value, ...(match && { email: primaryEmail(match), phone: primaryPhone(match) }) }
+      : row)));
+  };
 
   const handleContactChange = (value) => {
     setContact(value);
@@ -191,6 +205,7 @@ export default function NewProject() {
     try {
       const equipment = equipmentRows.filter(r => r.type || r.manufacturer || r.model || r.serial || r.yearInstalled);
       const first = equipment[0] || {};
+      const owners = cleanOwnerRows(ownerRows);
 
       const ref = await addDoc(collection(db, "customers"), {
         projectName,
@@ -198,6 +213,7 @@ export default function NewProject() {
         contact,
         email,
         phone,
+        owners,
         category: category || null,
         projectValue: projectValue || null,
         equipment,
@@ -220,10 +236,10 @@ export default function NewProject() {
         notesHistory: []
       });
 
-      await ensureCompanyAndContact({
-        companies, contacts, companyName: company, category: "Contractor",
-        contactName: contact, email, phone, uid
-      });
+      await ensureCompanyAndContactBatch([
+        { companyName: company, category: "Contractor", contactName: contact, email, phone },
+        ...owners.map(r => ({ companyName: r.company, category: OWNER_CATEGORY, contactName: r.contact, email: r.email, phone: r.phone }))
+      ], { companies, contacts, uid });
 
       await Promise.all(
         equipment
@@ -318,6 +334,44 @@ export default function NewProject() {
           </div>
 
           <input className="field" autoComplete="off" placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
+        </div>
+
+        <div className="project-section">
+          <h4 className="field-label" style={{ marginTop: 0 }}>Owners & Building Engineers (optional)</h4>
+          {ownerRows.map((row, i) => (
+            <div key={i} className="bidding-company-row">
+              <div>
+                <label className="field-label">Owner / Building Engineer</label>
+                <SearchableSelect
+                  options={ownerOptions}
+                  value={row.company}
+                  onChange={v => updateOwnerRow(i, "company", v)}
+                  placeholder="Select or search firm..."
+                  newLabel="owner / building engineer"
+                />
+              </div>
+              <div>
+                <label className="field-label">Contact</label>
+                <SearchableSelect
+                  options={contactsForCompany(row.company).map(c => c.name)}
+                  value={row.contact}
+                  onChange={v => handleOwnerContactChange(i, v)}
+                  placeholder="Select or search contact..."
+                  newLabel="contact"
+                />
+              </div>
+              <div>
+                <label className="field-label">Email</label>
+                <input className="field" autoComplete="off" value={row.email} onChange={e => updateOwnerRow(i, "email", e.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">Phone</label>
+                <input className="field" autoComplete="off" value={row.phone} onChange={e => updateOwnerRow(i, "phone", e.target.value)} />
+              </div>
+              <button className="btn btn-danger" onClick={() => setOwnerRows(prev => prev.filter((_, idx) => idx !== i))}>Remove</button>
+            </div>
+          ))}
+          <button className="btn btn-secondary" onClick={() => setOwnerRows(prev => [...prev, { ...BLANK_OWNER_ROW }])}>+ Add Owner / Building Engineer</button>
         </div>
 
         <div className="project-section">
