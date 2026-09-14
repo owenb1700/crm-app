@@ -27,7 +27,16 @@ function schedulesFor(profile) {
 
 // Same layout as the "Send Test Digest Now" button, generalized to each
 // schedule's own daysAhead/includeOverdue instead of a fixed 7 days.
-function buildDigestHtml({ customers, pipelineEntries, uid, daysAhead, includeOverdue }) {
+// Reminder dates are plain "YYYY-MM-DD" strings in the user's own day, so
+// they're compared as strings against Central time's calendar date --
+// not as Date objects, which would parse them as UTC midnight and put a
+// reminder due today on the wrong side of "now".
+const escapeHtml = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+const centralDateKey = (date) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+
+function buildDigestHtml({ customers, pipelineEntries, reminders, uid, daysAhead, includeOverdue }) {
   const now = new Date();
   const windowEnd = new Date();
   windowEnd.setDate(windowEnd.getDate() + daysAhead);
@@ -61,9 +70,24 @@ function buildDigestHtml({ customers, pipelineEntries, uid, daysAhead, includeOv
     <table style="width:100%;border-collapse:collapse;">${items.map(getRow).join("")}</table>
   ` : "");
 
-  const total = dueThisWeek.length + overdue.length + pipelineDue.length;
+  const todayKey = centralDateKey(now);
+  const windowEndKey = centralDateKey(windowEnd);
+  const myReminders = reminders
+    .filter(r => r.userId === uid && r.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const remindersDue = myReminders.filter(r => r.date >= todayKey && r.date <= windowEndKey);
+  const remindersOverdue = includeOverdue ? myReminders.filter(r => r.date < todayKey) : [];
+  // Reminders open on the dashboard (there's no per-reminder page), and
+  // their notes show under the subject the way a company does for a project.
+  // Subject and notes are free text anyone typed, so escape them before
+  // they go into the email's HTML.
+  const reminderRow = (r) => row(escapeHtml(r.subject), escapeHtml(r.notes), r.date, `${BASE_URL}/dashboard`);
+
+  const total = dueThisWeek.length + overdue.length + pipelineDue.length + remindersDue.length + remindersOverdue.length;
 
   const bodyHtml = `
+    ${section(`Reminders Due Within ${daysAhead} Day${daysAhead === 1 ? "" : "s"}`, remindersDue, reminderRow)}
+    ${section("Overdue Reminders", remindersOverdue, reminderRow)}
     ${section(`Due Within ${daysAhead} Day${daysAhead === 1 ? "" : "s"}`, dueThisWeek, c => row(c.projectName || c.company, c.company, c.nextCheckIn, `${BASE_URL}/dashboard/project/${c.id}`))}
     ${section("Overdue", overdue, c => row(c.projectName || c.company, c.company, c.nextCheckIn, `${BASE_URL}/dashboard/project/${c.id}`))}
     ${section("Pipeline Follow-Ups Coming Up", pipelineDue, p => row(p.title, p.company, p.nextCheckIn, `${BASE_URL}/dashboard/pipeline/${p.id}`))}
@@ -91,15 +115,17 @@ export async function GET(req) {
   }
 
   const db = getAdminDb();
-  const [usersSnap, customersSnap, pipelineSnap] = await Promise.all([
+  const [usersSnap, customersSnap, pipelineSnap, remindersSnap] = await Promise.all([
     db.collection("users").get(),
     db.collection("customers").get(),
-    db.collection("pipeline").get()
+    db.collection("pipeline").get(),
+    db.collection("reminders").get()
   ]);
 
   const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   const customers = customersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   const pipelineEntries = pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const reminders = remindersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
   const testEmail = new URL(req.url).searchParams.get("testEmail");
 
@@ -128,6 +154,7 @@ export async function GET(req) {
         const { html, total } = buildDigestHtml({
           customers,
           pipelineEntries,
+          reminders,
           uid: user.id,
           daysAhead: schedule.daysAhead || 7,
           includeOverdue: schedule.includeOverdue !== false

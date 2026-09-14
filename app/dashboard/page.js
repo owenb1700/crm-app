@@ -752,12 +752,24 @@ export default function Dashboard() {
       <table style="width:100%;border-collapse:collapse;">${items.map(getRow).join("")}</table>
     ` : "");
 
-    const total = dueThisWeek.length + overdue.length + pipelineDue.length;
+    // Same windows as the scheduled digest: reminder dates are local
+    // "YYYY-MM-DD" strings, compared as strings against today's local date.
+    const escapeHtml = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const todayKey = toLocalDateKey(now);
+    const weekOutKey = toLocalDateKey(weekOut);
+    const sortedReminders = [...reminders].filter(r => r.date).sort((a, b) => a.date.localeCompare(b.date));
+    const remindersDue = sortedReminders.filter(r => r.date >= todayKey && r.date <= weekOutKey);
+    const remindersOverdue = sortedReminders.filter(r => r.date < todayKey);
+    const reminderRow = (r) => row(escapeHtml(r.subject), escapeHtml(r.notes), r.date, `${baseUrl}/dashboard`);
+
+    const total = dueThisWeek.length + overdue.length + pipelineDue.length + remindersDue.length + remindersOverdue.length;
 
     return `
       <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;">
         <h2 style="color:#111827;">Your Upcoming Tasks</h2>
         <p style="color:#6b7280;">Test send -- this reflects your real, live data right now.</p>
+        ${section("Reminders Due This Week", remindersDue, reminderRow)}
+        ${section("Overdue Reminders", remindersOverdue, reminderRow)}
         ${section("Due This Week", dueThisWeek, c => row(c.projectName || c.company, c.company, c.nextCheckIn, `${baseUrl}/dashboard/project/${c.id}`))}
         ${section("Overdue", overdue, c => row(c.projectName || c.company, c.company, c.nextCheckIn, `${baseUrl}/dashboard/project/${c.id}`))}
         ${section("Pipeline Follow-Ups Due This Week", pipelineDue, p => row(p.title, p.company, p.nextCheckIn, `${baseUrl}/dashboard/pipeline/${p.id}`))}
