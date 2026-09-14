@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../lib/firebase";
 import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, OWNER_CATEGORY, BLANK_OWNER_ROW, cleanOwnerRows } from "../../../../lib/directory";
+import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
@@ -40,6 +41,7 @@ export default function NewProject() {
 
   const [projectName, setProjectName] = useState("");
   const [company, setCompany] = useState("");
+  const [companyCategory, setCompanyCategory] = useState("Contractor");
   const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -51,7 +53,7 @@ export default function NewProject() {
   const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
   const [ownerRows, setOwnerRows] = useState([]);
 
-  const contractorOptions = companies.filter(c => c.category === "Contractor").map(c => c.name);
+  const contractorOptions = companies.filter(c => c.category === companyCategory).map(c => c.name);
   const ownerOptions = companies.filter(c => c.category === OWNER_CATEGORY).map(c => c.name);
   const contactsForCompany = (name) => contacts.filter(
     c => (c.companyName || "").toLowerCase() === (name || "").toLowerCase()
@@ -210,6 +212,7 @@ export default function NewProject() {
       const ref = await addDoc(collection(db, "customers"), {
         projectName,
         company,
+        companyCategory,
         contact,
         email,
         phone,
@@ -237,7 +240,7 @@ export default function NewProject() {
       });
 
       await ensureCompanyAndContactBatch([
-        { companyName: company, category: "Contractor", contactName: contact, email, phone },
+        { companyName: company, category: companyCategory, contactName: contact, email, phone },
         ...owners.map(r => ({ companyName: r.company, category: OWNER_CATEGORY, contactName: r.contact, email: r.email, phone: r.phone }))
       ], { companies, contacts, uid });
 
@@ -285,14 +288,16 @@ export default function NewProject() {
         <div className="project-section">
           <input className="field" autoComplete="off" placeholder="Project Name" value={projectName} onChange={e => setProjectName(e.target.value)} />
 
+          <FirmTypeSelect id="new-project-company-type" value={companyCategory} onChange={setCompanyCategory} />
+
           <div>
-            <label className="field-label">Contractor</label>
+            <label className="field-label">{companyCategory}</label>
             <SearchableSelect
               options={contractorOptions}
               value={company}
               onChange={setCompany}
-              placeholder="Select or search contractor..."
-              newLabel="contractor"
+              placeholder={`Select or search ${companyCategory.toLowerCase()}...`}
+              newLabel={companyCategory.toLowerCase()}
             />
           </div>
 

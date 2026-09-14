@@ -7,6 +7,7 @@ import { auth, db } from "../../../lib/firebase";
 import { doc, getDoc, getDocs, collection, addDoc } from "firebase/firestore";
 import { COMPANY_CATEGORIES, CATEGORY_TITLES } from "../../../lib/directory";
 import DashboardHeader from "../../components/DashboardHeader";
+import AddressAutocomplete from "../../components/AddressAutocomplete";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -31,6 +32,8 @@ function DirectoryPageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newAddress, setNewAddress] = useState("");
   // Adding a company from a filtered view defaults to that view's category.
   const [newCategory, setNewCategory] = useState(COMPANY_CATEGORIES.includes(categoryFilter) ? categoryFilter : "Contractor");
 
@@ -118,8 +121,8 @@ function DirectoryPageContent() {
     await addDoc(collection(db, "companies"), {
       name: newName.trim(),
       category: newCategory,
-      phone: null,
-      address: null,
+      phone: newPhone.trim() || null,
+      address: newAddress.trim() || null,
       website: null,
       notes: null,
       createdAt: new Date().toISOString(),
@@ -127,6 +130,8 @@ function DirectoryPageContent() {
     });
 
     setNewName("");
+    setNewPhone("");
+    setNewAddress("");
     setNewCategory(COMPANY_CATEGORIES.includes(categoryFilter) ? categoryFilter : "Contractor");
     setShowAddModal(false);
     loadAll();
@@ -250,6 +255,12 @@ function DirectoryPageContent() {
             <select className="field" value={newCategory} onChange={e => setNewCategory(e.target.value)}>
               {COMPANY_CATEGORIES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
             </select>
+
+            <label className="field-label" htmlFor="add-company-phone">Phone (optional)</label>
+            <input id="add-company-phone" className="field" autoComplete="off" value={newPhone} onChange={e => setNewPhone(e.target.value)} />
+
+            <label className="field-label" htmlFor="add-company-address">Address (optional)</label>
+            <AddressAutocomplete id="add-company-address" name="add-company-address" placeholder="Company Address" value={newAddress} onChange={setNewAddress} />
 
             <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={addCompany}>Add</button>
           </div>

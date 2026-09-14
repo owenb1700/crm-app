@@ -797,12 +797,17 @@ a {
   margin-bottom: 8px;
 }
 
+.bidding-company-row.with-type {
+  grid-template-columns: minmax(150px, 0.8fr) repeat(4, 1fr) auto;
+}
+
 .bidding-company-row .field {
   margin-bottom: 0;
 }
 
 @media (max-width: 700px) {
-  .bidding-company-row {
+  .bidding-company-row,
+  .bidding-company-row.with-type {
     grid-template-columns: 1fr 1fr;
   }
 }

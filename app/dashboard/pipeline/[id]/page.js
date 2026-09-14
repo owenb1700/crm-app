@@ -17,7 +17,8 @@ import {
   arrayRemove
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { ensureCompanyAndContactBatch } from "../../../../lib/directory";
+import { ensureCompanyAndContactBatch, firmTypeOf } from "../../../../lib/directory";
+import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
@@ -215,7 +216,7 @@ export default function PipelineDetail() {
   };
 
   const addBiddingRow = () => {
-    setBiddingRows(prev => [...prev, { company: "", contact: "", email: "", phone: "" }]);
+    setBiddingRows(prev => [...prev, { category: "Contractor", company: "", contact: "", email: "", phone: "" }]);
   };
 
   const updateBiddingRow = (index, field, value) => {
@@ -243,7 +244,7 @@ export default function PipelineDetail() {
       { companyName: editData.company, category: "Engineering Firm", contactName: editData.contact, email: editData.email, phone: editData.phone },
       ...biddingRows
         .filter(r => r.company || r.contact)
-        .map(r => ({ companyName: r.company, category: "Contractor", contactName: r.contact, email: r.email, phone: r.phone }))
+        .map(r => ({ companyName: r.company, category: firmTypeOf(r.category), contactName: r.contact, email: r.email, phone: r.phone }))
     ];
     await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });
     await ensureTowerModel({ towerModels, manufacturer: editData.towerManufacturer, model: editData.modelNumber, uid });
@@ -566,15 +567,16 @@ export default function PipelineDetail() {
               <AddressAutocomplete name="pipeline-detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
             </div>
 
-            <h4 className="field-label" style={{ marginTop: 16 }}>Contractors Bidding</h4>
+            <h4 className="field-label" style={{ marginTop: 16 }}>Contractors & Owners Bidding</h4>
             {biddingRows.map((row, i) => (
-              <div key={i} className="bidding-company-row">
+              <div key={i} className="bidding-company-row with-type">
+                <FirmTypeSelect id={`pipeline-detail-bidder-type-${i}`} value={firmTypeOf(row.category)} onChange={v => updateBiddingRow(i, "category", v)} />
                 <CompanyContactFields
                   idPrefix={`pipeline-detail-bidder-${i}`}
                   companies={companies}
                   contacts={contacts}
-                  companyLabel="Contractor"
-                  companyCategory="Contractor"
+                  companyLabel={firmTypeOf(row.category)}
+                  companyCategory={firmTypeOf(row.category)}
                   companyValue={row.company}
                   contactValue={row.contact}
                   emailValue={row.email}
@@ -587,7 +589,7 @@ export default function PipelineDetail() {
                 <button className="btn btn-danger" onClick={() => removeBiddingRow(i)}>Remove</button>
               </div>
             ))}
-            <button className="btn btn-secondary" onClick={addBiddingRow}>+ Add Contractor</button>
+            <button className="btn btn-secondary" onClick={addBiddingRow}>+ Add Bidder</button>
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Assigned Team</h4>
             <div className="form-grid-2">
@@ -651,13 +653,14 @@ export default function PipelineDetail() {
             </div>
 
             <div className="project-section">
-              <h4 className="field-label">Contractors Bidding</h4>
+              <h4 className="field-label">Contractors & Owners Bidding</h4>
               {(pipeline.biddingCompanies || []).length === 0 && (
                 <p className="private-note-hint">None added yet.</p>
               )}
               {(pipeline.biddingCompanies || []).map((row, i) => (
                 <div key={i} className="notes-history-item">
                   <div><strong>{row.company}</strong>{row.contact ? ` — ${row.contact}` : ""}</div>
+                  <div className="notes-history-date">{firmTypeOf(row.category)}</div>
                   <div className="notes-history-date">{[row.email, formatPhone(row.phone)].filter(Boolean).join(" | ")}</div>
                 </div>
               ))}
@@ -808,9 +811,9 @@ export default function PipelineDetail() {
           <div className="modal-card">
             <button className="modal-close" onClick={() => setShowWonModal(false)}>✕</button>
             <h3 className="modal-title">Mark as Won</h3>
-            <p className="modal-subtitle">Which contractor won the job?</p>
+            <p className="modal-subtitle">Which contractor or owner won the job?</p>
 
-            <label className="field-label">Winning Contractor</label>
+            <label className="field-label">Winning Firm</label>
             <input className="field" list="won-contractor-options" autoComplete="off" value={wonContractor} onChange={e => setWonContractor(e.target.value)} />
             <datalist id="won-contractor-options">
               {Array.from(new Set((pipeline.biddingCompanies || []).map(b => b.company).filter(Boolean))).map(name => (

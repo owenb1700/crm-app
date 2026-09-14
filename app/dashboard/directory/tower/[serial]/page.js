@@ -161,12 +161,12 @@ export default function TowerDetail() {
   };
 
   projects.forEach(p => {
-    addPerson(p.company, p.contact, "Contractor");
+    addPerson(p.company, p.contact, p.companyCategory || "Contractor");
     (p.owners || []).forEach(o => addPerson(o.company, o.contact, "Owner / Building Engineer"));
   });
   pipelineJobs.forEach(p => {
     addPerson(p.company, p.contact, "Engineering Firm");
-    (p.biddingCompanies || []).forEach(b => addPerson(b.company, b.contact, "Contractor"));
+    (p.biddingCompanies || []).forEach(b => addPerson(b.company, b.contact, b.category || "Contractor"));
   });
 
   const associated = Array.from(peopleMap.values());

@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 import { COMPANY_CATEGORIES, propagateContactUpdate } from "../../../../../lib/directory";
 import DashboardHeader from "../../../../components/DashboardHeader";
+import AddressAutocomplete from "../../../../components/AddressAutocomplete";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -384,7 +385,7 @@ export default function CompanyDetail() {
             <input className="field" autoComplete="off" value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
 
             <h4 className="field-label">Address</h4>
-            <input className="field" autoComplete="off" value={editData.address} onChange={e => setEditData({ ...editData, address: e.target.value })} />
+            <AddressAutocomplete id="company-edit-address" name="company-edit-address" placeholder="Company Address" value={editData.address} onChange={v => setEditData({ ...editData, address: v })} />
 
             <h4 className="field-label">Website</h4>
             <input className="field" autoComplete="off" value={editData.website} onChange={e => setEditData({ ...editData, website: e.target.value })} />

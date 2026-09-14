@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../lib/firebase";
 import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
-import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone } from "../../../../lib/directory";
+import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, firmTypeOf } from "../../../../lib/directory";
+import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import SearchableSelect from "../../../components/SearchableSelect";
@@ -13,7 +14,7 @@ import DashboardHeader from "../../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Design", "Budgeting"];
-const BLANK_BIDDER_ROW = { company: "", contact: "", email: "", phone: "" };
+const BLANK_BIDDER_ROW = { category: "Contractor", company: "", contact: "", email: "", phone: "" };
 const BLANK_EQUIPMENT_ROW = { manufacturer: "", model: "" };
 
 const clearSession = () => {
@@ -50,7 +51,7 @@ export default function NewPipelineEntry() {
   const [notes, setNotes] = useState("");
 
   const engineeringFirmOptions = companies.filter(c => c.category === "Engineering Firm").map(c => c.name);
-  const contractorOptions = companies.filter(c => c.category === "Contractor").map(c => c.name);
+  const firmOptions = (type) => companies.filter(c => c.category === firmTypeOf(type)).map(c => c.name);
   const contactsForCompany = (name) => contacts.filter(
     c => (c.companyName || "").toLowerCase() === (name || "").toLowerCase()
   );
@@ -245,7 +246,7 @@ export default function NewPipelineEntry() {
 
       const captureEntries = [
         { companyName: company, category: "Engineering Firm", contactName: contact, email, phone },
-        ...cleanBidders.map(r => ({ companyName: r.company, category: "Contractor", contactName: r.contact, email: r.email, phone: r.phone }))
+        ...cleanBidders.map(r => ({ companyName: r.company, category: firmTypeOf(r.category), contactName: r.contact, email: r.email, phone: r.phone }))
       ];
       await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });
       await Promise.all(
@@ -344,17 +345,18 @@ export default function NewPipelineEntry() {
         </div>
 
         <div className="project-section">
-          <h4 className="field-label" style={{ marginTop: 0 }}>Contractors Bidding (optional)</h4>
+          <h4 className="field-label" style={{ marginTop: 0 }}>Contractors & Owners Bidding (optional)</h4>
           {biddingCompanies.map((row, i) => (
-            <div key={i} className="bidding-company-row">
+            <div key={i} className="bidding-company-row with-type">
+              <FirmTypeSelect id={`new-pipeline-bidder-type-${i}`} value={firmTypeOf(row.category)} onChange={v => updateBiddingCompanyRow(i, "category", v)} />
               <div>
-                <label className="field-label">Contractor</label>
+                <label className="field-label">{firmTypeOf(row.category)}</label>
                 <SearchableSelect
-                  options={contractorOptions}
+                  options={firmOptions(row.category)}
                   value={row.company}
                   onChange={v => updateBiddingCompanyRow(i, "company", v)}
-                  placeholder="Select or search contractor..."
-                  newLabel="contractor"
+                  placeholder={`Select or search ${firmTypeOf(row.category).toLowerCase()}...`}
+                  newLabel={firmTypeOf(row.category).toLowerCase()}
                 />
               </div>
               <div>
@@ -378,7 +380,7 @@ export default function NewPipelineEntry() {
               <button className="btn btn-danger" onClick={() => removeBiddingCompanyRow(i)}>Remove</button>
             </div>
           ))}
-          <button className="btn btn-secondary" onClick={addBiddingCompanyRow}>+ Add Contractor</button>
+          <button className="btn btn-secondary" onClick={addBiddingCompanyRow}>+ Add Bidder</button>
         </div>
 
         <div className="project-section">

@@ -13,7 +13,8 @@ import {
   getDocs
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { ensureCompanyAndContactBatch, OWNER_CATEGORY, BLANK_OWNER_ROW, cleanOwnerRows } from "../../../../lib/directory";
+import { ensureCompanyAndContactBatch, OWNER_CATEGORY, BLANK_OWNER_ROW, cleanOwnerRows, firmTypeOf } from "../../../../lib/directory";
+import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import { equipmentRowsFrom as sharedEquipmentRowsFrom } from "../../../../lib/equipment";
@@ -45,7 +46,7 @@ const formatBytes = (bytes) => {
 };
 
 const EDITABLE_FIELDS = [
-  "projectName", "company", "contact", "email", "phone", "category", "projectValue",
+  "projectName", "company", "companyCategory", "contact", "email", "phone", "category", "projectValue",
   "nextCheckIn", "lastContact", "projectAddress"
 ];
 
@@ -206,6 +207,7 @@ export default function ProjectDetail() {
     setEditData({
       projectName: customer.projectName || "",
       company: customer.company || "",
+      companyCategory: firmTypeOf(customer.companyCategory),
       contact: customer.contact || "",
       email: customer.email || "",
       phone: customer.phone || "",
@@ -274,7 +276,7 @@ export default function ProjectDetail() {
     await updateDoc(doc(db, "customers", projectId), payload);
 
     await ensureCompanyAndContactBatch([
-      { companyName: editData.company, category: "Contractor", contactName: editData.contact, email: editData.email, phone: editData.phone },
+      { companyName: editData.company, category: editData.companyCategory, contactName: editData.contact, email: editData.email, phone: editData.phone },
       ...owners.map(r => ({ companyName: r.company, category: OWNER_CATEGORY, contactName: r.contact, email: r.email, phone: r.phone }))
     ], { companies, contacts, uid });
 
@@ -459,12 +461,13 @@ export default function ProjectDetail() {
             <h4 className="field-label">Project Name</h4>
             <input className="field" name="detail-projectName" autoComplete="off" value={editData.projectName} onChange={e => setEditData({ ...editData, projectName: e.target.value })} />
 
+            <FirmTypeSelect id="project-detail-company-type" value={editData.companyCategory} onChange={v => setEditData({ ...editData, companyCategory: v })} />
             <CompanyContactFields
               idPrefix="project-detail"
               companies={companies}
               contacts={contacts}
-              companyLabel="Contractor"
-              companyCategory="Contractor"
+              companyLabel={editData.companyCategory}
+              companyCategory={editData.companyCategory}
               companyValue={editData.company}
               contactValue={editData.contact}
               emailValue={editData.email}
@@ -578,6 +581,7 @@ export default function ProjectDetail() {
           <>
             <div className="project-section">
               <h4 className="field-label">Contact Info</h4>
+              <p><strong>{firmTypeOf(customer.companyCategory)}:</strong> {customer.company || "—"}</p>
               <p><strong>Contact:</strong> {customer.contact || "—"}</p>
               <p><strong>Email:</strong> {customer.email || "—"}</p>
               <p><strong>Phone:</strong> {formatPhone(customer.phone) || "—"}</p>

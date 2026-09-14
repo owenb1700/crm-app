@@ -23,7 +23,8 @@ import {
   query,
   where
 } from "firebase/firestore";
-import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY } from "../../lib/directory";
+import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf } from "../../lib/directory";
+import FirmTypeSelect from "../components/FirmTypeSelect";
 import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
 
@@ -306,7 +307,7 @@ export default function Dashboard() {
 
       customers.forEach(c => {
         captureEntries.push({
-          companyName: c.company, category: "Contractor",
+          companyName: c.company, category: firmTypeOf(c.companyCategory),
           contactName: c.contact, email: c.email, phone: c.phone
         });
         (c.owners || []).forEach(o => {
@@ -324,7 +325,7 @@ export default function Dashboard() {
         });
         (p.biddingCompanies || []).forEach(b => {
           captureEntries.push({
-            companyName: b.company, category: "Contractor",
+            companyName: b.company, category: firmTypeOf(b.category),
             contactName: b.contact, email: b.email, phone: b.phone
           });
         });
@@ -828,6 +829,7 @@ export default function Dashboard() {
     setEditData({
       projectName: c.projectName || c.company || "",
       company: c.company || "",
+      companyCategory: firmTypeOf(c.companyCategory),
       contact: c.contact || "",
       email: c.email || "",
       phone: c.phone || "",
@@ -853,7 +855,7 @@ export default function Dashboard() {
     await updateDoc(doc(db, "customers", editingId), payload);
 
     ensureCompanyAndContact({
-      companies, contacts, companyName: editData.company, category: "Contractor",
+      companies, contacts, companyName: editData.company, category: editData.companyCategory,
       contactName: editData.contact, email: editData.email, phone: editData.phone, uid
     }).then(loadDirectory);
 
@@ -1868,12 +1870,13 @@ export default function Dashboard() {
                   {editingId === c.id ? (
                     <>
                       <input className="field" name={`edit-projectName-${c.id}`} autoComplete="off" placeholder="Project Name" value={editData.projectName} onChange={e => setEditData({ ...editData, projectName: e.target.value })} />
+                      <FirmTypeSelect id={`edit-project-type-${c.id}`} value={editData.companyCategory} onChange={v => setEditData({ ...editData, companyCategory: v })} />
                       <CompanyContactFields
                         idPrefix={`edit-project-${c.id}`}
                         companies={companies}
                         contacts={contacts}
-                        companyLabel="Contractor"
-                        companyCategory="Contractor"
+                        companyLabel={editData.companyCategory}
+                        companyCategory={editData.companyCategory}
                         companyValue={editData.company}
                         contactValue={editData.contact}
                         emailValue={editData.email}
