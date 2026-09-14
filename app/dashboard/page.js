@@ -126,7 +126,7 @@ export default function Dashboard() {
   // COMPLETED
   const [completedTarget, setCompletedTarget] = useState(null);
   const [completedOutcome, setCompletedOutcome] = useState("Won");
-  const [wonStartDate, setWonStartDate] = useState("");
+  const [wonNextDate, setWonNextDate] = useState("");
   const [lostNotes, setLostNotes] = useState("");
   const [lostTo, setLostTo] = useState("");
   const [prospectingNextDate, setProspectingNextDate] = useState(() => {
@@ -944,7 +944,7 @@ export default function Dashboard() {
   const openCompletedPopup = (c) => {
     setCompletedTarget(c);
     setCompletedOutcome("Won");
-    setWonStartDate("");
+    setWonNextDate("");
     setLostNotes("");
     setLostTo("");
     const d = new Date();
@@ -953,8 +953,8 @@ export default function Dashboard() {
   };
 
   const confirmCompleted = async () => {
-    if (completedOutcome === "Won" && !wonStartDate) {
-      return alert("Please enter the estimated job start date");
+    if (completedOutcome === "Won" && !wonNextDate) {
+      return alert("Please choose the next due date");
     }
     if (completedOutcome === "Lost" && !lostNotes.trim()) {
       return alert("Please enter why the job was lost");
@@ -963,11 +963,12 @@ export default function Dashboard() {
       return alert("Please choose the next alert date");
     }
 
-    // Marking a project completed closes it out the same way changing its
-    // category to "Project Closed" does: it drops off My Dashboard and
-    // moves into Past Projects. What happens next depends on the outcome:
-    // - Won: comes back to My Dashboard (as an Ongoing Project) 2 weeks
-    //   before the job start date, with an alert.
+    // What happens depends on the outcome:
+    // - Won: the project does NOT close. It stays on My Dashboard as an
+    //   Ongoing Project, due on the chosen next date; the win is recorded
+    //   in the activity log.
+    // - Otherwise it closes out the same way changing its category to
+    //   "Project Closed" does: it drops off My Dashboard into Past Projects.
     // - Prospecting Only: comes back to My Dashboard (as Prospecting) on
     //   the chosen next-alert date (default 3 months), with an alert to
     //   reach out to the contractor. Picking Prospecting Only again from
@@ -979,7 +980,7 @@ export default function Dashboard() {
       type: "completed",
       outcome: completedOutcome,
       timestamp: new Date().toISOString(),
-      ...(completedOutcome === "Won" && { startDate: wonStartDate }),
+      ...(completedOutcome === "Won" && { nextDueDate: wonNextDate }),
       ...(completedOutcome === "Lost" && { notes: lostNotes.trim(), lostTo: lostTo.trim() || null })
     };
 
@@ -993,13 +994,19 @@ export default function Dashboard() {
       ]
     };
 
+    // Picked dates are read as local calendar dates -- new Date("YYYY-MM-DD")
+    // would parse as UTC midnight and land a day early (then get
+    // weekend-adjusted wrong) for anyone west of UTC.
+    const pickedDate = (key) => toLocalDateKey(skipWeekend(fromLocalDateKey(key)));
+
     if (completedOutcome === "Won") {
-      const start = new Date(wonStartDate);
-      start.setDate(start.getDate() - 14);
-      payload.nextCheckIn = adjustWeekend(start.toISOString());
-      payload.wonStartDate = wonStartDate;
+      payload.category = "Ongoing Project";
+      payload.closedOutcome = null;
+      payload.closedAt = null;
+      payload.wonAt = entry.timestamp;
+      payload.nextCheckIn = pickedDate(wonNextDate);
     } else if (completedOutcome === "Prospecting Only") {
-      payload.nextCheckIn = adjustWeekend(new Date(prospectingNextDate).toISOString());
+      payload.nextCheckIn = pickedDate(prospectingNextDate);
     } else {
       payload.nextCheckIn = null;
     }
@@ -1013,11 +1020,13 @@ export default function Dashboard() {
 
     setCompletedTarget(null);
     setCompletedOutcome("Won");
-    setWonStartDate("");
+    setWonNextDate("");
     setLostNotes("");
     setLostTo("");
 
-    showToast("Marked completed — moved to Past Projects");
+    showToast(completedOutcome === "Won"
+      ? `Marked won — stays on My Dashboard, next due ${payload.nextCheckIn}`
+      : "Marked completed — moved to Past Projects");
     loadCustomers(uid, role === "admin");
   };
 
@@ -2153,8 +2162,9 @@ export default function Dashboard() {
               <div className="modal-card">
                 <h3 className="modal-title">Mark Completed</h3>
                 <p className="modal-subtitle" style={{ marginBottom: 12 }}>
-                  This closes the project out and moves it to Past Projects.{" "}
-                  {completedOutcome === "Won" && "You'll be alerted and it'll move back to My Dashboard 2 weeks before the job starts."}
+                  {completedOutcome === "Won"
+                    ? "The project stays on My Dashboard as an Ongoing Project, due on the date below."
+                    : "This closes the project out and moves it to Past Projects. "}
                   {completedOutcome === "Lost" && "No further alerts -- it stays in Past Projects until someone moves it back."}
                   {completedOutcome === "Not Pursuing" && "No further alerts -- it stays in Past Projects until someone moves it back."}
                   {completedOutcome === "Prospecting Only" && "You'll be alerted and it'll move back to My Dashboard on the date below to reach out to the contractor."}
@@ -2170,8 +2180,8 @@ export default function Dashboard() {
 
                 {completedOutcome === "Won" && (
                   <div style={{ marginTop: 10 }}>
-                    <label className="field-label">Estimated Job Start Date</label>
-                    <input className="field" type="date" value={wonStartDate} onChange={e => setWonStartDate(e.target.value)} />
+                    <label className="field-label" htmlFor="won-next-date">Next Due Date</label>
+                    <input id="won-next-date" className="field" type="date" value={wonNextDate} onChange={e => setWonNextDate(e.target.value)} />
                   </div>
                 )}
 
