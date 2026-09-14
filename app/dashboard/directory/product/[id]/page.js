@@ -142,7 +142,7 @@ export default function ProductDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load this product</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/products")}>Back to Products</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/products")}>Back to Product Options</button>
         </div>
       </div>
     );
@@ -153,7 +153,7 @@ export default function ProductDetail() {
       <div className="dashboard-page">
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Product not found</h3>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/products")}>Back to Products</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/products")}>Back to Product Options</button>
         </div>
       </div>
     );
@@ -171,7 +171,7 @@ export default function ProductDetail() {
           <h1 className="dashboard-title">Product</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/products")}>← Back to Products</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/products")}>← Back to Product Options</button>
           <DashboardHeader uid={uid} />
         </div>
       </div>

@@ -51,8 +51,8 @@ const PERMISSION_DEFS = [
   { key: "team", label: "Team" },
   { key: "pipeline", label: "Pipeline" },
   { key: "directory", label: "Directory (Companies & Contacts)" },
-  { key: "towers", label: "Towers & Tower Models" },
-  { key: "products", label: "Products" }
+  { key: "towers", label: "Installed Towers & Tower Models" },
+  { key: "products", label: "Product Options" }
 ];
 const DEFAULT_PERMISSIONS = PERMISSION_DEFS.reduce((acc, p) => ({ ...acc, [p.key]: true }), {});
 
@@ -95,6 +95,12 @@ export default function Dashboard() {
   const [users, setUsers] = useState([]);
   const [pipelineEntries, setPipelineEntries] = useState([]);
   const [pipelineFilterOwner, setPipelineFilterOwner] = useState("all");
+
+  // REMINDERS: personal, private to whoever made them
+  const [reminders, setReminders] = useState([]);
+  const [remindersError, setRemindersError] = useState(null);
+  const [reminderForm, setReminderForm] = useState(null); // null = closed; { id?, subject, date, notes }
+  const [savingReminder, setSavingReminder] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [towerModels, setTowerModels] = useState([]);
@@ -285,6 +291,101 @@ export default function Dashboard() {
     ]);
     setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+  };
+
+  // Reminder dates are plain "YYYY-MM-DD" strings in the user's own local
+  // time -- built and read with local Date parts, never toISOString(),
+  // which would shift the date a day back for anyone west of UTC.
+  const toLocalDateKey = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const fromLocalDateKey = (key) => {
+    const [y, m, d] = (key || "").split("-").map(Number);
+    return y ? new Date(y, m - 1, d) : new Date();
+  };
+  const skipWeekend = (d) => {
+    const next = new Date(d);
+    if (next.getDay() === 6) next.setDate(next.getDate() + 2);
+    if (next.getDay() === 0) next.setDate(next.getDate() + 1);
+    return next;
+  };
+
+  const loadReminders = async (currentUid) => {
+    const snap = await getDocs(query(collection(db, "reminders"), where("userId", "==", currentUid)));
+    setReminders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setRemindersError(null);
+  };
+
+  const openNewReminder = () => {
+    setReminderForm({ subject: "", date: toLocalDateKey(new Date()), notes: "" });
+  };
+
+  const openEditReminder = (r) => {
+    setReminderForm({ id: r.id, subject: r.subject || "", date: r.date || toLocalDateKey(new Date()), notes: r.notes || "" });
+  };
+
+  const saveReminder = async () => {
+    const subject = reminderForm.subject.trim();
+    if (!subject) return alert("Enter a subject for this reminder");
+
+    // Weekend dates move to Monday, same as project check-ins -- the
+    // calendar only shows weekdays, so a Saturday reminder would never
+    // appear on it.
+    const date = toLocalDateKey(skipWeekend(fromLocalDateKey(reminderForm.date)));
+    const notes = reminderForm.notes.trim() || null;
+
+    setSavingReminder(true);
+    try {
+      if (reminderForm.id) {
+        await updateDoc(doc(db, "reminders", reminderForm.id), { subject, date, notes });
+      } else {
+        await addDoc(collection(db, "reminders"), {
+          userId: uid,
+          subject,
+          date,
+          notes,
+          createdAt: new Date().toISOString()
+        });
+      }
+      setReminderForm(null);
+      showToast(reminderForm.id ? "Reminder updated" : `Reminder added for ${date}`);
+      await loadReminders(uid);
+    } catch (err) {
+      alert(`Couldn't save this reminder: ${err.message}`);
+    } finally {
+      setSavingReminder(false);
+    }
+  };
+
+  const completeReminder = async (r) => {
+    if (!window.confirm(`Mark "${r.subject}" complete? It will be deleted permanently.`)) return;
+    try {
+      await deleteDoc(doc(db, "reminders", r.id));
+      setReminders(prev => prev.filter(x => x.id !== r.id));
+      setReminderForm(null);
+      showToast("Reminder completed");
+    } catch (err) {
+      alert(`Couldn't complete this reminder: ${err.message}`);
+    }
+  };
+
+  const followUpReminder = async (r) => {
+    const next = fromLocalDateKey(r.date);
+    next.setDate(next.getDate() + 14);
+    const date = toLocalDateKey(skipWeekend(next));
+    try {
+      await updateDoc(doc(db, "reminders", r.id), { date });
+      setReminders(prev => prev.map(x => (x.id === r.id ? { ...x, date } : x)));
+      setReminderForm(null);
+      showToast(`Reminder moved to ${date}`);
+    } catch (err) {
+      alert(`Couldn't move this reminder: ${err.message}`);
+    }
+  };
+
+  const reminderDaysAway = (r) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((fromLocalDateKey(r.date) - today) / (1000 * 60 * 60 * 24));
   };
 
   const loadTowerModels = async () => {
@@ -779,6 +880,14 @@ export default function Dashboard() {
           await loadPipeline();
           await loadDirectory();
           await loadTowerModels();
+          // Same isolation as the alerts bell below: reminders failing to
+          // load (e.g. the Firestore rule isn't published yet) shows an
+          // error where reminders appear instead of breaking the dashboard.
+          try {
+            await loadReminders(user.uid);
+          } catch (err) {
+            setRemindersError(err.message || "Couldn't load reminders.");
+          }
           // A broken alerts bell shouldn't take down the whole dashboard,
           // but the failure still needs to be visible -- an empty list
           // must never be indistinguishable from "nothing to show."
@@ -1229,8 +1338,18 @@ export default function Dashboard() {
       .filter(p => (p.projectPointPersonId || p.salespersonId || p.ownerId) === uid)
       .map(p => ({ ...p, _kind: "pipeline", projectName: p.title }));
 
-    return [...projectItems, ...pipelineFollowUps];
-  }, [customers, pipelineEntries, uid]);
+    const reminderItems = reminders.map(r => ({ ...r, _kind: "reminder", projectName: r.subject, nextCheckIn: r.date }));
+
+    return [...projectItems, ...pipelineFollowUps, ...reminderItems];
+  }, [customers, pipelineEntries, reminders, uid]);
+
+  const openCalendarItem = (c) => {
+    if (c._kind === "reminder") {
+      openEditReminder(c);
+    } else {
+      router.push(c._kind === "pipeline" ? `/dashboard/pipeline/${c.id}` : `/dashboard/project/${c.id}`);
+    }
+  };
 
   const projectsByDay = useMemo(() => {
     const map = {};
@@ -1393,6 +1512,38 @@ export default function Dashboard() {
   const myPermissions = role === "admin"
     ? PERMISSION_DEFS.reduce((acc, p) => ({ ...acc, [p.key]: true }), {})
     : { ...DEFAULT_PERMISSIONS, ...(myProfile?.permissions || {}) };
+
+  // One reminder card for My Dashboard -- same card shape and overdue /
+  // due-soon edge color as a project, with its own Follow Up and Complete.
+  const renderReminderCard = (r) => {
+    const days = reminderDaysAway(r);
+    let barClass = "badge-bar-ok";
+    if (days <= 0) barClass = "badge-bar-overdue";
+    else if (days <= 2) barClass = "badge-bar-soon";
+
+    return (
+      <div
+        key={`reminder-${r.id}`}
+        className={`customer-card ${barClass}`}
+        onClick={() => openEditReminder(r)}
+        style={{ cursor: "pointer" }}
+      >
+        <div className="customer-card-left">
+          <div className="customer-name">{r.subject}</div>
+          <span className="role-badge" style={{ marginTop: 6 }}>🔔 Reminder</span>
+          <div className="customer-dates">Due: {r.date}</div>
+        </div>
+        <div className="customer-card-middle customer-notes-preview">
+          {r.notes ? <div style={{ whiteSpace: "pre-wrap" }}>{r.notes}</div> : <div className="private-note-hint">No notes</div>}
+        </div>
+        <div className="customer-card-right" onClick={e => e.stopPropagation()}>
+          <button className="btn btn-secondary" onClick={() => followUpReminder(r)}>Follow Up (2 Weeks)</button>
+          <button className="btn btn-primary" onClick={() => completeReminder(r)}>Complete</button>
+          <button className="btn btn-secondary" onClick={() => openEditReminder(r)}>Edit</button>
+        </div>
+      </div>
+    );
+  };
 
   if (loadError) {
     return (
@@ -1681,10 +1832,10 @@ export default function Dashboard() {
                     </>
                   )}
                   {myPermissions.towers && (
-                    <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory/towers")}>Towers</a>
+                    <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory/towers")}>Installed Towers</a>
                   )}
                   {myPermissions.products && (
-                    <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory/products")}>Products</a>
+                    <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory/products")}>Product Options</a>
                   )}
                 </div>
               </div>
@@ -1715,6 +1866,9 @@ export default function Dashboard() {
               router.push(`/dashboard/search?q=${encodeURIComponent(globalSearchQuery.trim())}`);
             }}
           >
+            {(view === "home" || view === "personal") && (
+              <button className="btn btn-primary" type="button" onClick={openNewReminder}>+ Add Reminder</button>
+            )}
             <input
               className="field global-search-input"
               placeholder="Search everything..."
@@ -1750,9 +1904,9 @@ export default function Dashboard() {
                     <div className="calendar-day-events">
                       {dayProjects.slice(0, 3).map(c => (
                         <div
-                          key={c.id}
-                          className="calendar-event-pill"
-                          onClick={(e) => { e.stopPropagation(); router.push(c._kind === "pipeline" ? `/dashboard/pipeline/${c.id}` : `/dashboard/project/${c.id}`); }}
+                          key={`${c._kind}-${c.id}`}
+                          className={`calendar-event-pill ${c._kind === "reminder" ? "calendar-event-pill-reminder" : ""}`}
+                          onClick={(e) => { e.stopPropagation(); openCalendarItem(c); }}
                         >
                           {c.projectName || c.company}
                         </div>
@@ -1777,25 +1931,40 @@ export default function Dashboard() {
               )}
             </div>
 
+            {remindersError && (
+              <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ Couldn't load your reminders: {remindersError}</p>
+            )}
+
             {panelProjects.length === 0 && (
               <p className="private-note-hint">Nothing due.</p>
             )}
 
             {panelProjects.map(c => (
               <div
-                key={c.id}
+                key={`${c._kind}-${c.id}`}
                 className="calendar-panel-item"
-                onClick={() => router.push(c._kind === "pipeline" ? `/dashboard/pipeline/${c.id}` : `/dashboard/project/${c.id}`)}
+                onClick={() => openCalendarItem(c)}
               >
                 <div className="customer-name" style={{ fontSize: 14 }}>{c.projectName || c.company}</div>
                 {c.company && c.projectName && c.projectName !== c.company && (
                   <div className="customer-meta">{c.company}</div>
                 )}
+                {c._kind === "reminder" && c.notes && (
+                  <div className="customer-meta" style={{ whiteSpace: "pre-wrap" }}>{c.notes}</div>
+                )}
                 <div className="customer-dates">Due: {formatDate(c.nextCheckIn)}</div>
                 {c._kind === "pipeline" ? (
                   <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>✅ Won — Check In</span>
+                ) : c._kind === "reminder" ? (
+                  <span className="role-badge" style={{ marginTop: 4 }}>🔔 Reminder</span>
                 ) : (
                   c.category && <span className="role-badge" style={{ marginTop: 4 }}>{c.category}</span>
+                )}
+                {c._kind === "reminder" && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                    <button className="btn btn-secondary" onClick={() => followUpReminder(c)}>Follow Up (2 Weeks)</button>
+                    <button className="btn btn-primary" onClick={() => completeReminder(c)}>Complete</button>
+                  </div>
                 )}
                 {/* Won/Prospecting Only closed projects reactivate themselves
                     automatically once due (see reactivateDueClosedProjects) --
@@ -2008,6 +2177,12 @@ export default function Dashboard() {
               </div>
             ) };
           }),
+            ...reminders
+              .filter(r => {
+                const q = searchQuery.trim().toLowerCase();
+                return !q || (r.subject || "").toLowerCase().includes(q) || (r.notes || "").toLowerCase().includes(q);
+              })
+              .map(r => ({ sortKey: fromLocalDateKey(r.date).getTime(), element: renderReminderCard(r) })),
             ...myPipelineEntries.map(p => ({
               sortKey: p.bidDate ? new Date(p.bidDate).getTime() : Infinity,
               element: (
@@ -2030,7 +2205,11 @@ export default function Dashboard() {
             }))
           ].sort((a, b) => a.sortKey - b.sortKey).map(item => item.element)}
 
-          {filteredCustomers.length === 0 && myPipelineEntries.length === 0 && (
+          {remindersError && (
+            <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ Couldn't load your reminders: {remindersError}</p>
+          )}
+
+          {filteredCustomers.length === 0 && myPipelineEntries.length === 0 && reminders.length === 0 && (
             <p className="private-note-hint">Nothing on your dashboard yet.</p>
           )}
 
@@ -2224,6 +2403,23 @@ export default function Dashboard() {
 
       {(view === "pipeline" || (view === "personal" && role === "estimating")) && (
         <>
+          {/* Estimating's My Dashboard is the pipeline list, so their
+              reminders get their own section on top of it instead. */}
+          {view === "personal" && (
+            <div style={{ marginBottom: 24 }}>
+              <h3 className="modal-title" style={{ marginBottom: 12 }}>My Reminders</h3>
+              {remindersError && (
+                <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ Couldn't load your reminders: {remindersError}</p>
+              )}
+              {!remindersError && reminders.length === 0 && (
+                <p className="private-note-hint">No reminders. Use + Add Reminder to create one.</p>
+              )}
+              {[...reminders]
+                .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+                .map(renderReminderCard)}
+            </div>
+          )}
+
           <div style={{ marginBottom: 20, display: "flex", gap: 10, alignItems: "center" }}>
             <button className="btn btn-primary" onClick={() => router.push("/dashboard/pipeline/new")}>ADD PIPELINE ENTRY</button>
 
@@ -2518,6 +2714,57 @@ export default function Dashboard() {
             ))}
 
             <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={savePermissions}>Save Permissions</button>
+          </div>
+        </div>
+      )}
+
+      {reminderForm && (
+        <div className="modal-overlay" onClick={() => setReminderForm(null)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setReminderForm(null)}>✕</button>
+            <h3 className="modal-title">{reminderForm.id ? "Reminder" : "Add Reminder"}</h3>
+            <p className="modal-subtitle" style={{ marginBottom: 12 }}>Only you can see your reminders.</p>
+
+            <label className="field-label" htmlFor="reminder-subject">Subject</label>
+            <input
+              id="reminder-subject"
+              className="field"
+              autoComplete="off"
+              autoFocus
+              value={reminderForm.subject}
+              onChange={e => setReminderForm({ ...reminderForm, subject: e.target.value })}
+              onKeyDown={e => { if (e.key === "Enter") saveReminder(); }}
+            />
+
+            <label className="field-label" htmlFor="reminder-date">Date</label>
+            <input
+              id="reminder-date"
+              className="field"
+              type="date"
+              value={reminderForm.date}
+              onChange={e => setReminderForm({ ...reminderForm, date: e.target.value })}
+            />
+
+            <label className="field-label" htmlFor="reminder-notes">Notes (optional)</label>
+            <textarea
+              id="reminder-notes"
+              className="field"
+              style={{ width: "100%", height: 90 }}
+              value={reminderForm.notes}
+              onChange={e => setReminderForm({ ...reminderForm, notes: e.target.value })}
+            />
+
+            <div className="modal-actions">
+              <button className="btn btn-primary" disabled={savingReminder} onClick={saveReminder}>
+                {savingReminder ? "Saving..." : reminderForm.id ? "Save Changes" : "Add Reminder"}
+              </button>
+              {reminderForm.id && (
+                <>
+                  <button className="btn btn-secondary" onClick={() => followUpReminder(reminders.find(r => r.id === reminderForm.id))}>Follow Up (2 Weeks)</button>
+                  <button className="btn btn-secondary" onClick={() => completeReminder(reminders.find(r => r.id === reminderForm.id))}>Complete</button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

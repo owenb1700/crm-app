@@ -134,7 +134,7 @@ export default function TowersPage() {
     return (
       <div className="dashboard-page">
         <div className="admin-card" style={{ maxWidth: 480 }}>
-          <h3 className="modal-title">Couldn't load towers</h3>
+          <h3 className="modal-title">Couldn't load installed towers</h3>
           <p className="modal-subtitle">{loadError}</p>
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>Back to Dashboard</button>
         </div>
@@ -151,7 +151,7 @@ export default function TowersPage() {
       <div className="dashboard-header">
         <div className="dashboard-brand">
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
-          <h1 className="dashboard-title">Directory — Towers</h1>
+          <h1 className="dashboard-title">Directory — Installed Towers</h1>
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>

@@ -206,7 +206,7 @@ export default function ProductsPage() {
     return (
       <div className="dashboard-page">
         <div className="admin-card" style={{ maxWidth: 480 }}>
-          <h3 className="modal-title">Couldn't load products</h3>
+          <h3 className="modal-title">Couldn't load product options</h3>
           <p className="modal-subtitle">{loadError}</p>
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>Back to Dashboard</button>
         </div>
@@ -223,7 +223,7 @@ export default function ProductsPage() {
       <div className="dashboard-header">
         <div className="dashboard-brand">
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
-          <h1 className="dashboard-title">Directory — Products</h1>
+          <h1 className="dashboard-title">Directory — Product Options</h1>
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
@@ -234,12 +234,12 @@ export default function ProductsPage() {
       <div className="toolbar">
         <input
           className="field"
-          placeholder="Search products..."
+          placeholder="Search product options..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           style={{ flex: 1, marginBottom: 0 }}
         />
-        <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>+ Add Product</button>
+        <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>+ Add Product Option</button>
       </div>
 
       <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
@@ -319,7 +319,7 @@ export default function ProductsPage() {
         <div className="modal-overlay">
           <div className="modal-card">
             <button className="modal-close" onClick={() => setShowAddModal(false)}>✕</button>
-            <h3 className="modal-title">Add Product</h3>
+            <h3 className="modal-title">Add Product Option</h3>
 
             <label className="field-label">Name</label>
             <input className="field" autoComplete="off" value={newName} onChange={e => setNewName(e.target.value)} />

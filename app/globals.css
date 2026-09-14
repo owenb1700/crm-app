@@ -673,6 +673,12 @@ a {
   cursor: pointer;
 }
 
+/* Personal reminders, told apart from project/pipeline dates at a glance. */
+.calendar-event-pill.calendar-event-pill-reminder {
+  background: #fef3c7;
+  color: #78350f;
+}
+
 .calendar-event-pill:hover {
   background: rgba(47, 91, 234, 0.15);
 }

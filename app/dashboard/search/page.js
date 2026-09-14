@@ -316,7 +316,7 @@ function SearchPageContent() {
       />
 
       <Section
-        title="Towers"
+        title="Installed Towers"
         items={towerResults}
         render={t => (
           <div key={t.serial} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/directory/tower/${encodeURIComponent(t.serial)}`)}>
@@ -344,7 +344,7 @@ function SearchPageContent() {
       />
 
       <Section
-        title="Products"
+        title="Product Options"
         items={productResults}
         render={p => (
           <div key={p.id} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/directory/product/${p.id}`)}>

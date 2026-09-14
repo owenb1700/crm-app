@@ -118,7 +118,7 @@ export default function TowerDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load this tower</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/towers")}>Back to Towers</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/towers")}>Back to Installed Towers</button>
         </div>
       </div>
     );
@@ -134,7 +134,7 @@ export default function TowerDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Tower not found</h3>
           <p className="modal-subtitle">No work is on file for serial number "{serial}".</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/towers")}>Back to Towers</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/towers")}>Back to Installed Towers</button>
         </div>
       </div>
     );
@@ -179,7 +179,7 @@ export default function TowerDetail() {
           <h1 className="dashboard-title">Tower</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/towers")}>← Back to Towers</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/towers")}>← Back to Installed Towers</button>
           <DashboardHeader uid={uid} />
         </div>
       </div>

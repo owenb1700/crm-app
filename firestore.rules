@@ -172,6 +172,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Personal reminders: private to the one person who made them -- not
+    // even admins can read someone else's. Completing one deletes it.
+    match /reminders/{reminderId} {
+      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == request.auth.uid;
+    }
+
     // Alerts bell: in-app notifications, separate from (and independent
     // of) whether the accompanying email actually gets delivered. Anyone
     // signed in can create one addressed to another user (e.g. a
