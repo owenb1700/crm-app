@@ -19,6 +19,7 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { ensureCompanyAndContactBatch, firmTypeOf } from "../../../../lib/directory";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
+import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
@@ -31,7 +32,7 @@ const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
 };
 
-const EDITABLE_FIELDS = ["title", "stage", "bidDate", "value", "company", "contact", "email", "phone", "projectAddress", "towerManufacturer", "modelNumber", "serialNumber", "salespersonId", "projectPointPersonId"];
+const EDITABLE_FIELDS = ["title", "buildingSector", "stage", "bidDate", "value", "company", "contact", "email", "phone", "projectAddress", "towerManufacturer", "modelNumber", "serialNumber", "salespersonId", "projectPointPersonId"];
 
 const formatBytes = (bytes) => {
   if (!bytes) return "";
@@ -195,6 +196,7 @@ export default function PipelineDetail() {
     setEditData({
       title: pipeline.title || "",
       stage: pipeline.stage || "Pre-Bid",
+      buildingSector: pipeline.buildingSector || "",
       bidDate: pipeline.bidDate || "",
       value: pipeline.value || "",
       company: pipeline.company || "",
@@ -233,6 +235,9 @@ export default function PipelineDetail() {
   const saveEdit = async () => {
     if (!editData.title) {
       return alert("Project/opportunity name is required");
+    }
+    if (!editData.buildingSector) {
+      return alert("Please select a building sector");
     }
 
     const payload = {};
@@ -433,6 +438,7 @@ export default function PipelineDetail() {
       email: pipeline.email || "",
       phone: pipeline.phone || "",
       category: "Ongoing Project",
+      buildingSector: pipeline.buildingSector || null,
       projectValue: pipeline.value || null,
       projectAddress: convertProjectAddress,
       towerManufacturer: pipeline.towerManufacturer || null,
@@ -507,6 +513,7 @@ export default function PipelineDetail() {
               <h2 className="modal-title" style={{ marginBottom: 2 }}>{pipeline.title}</h2>
               <p className="modal-subtitle">Owned by {ownerLabel(pipeline.ownerId)}</p>
               <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>{pipeline.stage}</span>
+              <p className="modal-subtitle" style={{ marginTop: 6 }}>Building Sector: {pipeline.buildingSector || "Not set"}</p>
               {pipeline.value && <p className="modal-subtitle" style={{ marginTop: 6 }}>Value: {pipeline.value}</p>}
               {pipeline.convertedToProjectId && (
                 <p className="modal-subtitle" style={{ marginTop: 6 }}>
@@ -542,6 +549,7 @@ export default function PipelineDetail() {
             <input className="field" name="pd-title" autoComplete="off" value={editData.title} onChange={e => setEditData({ ...editData, title: e.target.value })} />
 
             <div className="form-grid-2">
+              <BuildingSectorSelect id="pipeline-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
               <div>
                 <h4 className="field-label">Stage</h4>
                 <select className="field" value={editData.stage} onChange={e => setEditData({ ...editData, stage: e.target.value })}>

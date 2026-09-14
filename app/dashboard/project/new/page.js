@@ -7,6 +7,7 @@ import { auth, db } from "../../../../lib/firebase";
 import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, OWNER_CATEGORY, BLANK_OWNER_ROW, cleanOwnerRows } from "../../../../lib/directory";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
+import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
@@ -46,6 +47,7 @@ export default function NewProject() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [category, setCategory] = useState("");
+  const [buildingSector, setBuildingSector] = useState("");
   const [projectValue, setProjectValue] = useState("");
   const [nextDate, setNextDate] = useState("");
   const [projectAddress, setProjectAddress] = useState("");
@@ -196,6 +198,7 @@ export default function NewProject() {
   const addProject = async () => {
     const missing = [];
     if (!projectName) missing.push("Project Name");
+    if (!buildingSector) missing.push("Building Sector");
     if (!contact) missing.push("Contact");
     if (!nextDate) missing.push("Next Date");
     if (!projectAddress) missing.push("Project Address");
@@ -218,6 +221,7 @@ export default function NewProject() {
         phone,
         owners,
         category: category || null,
+        buildingSector,
         projectValue: projectValue || null,
         equipment,
         equipmentType: first.type || null,
@@ -320,6 +324,8 @@ export default function NewProject() {
             <label className="field-label">Phone</label>
             <input className="field" autoComplete="off" value={phone} onChange={e => setPhone(e.target.value)} />
           </div>
+
+          <BuildingSectorSelect id="new-project-sector" value={buildingSector} onChange={setBuildingSector} />
 
           <select className="field" value={category} onChange={e => setCategory(e.target.value)}>
             <option value="">Select category...</option>

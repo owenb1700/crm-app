@@ -25,6 +25,7 @@ import {
 } from "firebase/firestore";
 import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf } from "../../lib/directory";
 import FirmTypeSelect from "../components/FirmTypeSelect";
+import BuildingSectorSelect from "../components/BuildingSectorSelect";
 import UserSettingsModal from "../components/UserSettingsModal";
 import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
@@ -825,12 +826,16 @@ export default function Dashboard() {
       email: c.email || "",
       phone: c.phone || "",
       category: c.category || "",
+      buildingSector: c.buildingSector || "",
       nextCheckIn: formatDate(c.nextCheckIn),
       lastContact: formatDate(c.lastContact)
     });
   };
 
   const saveEdit = async () => {
+    if (!editData.buildingSector) {
+      return alert("Please select a building sector");
+    }
     const original = customers.find(c => c.id === editingId);
     const payload = { ...editData };
 
@@ -1900,6 +1905,8 @@ export default function Dashboard() {
                         onPhoneChange={v => setEditData({ ...editData, phone: v })}
                       />
 
+                      <BuildingSectorSelect id={`edit-project-sector-${c.id}`} value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
+
                       <div className="field-label">Category</div>
                       <select className="field" value={editData.category} onChange={e => setEditData({ ...editData, category: e.target.value })}>
                         <option value="">Select category...</option>
@@ -1938,6 +1945,7 @@ export default function Dashboard() {
                       </div>
 
                       {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
+                  {c.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {c.buildingSector}</div>}
                       {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {c.projectValue}</div>}
 
                       <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
@@ -2039,6 +2047,7 @@ export default function Dashboard() {
                   <div className="customer-card-left">
                     <div className="customer-name">{p.title}</div>
                     <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>Pipeline · {p.stage}</span>
+                    {p.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {p.buildingSector}</div>}
                   </div>
                   <div className="customer-card-middle">
                     {p.company && <div className="private-note-hint">{p.company}</div>}
@@ -2216,6 +2225,7 @@ export default function Dashboard() {
                     {c.email || ""} | {formatPhone(c.phone)}
                   </div>
                   {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
+                  {c.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {c.buildingSector}</div>}
                   {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {c.projectValue}</div>}
                   <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
                   <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>
@@ -2299,6 +2309,7 @@ export default function Dashboard() {
                 {p.company && <div className="customer-contact">{p.company}</div>}
                 {p.contact && <div className="customer-meta">{p.contact}</div>}
                 <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>{p.stage}</span>
+                {p.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {p.buildingSector}</div>}
                 {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {p.value}</div>}
               </div>
 

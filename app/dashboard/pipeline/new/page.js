@@ -7,6 +7,7 @@ import { auth, db } from "../../../../lib/firebase";
 import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, firmTypeOf } from "../../../../lib/directory";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
+import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import SearchableSelect from "../../../components/SearchableSelect";
@@ -37,6 +38,7 @@ export default function NewPipelineEntry() {
 
   const [title, setTitle] = useState("");
   const [stage, setStage] = useState("Pre-Bid");
+  const [buildingSector, setBuildingSector] = useState("");
   const [bidDate, setBidDate] = useState("");
   const [value, setValue] = useState("");
   const [company, setCompany] = useState("");
@@ -206,6 +208,9 @@ export default function NewPipelineEntry() {
     if (!title) {
       return alert("Please enter a project/opportunity name");
     }
+    if (!buildingSector) {
+      return alert("Please select a building sector");
+    }
 
     setSaving(true);
     try {
@@ -216,6 +221,7 @@ export default function NewPipelineEntry() {
       const ref = await addDoc(collection(db, "pipeline"), {
         title,
         stage,
+        buildingSector,
         bidDate: bidDate || null,
         value: value || null,
         company: company || null,
@@ -292,6 +298,7 @@ export default function NewPipelineEntry() {
           <input className="field" autoComplete="off" placeholder="Project / Opportunity Name" value={title} onChange={e => setTitle(e.target.value)} />
 
           <div className="form-grid-2">
+            <BuildingSectorSelect id="new-pipeline-sector" value={buildingSector} onChange={setBuildingSector} />
             <div>
               <label className="field-label">Stage</label>
               <select className="field" value={stage} onChange={e => setStage(e.target.value)}>

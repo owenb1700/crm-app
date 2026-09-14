@@ -15,6 +15,7 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { ensureCompanyAndContactBatch, OWNER_CATEGORY, BLANK_OWNER_ROW, cleanOwnerRows, firmTypeOf } from "../../../../lib/directory";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
+import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import { equipmentRowsFrom as sharedEquipmentRowsFrom } from "../../../../lib/equipment";
@@ -46,7 +47,7 @@ const formatBytes = (bytes) => {
 };
 
 const EDITABLE_FIELDS = [
-  "projectName", "company", "companyCategory", "contact", "email", "phone", "category", "projectValue",
+  "projectName", "buildingSector", "company", "companyCategory", "contact", "email", "phone", "category", "projectValue",
   "nextCheckIn", "lastContact", "projectAddress"
 ];
 
@@ -213,6 +214,7 @@ export default function ProjectDetail() {
       phone: customer.phone || "",
       category: customer.category || "",
       projectValue: customer.projectValue || "",
+      buildingSector: customer.buildingSector || "",
       nextCheckIn: formatDate(customer.nextCheckIn),
       lastContact: formatDate(customer.lastContact),
       projectAddress: customer.projectAddress || ""
@@ -242,6 +244,7 @@ export default function ProjectDetail() {
   const saveEdit = async () => {
     const missing = [];
     if (!editData.projectName) missing.push("Project Name");
+    if (!editData.buildingSector) missing.push("Building Sector");
     if (!editData.contact) missing.push("Contact");
     if (!editData.projectAddress) missing.push("Project Address");
     if (missing.length) {
@@ -442,6 +445,7 @@ export default function ProjectDetail() {
               )}
               <p className="modal-subtitle">Owned by {ownerLabel(customer.ownerId)}</p>
               {customer.category && <span className="role-badge" style={{ marginTop: 6 }}>{customer.category}</span>}
+              <p className="modal-subtitle" style={{ marginTop: 6 }}>Building Sector: {customer.buildingSector || "Not set"}</p>
               {customer.projectValue && <p className="modal-subtitle" style={{ marginTop: 6 }}>Value: {customer.projectValue}</p>}
             </div>
 
@@ -478,6 +482,8 @@ export default function ProjectDetail() {
               onEmailChange={v => setEditData({ ...editData, email: v })}
               onPhoneChange={v => setEditData({ ...editData, phone: v })}
             />
+
+            <BuildingSectorSelect id="project-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
 
             <h4 className="field-label">Category</h4>
             <select className="field" value={editData.category} onChange={e => setEditData({ ...editData, category: e.target.value })}>
