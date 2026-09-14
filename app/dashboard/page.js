@@ -57,6 +57,10 @@ const PERMISSION_DEFS = [
 ];
 const DEFAULT_PERMISSIONS = PERMISSION_DEFS.reduce((acc, p) => ({ ...acc, [p.key]: true }), {});
 
+// A pipeline entry with one of these outcomes is finished and lives in
+// Past Projects. Only Won ever gets a follow-up check-in.
+const RESOLVED_PIPELINE_OUTCOMES = ["Won", "Lost", "Did Not Bid"];
+
 const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
 };
@@ -1172,7 +1176,7 @@ export default function Dashboard() {
   }, [customers, pastProjectsSearch, pastFilters]);
 
   const pastPipelineList = useMemo(() => {
-    let list = pipelineEntries.filter(p => p.outcome === "Won" || p.outcome === "Lost");
+    let list = pipelineEntries.filter(p => RESOLVED_PIPELINE_OUTCOMES.includes(p.outcome));
     const f = pastFilters;
     if (f.show === "projects") list = [];
     if (f.sector) list = list.filter(p => p.buildingSector === f.sector);
@@ -1502,7 +1506,7 @@ export default function Dashboard() {
   ];
 
   const closedProjects = customers.filter(c => c.category === "Project Closed");
-  const resolvedPipeline = pipelineEntries.filter(p => p.outcome === "Won" || p.outcome === "Lost");
+  const resolvedPipeline = pipelineEntries.filter(p => RESOLVED_PIPELINE_OUTCOMES.includes(p.outcome));
   const pastFilterDefs = [
     { key: "show", label: "Show", type: "select", anyLabel: "Projects & pipeline", options: [{ value: "projects", label: "Closed projects only" }, { value: "pipeline", label: "Pipeline entries only" }] },
     sectorFilter,
@@ -2488,7 +2492,7 @@ export default function Dashboard() {
             <>
               <h3 className="modal-title" style={{ marginTop: 28, marginBottom: 12 }}>Resolved Pipeline Entries</h3>
               {pastPipelineList.length === 0 && (
-                <p className="private-note-hint">{anyActive(pastFilters) || pastProjectsSearch.trim() ? "No pipeline entries match these filters." : "No won or lost pipeline entries yet."}</p>
+                <p className="private-note-hint">{anyActive(pastFilters) || pastProjectsSearch.trim() ? "No pipeline entries match these filters." : "No resolved pipeline entries yet."}</p>
               )}
             </>
           )}
@@ -2502,7 +2506,7 @@ export default function Dashboard() {
               <div className="customer-card-left">
                 <div className="customer-name">{p.title}</div>
                 <span className={`role-badge ${p.outcome === "Won" ? "role-badge-admin" : ""}`} style={{ marginTop: 6 }}>
-                  {p.outcome === "Won" ? "✅ Won" : "❌ Lost"}
+                  {p.outcome === "Won" ? "✅ Won" : p.outcome === "Did Not Bid" ? "🚫 DID NOT BID" : "❌ Lost"}
                 </span>
               </div>
               <div className="customer-card-middle">
@@ -2511,8 +2515,8 @@ export default function Dashboard() {
                   <div className="private-note-hint">Awarded to {p.wonByContractor}</div>
                 )}
                 <div className="private-note-hint">Owned by {ownerLabel(p.ownerId)}</div>
-                {p.resolvedAt && <div className="customer-dates">{p.outcome === "Won" ? "Won" : "Lost"}: {p.resolvedAt.slice(0, 10)}</div>}
-                {p.outcome === "Lost" && (
+                {p.resolvedAt && <div className="customer-dates">{p.outcome}: {p.resolvedAt.slice(0, 10)}</div>}
+                {(p.outcome === "Lost" || p.outcome === "Did Not Bid") && (
                   <>
                     <div className="private-note-hint" style={{ whiteSpace: "pre-wrap" }}>
                       <strong>Why:</strong> {p.lostReason || "No reason recorded"}

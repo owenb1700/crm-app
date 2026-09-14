@@ -69,7 +69,9 @@ export default function PipelineDetail() {
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [showWonModal, setShowWonModal] = useState(false);
   const [wonContractor, setWonContractor] = useState("");
-  const [showLostModal, setShowLostModal] = useState(false);
+  // "Lost" or "Did Not Bid" while that form is open; both record why and
+  // who won, and both end the entry with no follow-up.
+  const [lostModalOutcome, setLostModalOutcome] = useState(null);
   const [lostReason, setLostReason] = useState("");
   const [lostTo, setLostTo] = useState("");
   const [convertNextDate, setConvertNextDate] = useState("");
@@ -396,16 +398,18 @@ export default function PipelineDetail() {
   };
 
   const confirmMarkLost = async () => {
-    if (!lostReason.trim()) return alert("Enter why this was lost");
+    if (!lostReason.trim()) {
+      return alert(lostModalOutcome === "Did Not Bid" ? "Enter why we aren't bidding" : "Enter why this was lost");
+    }
     await updateDoc(doc(db, "pipeline", pipelineId), {
-      outcome: "Lost",
+      outcome: lostModalOutcome,
       wonByContractor: null,
       lostReason: lostReason.trim(),
       lostTo: lostTo.trim() || null,
       resolvedAt: new Date().toISOString(),
       nextCheckIn: null
     });
-    setShowLostModal(false);
+    setLostModalOutcome(null);
     setLostReason("");
     setLostTo("");
     await loadPipelineEntry(uid, role);
@@ -701,7 +705,8 @@ export default function PipelineDetail() {
               {canEdit && (
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="btn btn-primary" onClick={() => setShowWonModal(true)}>Mark Won</button>
-                  <button className="btn btn-danger" onClick={() => setShowLostModal(true)}>Mark Lost</button>
+                  <button className="btn btn-danger" onClick={() => setLostModalOutcome("Lost")}>Mark Lost</button>
+                  <button className="btn btn-secondary" onClick={() => setLostModalOutcome("Did Not Bid")}>Not Bidding</button>
                 </div>
               )}
             </>
@@ -715,9 +720,13 @@ export default function PipelineDetail() {
               {canEdit && <button className="btn btn-secondary" onClick={reopenPipeline}>Reopen</button>}
             </>
           )}
-          {pipeline.outcome === "Lost" && (
+          {(pipeline.outcome === "Lost" || pipeline.outcome === "Did Not Bid") && (
             <>
-              <p>❌ <strong>Lost</strong>{pipeline.resolvedAt ? ` on ${pipeline.resolvedAt.slice(0, 10)}` : ""}</p>
+              <p>
+                {pipeline.outcome === "Lost" ? "❌ " : "🚫 "}
+                <strong>{pipeline.outcome === "Lost" ? "Lost" : "Did Not Bid"}</strong>
+                {pipeline.resolvedAt ? ` on ${pipeline.resolvedAt.slice(0, 10)}` : ""}
+              </p>
               <p><strong>Why:</strong> {pipeline.lostReason || "No reason recorded"}</p>
               <p><strong>Won by:</strong> {pipeline.lostTo || "Not recorded"}</p>
               {canEdit && <button className="btn btn-secondary" onClick={reopenPipeline}>Reopen</button>}
@@ -846,14 +855,20 @@ export default function PipelineDetail() {
         </div>
       )}
 
-      {showLostModal && (
+      {lostModalOutcome && (
         <div className="modal-overlay">
           <div className="modal-card">
-            <button className="modal-close" onClick={() => setShowLostModal(false)}>✕</button>
-            <h3 className="modal-title">Mark as Lost</h3>
-            <p className="modal-subtitle">This shows in Past Projects so the team can see what happened.</p>
+            <button className="modal-close" onClick={() => setLostModalOutcome(null)}>✕</button>
+            <h3 className="modal-title">{lostModalOutcome === "Did Not Bid" ? "Not Bidding" : "Mark as Lost"}</h3>
+            <p className="modal-subtitle">
+              {lostModalOutcome === "Did Not Bid"
+                ? "Moves this to Past Projects filed as Did Not Bid, with no reminders."
+                : "This shows in Past Projects so the team can see what happened."}
+            </p>
 
-            <label className="field-label" htmlFor="pipeline-lost-reason">Why was it lost?</label>
+            <label className="field-label" htmlFor="pipeline-lost-reason">
+              {lostModalOutcome === "Did Not Bid" ? "Why aren't we bidding?" : "Why was it lost?"}
+            </label>
             <textarea id="pipeline-lost-reason" className="field" style={{ width: "100%", height: 80 }} value={lostReason} onChange={e => setLostReason(e.target.value)} />
 
             <label className="field-label" htmlFor="pipeline-lost-to">Who won it? (optional)</label>
@@ -866,8 +881,10 @@ export default function PipelineDetail() {
             </datalist>
 
             <div className="modal-actions">
-              <button className="btn btn-danger" onClick={confirmMarkLost}>Mark Lost</button>
-              <button className="btn btn-secondary" onClick={() => setShowLostModal(false)}>Cancel</button>
+              <button className="btn btn-danger" onClick={confirmMarkLost}>
+                {lostModalOutcome === "Did Not Bid" ? "Mark Did Not Bid" : "Mark Lost"}
+              </button>
+              <button className="btn btn-secondary" onClick={() => setLostModalOutcome(null)}>Cancel</button>
             </div>
           </div>
         </div>
