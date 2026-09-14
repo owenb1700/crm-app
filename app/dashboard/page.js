@@ -840,6 +840,7 @@ export default function Dashboard() {
       const followUp = new Date();
       followUp.setMonth(followUp.getMonth() + 6);
       payload.nextCheckIn = adjustWeekend(followUp.toISOString());
+      payload.closedAt = new Date().toISOString();
     }
 
     await updateDoc(doc(db, "customers", editingId), payload);
@@ -970,6 +971,7 @@ export default function Dashboard() {
     const payload = {
       category: "Project Closed",
       closedOutcome: completedOutcome,
+      closedAt: entry.timestamp,
       activityLog: [
         ...(completedTarget.activityLog || []),
         entry
@@ -1101,6 +1103,17 @@ export default function Dashboard() {
   // PAST PROJECTS: the company-wide archive of finished work -- closed
   // projects and resolved (Won/Lost) pipeline entries, for everyone to
   // browse regardless of who owned them.
+  // When a project was closed, for sorting Past Projects newest first.
+  // closedAt is only recorded on projects closed after it was added; older
+  // ones fall back to their latest "completed" activity, then their last
+  // contact date, then when they were created.
+  const closedDateOf = (c) => {
+    if (c.closedAt) return c.closedAt;
+    const completions = (c.activityLog || []).filter(a => a.type === "completed" && a.timestamp);
+    if (completions.length) return completions[completions.length - 1].timestamp;
+    return formatDate(c.lastContact) || c.createdAt || "";
+  };
+
   const pastProjectsList = useMemo(() => {
     let list = customers.filter(c => c.category === "Project Closed");
     if (pastProjectsSearch.trim()) {
@@ -1110,7 +1123,11 @@ export default function Dashboard() {
         (c.company || "").toLowerCase().includes(q)
       );
     }
-    return list.sort((a, b) => (a.projectName || "").localeCompare(b.projectName || ""));
+    return list.sort((a, b) =>
+      getDateValue(closedDateOf(b)) - getDateValue(closedDateOf(a)) ||
+      (a.projectName || "").localeCompare(b.projectName || "")
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customers, pastProjectsSearch]);
 
   const pastPipelineList = useMemo(() => {
@@ -2322,6 +2339,7 @@ export default function Dashboard() {
               <div className="customer-card-middle">
                 {c.company && <div className="private-note-hint">{c.company}</div>}
                 <div className="private-note-hint">Owned by {ownerLabel(c.ownerId)}</div>
+                {closedDateOf(c) && <div className="customer-dates">Closed: {closedDateOf(c).slice(0, 10)}</div>}
               </div>
             </div>
           ))}
@@ -2349,6 +2367,7 @@ export default function Dashboard() {
                   <div className="private-note-hint">Awarded to {p.wonByContractor}</div>
                 )}
                 <div className="private-note-hint">Owned by {ownerLabel(p.ownerId)}</div>
+                {p.resolvedAt && <div className="customer-dates">{p.outcome === "Won" ? "Won" : "Lost"}: {p.resolvedAt.slice(0, 10)}</div>}
               </div>
             </div>
           ))}

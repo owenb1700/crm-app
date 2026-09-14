@@ -271,6 +271,7 @@ export default function ProjectDetail() {
       const followUp = new Date();
       followUp.setFullYear(followUp.getFullYear() + 1);
       payload.nextCheckIn = adjustWeekend(followUp.toISOString());
+      payload.closedAt = new Date().toISOString();
     }
 
     await updateDoc(doc(db, "customers", projectId), payload);
