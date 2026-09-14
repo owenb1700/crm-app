@@ -23,10 +23,11 @@ import {
   query,
   where
 } from "firebase/firestore";
-import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf } from "../../lib/directory";
+import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf, BUILDING_SECTORS } from "../../lib/directory";
 import FirmTypeSelect from "../components/FirmTypeSelect";
 import BuildingSectorSelect from "../components/BuildingSectorSelect";
 import UserSettingsModal from "../components/UserSettingsModal";
+import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../components/FilterBar";
 import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
 
@@ -90,7 +91,11 @@ export default function Dashboard() {
   const [notesById, setNotesById] = useState({});
   const [users, setUsers] = useState([]);
   const [pipelineEntries, setPipelineEntries] = useState([]);
-  const [pipelineFilterOwner, setPipelineFilterOwner] = useState("all");
+  // Whole-page filters for the Team, Pipeline, and Past Projects tabs --
+  // see FilterBar for the value shapes.
+  const [teamFilters, setTeamFilters] = useState({});
+  const [pipelineFilters, setPipelineFilters] = useState({});
+  const [pastFilters, setPastFilters] = useState({});
 
   // REMINDERS: personal, private to whoever made them
   const [reminders, setReminders] = useState([]);
@@ -105,7 +110,6 @@ export default function Dashboard() {
   // COLLABORATION
   const [requestsById, setRequestsById] = useState({}); // customerId -> pending requests on entries I own
   const [requestedIds, setRequestedIds] = useState(new Set()); // customerIds I've just requested (optimistic)
-  const [teamFilterOwner, setTeamFilterOwner] = useState("all");
 
   // EDIT
   const [editingId, setEditingId] = useState(null);
@@ -1140,6 +1144,17 @@ export default function Dashboard() {
 
   const pastProjectsList = useMemo(() => {
     let list = customers.filter(c => c.category === "Project Closed");
+    const f = pastFilters;
+    if (f.show === "pipeline") list = [];
+    if (f.sector) list = list.filter(c => c.buildingSector === f.sector);
+    if (f.person) list = list.filter(c => c.ownerId === f.person);
+    if (f.firm) list = list.filter(c =>
+      c.company === f.firm ||
+      (c.owners || []).some(o => o.company === f.firm) ||
+      lostInfoOf(c).winner === f.firm
+    );
+    if (f.outcome) list = list.filter(c => c.closedOutcome === f.outcome);
+    list = list.filter(c => matchesDateFilter(closedDateOf(c), f.closed));
     if (pastProjectsSearch.trim()) {
       const q = pastProjectsSearch.toLowerCase();
       list = list.filter(c =>
@@ -1154,10 +1169,22 @@ export default function Dashboard() {
       (a.projectName || "").localeCompare(b.projectName || "")
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customers, pastProjectsSearch]);
+  }, [customers, pastProjectsSearch, pastFilters]);
 
   const pastPipelineList = useMemo(() => {
     let list = pipelineEntries.filter(p => p.outcome === "Won" || p.outcome === "Lost");
+    const f = pastFilters;
+    if (f.show === "projects") list = [];
+    if (f.sector) list = list.filter(p => p.buildingSector === f.sector);
+    if (f.person) list = list.filter(p => p.ownerId === f.person || p.salespersonId === f.person);
+    if (f.firm) list = list.filter(p =>
+      p.company === f.firm ||
+      (p.biddingCompanies || []).some(b => b.company === f.firm) ||
+      p.wonByContractor === f.firm ||
+      p.lostTo === f.firm
+    );
+    if (f.outcome) list = list.filter(p => p.outcome === f.outcome);
+    list = list.filter(p => matchesDateFilter(p.resolvedAt, f.closed));
     if (pastProjectsSearch.trim()) {
       const q = pastProjectsSearch.toLowerCase();
       list = list.filter(p =>
@@ -1169,16 +1196,20 @@ export default function Dashboard() {
       );
     }
     return list.sort((a, b) => (b.resolvedAt || "").localeCompare(a.resolvedAt || ""));
-  }, [pipelineEntries, pastProjectsSearch]);
+  }, [pipelineEntries, pastProjectsSearch, pastFilters]);
 
   const teamCustomers = useMemo(() => {
     let list = [...customers].sort(
       (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
     );
 
-    if (teamFilterOwner !== "all") {
-      list = list.filter(c => c.ownerId === teamFilterOwner);
-    }
+    const f = teamFilters;
+    if (f.sector) list = list.filter(c => c.buildingSector === f.sector);
+    if (f.person) list = list.filter(c => c.ownerId === f.person);
+    if (f.firm) list = list.filter(c => c.company === f.firm || (c.owners || []).some(o => o.company === f.firm));
+    if (f.status) list = list.filter(c => c.category === f.status);
+    if (f.outcome) list = list.filter(c => c.closedOutcome === f.outcome);
+    list = list.filter(c => matchesDateFilter(c.nextCheckIn, f.due));
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -1198,7 +1229,7 @@ export default function Dashboard() {
     }
 
     return list;
-  }, [customers, searchQuery, teamFilterOwner, notesById]);
+  }, [customers, searchQuery, teamFilters, notesById]);
 
   const ownerLabel = (ownerId) => {
     if (ownerId === uid) return "You";
@@ -1210,16 +1241,21 @@ export default function Dashboard() {
   const filteredPipeline = useMemo(() => {
     let list = pipelineEntries.filter(p => !p.outcome);
 
-    if (pipelineFilterOwner !== "all") {
-      list = list.filter(p => p.ownerId === pipelineFilterOwner);
-    }
+    const f = pipelineFilters;
+    if (f.sector) list = list.filter(p => p.buildingSector === f.sector);
+    if (f.person) list = list.filter(p => p.salespersonId === f.person);
+    if (f.owner) list = list.filter(p => p.ownerId === f.owner);
+    if (f.engineeringFirm) list = list.filter(p => p.company === f.engineeringFirm);
+    if (f.bidder) list = list.filter(p => (p.biddingCompanies || []).some(b => b.company === f.bidder));
+    if (f.stage) list = list.filter(p => p.stage === f.stage);
+    list = list.filter(p => matchesDateFilter(p.bidDate, f.bidDate));
 
     return list.sort((a, b) => {
       const aDate = a.bidDate || "9999-99-99";
       const bDate = b.bidDate || "9999-99-99";
       return aDate.localeCompare(bDate);
     });
-  }, [pipelineEntries, pipelineFilterOwner]);
+  }, [pipelineEntries, pipelineFilters]);
 
   // HOME CALENDAR: next 4 weeks starting from the Sunday of the current week
   const calendarDays = useMemo(() => {
@@ -1438,6 +1474,47 @@ export default function Dashboard() {
   const myPermissions = role === "admin"
     ? PERMISSION_DEFS.reduce((acc, p) => ({ ...acc, [p.key]: true }), {})
     : { ...DEFAULT_PERMISSIONS, ...(myProfile?.permissions || {}) };
+
+  // FILTER BAR DEFINITIONS -- options come from the data actually on each
+  // page, so a dropdown never offers a value that matches nothing.
+  const personOption = (id) => ({ value: id, label: ownerLabel(id) });
+  const sectorFilter = { key: "sector", label: "Sector", type: "select", options: BUILDING_SECTORS.map(v => ({ value: v, label: v })) };
+  const setFilter = (setter) => (key, value) => setter(prev => ({ ...prev, [key]: value }));
+
+  const teamFilterDefs = [
+    sectorFilter,
+    { key: "person", label: "Salesperson", type: "select", options: optionsFrom(customers.map(c => c.ownerId), ownerLabel).map(o => personOption(o.value)) },
+    { key: "firm", label: "Contractor / Owner", type: "select", options: optionsFrom(customers.flatMap(c => [c.company, ...(c.owners || []).map(o => o.company)])) },
+    { key: "status", label: "Status", type: "select", options: optionsFrom(customers.map(c => c.category)) },
+    { key: "outcome", label: "Outcome", type: "select", options: optionsFrom(customers.map(c => c.closedOutcome)) },
+    { key: "due", label: "Next check-in", type: "date", presets: ["overdue", "today", "next7", "next30"] }
+  ];
+
+  const openPipeline = pipelineEntries.filter(p => !p.outcome);
+  const pipelineFilterDefs = [
+    sectorFilter,
+    { key: "person", label: "Salesperson", type: "select", options: optionsFrom(openPipeline.map(p => p.salespersonId), ownerLabel).map(o => personOption(o.value)) },
+    { key: "owner", label: "Owner", type: "select", options: optionsFrom(openPipeline.map(p => p.ownerId), ownerLabel).map(o => personOption(o.value)) },
+    { key: "engineeringFirm", label: "Engineering firm", type: "select", options: optionsFrom(openPipeline.map(p => p.company)) },
+    { key: "bidder", label: "Bidding contractor", type: "select", options: optionsFrom(openPipeline.flatMap(p => (p.biddingCompanies || []).map(b => b.company))) },
+    { key: "stage", label: "Stage", type: "select", options: optionsFrom(openPipeline.map(p => p.stage)) },
+    { key: "bidDate", label: "Bid date", type: "date", presets: ["overdue", "next7", "next30", "last30", "thisYear"] }
+  ];
+
+  const closedProjects = customers.filter(c => c.category === "Project Closed");
+  const resolvedPipeline = pipelineEntries.filter(p => p.outcome === "Won" || p.outcome === "Lost");
+  const pastFilterDefs = [
+    { key: "show", label: "Show", type: "select", anyLabel: "Projects & pipeline", options: [{ value: "projects", label: "Closed projects only" }, { value: "pipeline", label: "Pipeline entries only" }] },
+    sectorFilter,
+    { key: "person", label: "Salesperson", type: "select", options: optionsFrom([...closedProjects.map(c => c.ownerId), ...resolvedPipeline.flatMap(p => [p.ownerId, p.salespersonId])], ownerLabel).map(o => personOption(o.value)) },
+    { key: "firm", label: "Contractor / Firm", type: "select", options: optionsFrom([
+      ...closedProjects.flatMap(c => [c.company, ...(c.owners || []).map(o => o.company), lostInfoOf(c).winner]),
+      ...resolvedPipeline.flatMap(p => [p.company, p.wonByContractor, p.lostTo, ...(p.biddingCompanies || []).map(b => b.company)])
+    ]) },
+    { key: "outcome", label: "Outcome", type: "select", options: optionsFrom([...closedProjects.map(c => c.closedOutcome), ...resolvedPipeline.map(p => p.outcome)]) },
+    { key: "closed", label: "Closed / resolved", type: "date", presets: ["last30", "last90", "thisYear", "lastYear"] }
+  ];
+  const anyActive = (values) => Object.values(values).some(isFilterActive);
 
   // One reminder card for My Dashboard -- same card shape and overdue /
   // due-soon edge color as a project, with its own Follow Up and Complete.
@@ -2183,20 +2260,21 @@ export default function Dashboard() {
               />
             )}
 
-            <select
-              className="field"
-              style={{ maxWidth: 220, marginLeft: "auto" }}
-              value={teamFilterOwner}
-              onChange={e => setTeamFilterOwner(e.target.value)}
-            >
-              <option value="all">All Team Members</option>
-              {users.map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.id === uid ? "You" : (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email)}
-                </option>
-              ))}
-            </select>
           </div>
+
+          <FilterBar
+            idPrefix="team-filter"
+            filters={teamFilterDefs}
+            values={teamFilters}
+            onChange={setFilter(setTeamFilters)}
+            onClear={() => setTeamFilters({})}
+            resultCount={teamCustomers.length}
+            resultNoun={teamCustomers.length === 1 ? "project" : "projects"}
+          />
+
+          {teamCustomers.length === 0 && (
+            <p className="private-note-hint">{anyActive(teamFilters) || searchQuery.trim() ? "No projects match these filters." : "No projects yet."}</p>
+          )}
 
           {teamCustomers.map(c => {
             const days = diffDays(c.nextCheckIn);
@@ -2281,21 +2359,17 @@ export default function Dashboard() {
 
           <div style={{ marginBottom: 20, display: "flex", gap: 10, alignItems: "center" }}>
             <button className="btn btn-primary" onClick={() => router.push("/dashboard/pipeline/new")}>ADD PIPELINE ENTRY</button>
-
-            <select
-              className="field"
-              style={{ maxWidth: 220, marginLeft: "auto", marginBottom: 0 }}
-              value={pipelineFilterOwner}
-              onChange={e => setPipelineFilterOwner(e.target.value)}
-            >
-              <option value="all">All Team Members</option>
-              {users.map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.id === uid ? "You" : (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email)}
-                </option>
-              ))}
-            </select>
           </div>
+
+          <FilterBar
+            idPrefix="pipeline-filter"
+            filters={pipelineFilterDefs}
+            values={pipelineFilters}
+            onChange={setFilter(setPipelineFilters)}
+            onClear={() => setPipelineFilters({})}
+            resultCount={filteredPipeline.length}
+            resultNoun={filteredPipeline.length === 1 ? "entry" : "entries"}
+          />
 
           {filteredPipeline.map(p => (
             <div
@@ -2333,7 +2407,7 @@ export default function Dashboard() {
           ))}
 
           {filteredPipeline.length === 0 && (
-            <p className="private-note-hint">No pipeline entries yet.</p>
+            <p className="private-note-hint">{anyActive(pipelineFilters) ? "No pipeline entries match these filters." : "No pipeline entries yet."}</p>
           )}
         </>
       )}
@@ -2350,9 +2424,23 @@ export default function Dashboard() {
             />
           </div>
 
-          <h3 className="modal-title" style={{ marginTop: 8, marginBottom: 12 }}>Closed Projects</h3>
-          {pastProjectsList.length === 0 && (
-            <p className="private-note-hint">No closed projects yet.</p>
+          <FilterBar
+            idPrefix="past-filter"
+            filters={pastFilterDefs}
+            values={pastFilters}
+            onChange={setFilter(setPastFilters)}
+            onClear={() => setPastFilters({})}
+            resultCount={pastProjectsList.length + pastPipelineList.length}
+            resultNoun={pastProjectsList.length + pastPipelineList.length === 1 ? "result" : "results"}
+          />
+
+          {pastFilters.show !== "pipeline" && (
+            <>
+              <h3 className="modal-title" style={{ marginTop: 8, marginBottom: 12 }}>Closed Projects</h3>
+              {pastProjectsList.length === 0 && (
+                <p className="private-note-hint">{anyActive(pastFilters) || pastProjectsSearch.trim() ? "No closed projects match these filters." : "No closed projects yet."}</p>
+              )}
+            </>
           )}
           {pastProjectsList.map(c => (
             <div
@@ -2396,9 +2484,13 @@ export default function Dashboard() {
             </div>
           ))}
 
-          <h3 className="modal-title" style={{ marginTop: 28, marginBottom: 12 }}>Resolved Pipeline Entries</h3>
-          {pastPipelineList.length === 0 && (
-            <p className="private-note-hint">No won or lost pipeline entries yet.</p>
+          {pastFilters.show !== "projects" && (
+            <>
+              <h3 className="modal-title" style={{ marginTop: 28, marginBottom: 12 }}>Resolved Pipeline Entries</h3>
+              {pastPipelineList.length === 0 && (
+                <p className="private-note-hint">{anyActive(pastFilters) || pastProjectsSearch.trim() ? "No pipeline entries match these filters." : "No won or lost pipeline entries yet."}</p>
+              )}
+            </>
           )}
           {pastPipelineList.map(p => (
             <div
