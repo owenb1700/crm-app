@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import {
   onAuthStateChanged,
   signOut,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail
+  createUserWithEmailAndPassword
 } from "firebase/auth";
 import { auth, db, getSecondaryAuth } from "../../lib/firebase";
 import {
   collection,
+  collectionGroup,
   addDoc,
   getDocs,
   updateDoc,
@@ -1271,25 +1271,24 @@ export default function Dashboard() {
         createdAt: new Date().toISOString()
       });
 
-      await sendPasswordResetEmail(secondaryAuth, newUserEmail);
       await signOut(secondaryAuth);
 
-      try {
-        await fetch("/api/verify-ses-identity", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: newUserEmail })
-        });
-      } catch {
-        // best-effort -- account creation already succeeded either way
-      }
+      // Their first-ever set-password link, good for 48 hours -- see
+      // /api/send-reset-link and lib/passwordReset.js.
+      const res = await fetch("/api/send-reset-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newUserEmail })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Account created, but the setup email failed to send");
 
       setNewUserEmail("");
       setNewUserRole("member");
       setNewUserFirstName("");
       setNewUserLastName("");
       setNewUserPermissions(DEFAULT_PERMISSIONS);
-      showToast("Account created — setup email + SES verification email sent");
+      showToast("Account created — setup email sent (link valid for 48 hours)");
       loadUsers();
     } catch (err) {
       alert(err.message || "Could not create account");
@@ -1333,6 +1332,94 @@ export default function Dashboard() {
     }
 
     loadUsers();
+  };
+
+  const sendResetLink = async (u) => {
+    try {
+      const res = await fetch("/api/send-reset-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: u.email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't send reset link");
+      showToast(`Reset link sent to ${u.email}`);
+    } catch (err) {
+      alert(err.message || "Couldn't send reset link");
+    }
+  };
+
+  // A full delete, not a deactivation: removes their login entirely and
+  // can't be undone. Anything they owned would otherwise be left pointing
+  // at a uid that no longer exists anywhere -- unrecoverable and, since
+  // only an owner can edit a project or pipeline entry, permanently
+  // un-editable by anyone but an admin going straight into Firestore. So
+  // this reassigns everything they owned to the admin doing the deleting
+  // (same "orphaned work adopts whichever admin next touches it" pattern
+  // loadCustomers already uses) and strips them out of every
+  // collaborator/tracked-by/assigned list first. The Auth account is
+  // deleted first and the rest only proceeds if that succeeds -- otherwise
+  // their profile could disappear while their login still works, and a
+  // login with no profile silently re-provisions a fresh one on next
+  // sign-in (see the login page's bootstrap logic).
+  const deleteUserCompletely = async (u) => {
+    const label = u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email;
+    const ownedCustomers = customers.filter(c => c.ownerId === u.id);
+    const ownedPipeline = pipelineEntries.filter(p => p.ownerId === u.id);
+
+    const impact = (ownedCustomers.length || ownedPipeline.length)
+      ? ` ${ownedCustomers.length} project${ownedCustomers.length === 1 ? "" : "s"} and ${ownedPipeline.length} pipeline entr${ownedPipeline.length === 1 ? "y" : "ies"} they own will be reassigned to you.`
+      : "";
+    if (!window.confirm(`Permanently delete ${label}? This can't be undone -- their login stops working immediately.${impact}`)) {
+      return;
+    }
+
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch("/api/admin/delete-auth-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ uid: u.id })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't delete this account's login");
+
+      await Promise.all(ownedCustomers.map(c => updateDoc(doc(db, "customers", c.id), { ownerId: uid })));
+      await Promise.all(ownedPipeline.map(p => updateDoc(doc(db, "pipeline", p.id), { ownerId: uid })));
+
+      const collabCustomers = customers.filter(c => (c.collaboratorIds || []).includes(u.id));
+      await Promise.all(collabCustomers.map(c => updateDoc(doc(db, "customers", c.id), { collaboratorIds: arrayRemove(u.id) })));
+
+      const trackedPipeline = pipelineEntries.filter(p => (p.trackedByIds || []).includes(u.id));
+      await Promise.all(trackedPipeline.map(p => updateDoc(doc(db, "pipeline", p.id), { trackedByIds: arrayRemove(u.id) })));
+
+      const assignedPipeline = pipelineEntries.filter(p => p.salespersonId === u.id || p.projectPointPersonId === u.id);
+      await Promise.all(assignedPipeline.map(p => {
+        const patch = {};
+        if (p.salespersonId === u.id) patch.salespersonId = null;
+        if (p.projectPointPersonId === u.id) patch.projectPointPersonId = null;
+        return updateDoc(doc(db, "pipeline", p.id), patch);
+      }));
+
+      const collabReqSnap = await getDocs(query(collectionGroup(db, "collabRequests"), where("requesterId", "==", u.id)));
+      await Promise.all(collabReqSnap.docs.map(d => deleteDoc(d.ref)));
+
+      const notifSnap = await getDocs(query(collection(db, "notifications"), where("userId", "==", u.id)));
+      await Promise.all(notifSnap.docs.map(d => deleteDoc(d.ref)));
+
+      if (u.email) {
+        await deleteDoc(doc(db, "disabledEmails", u.email)).catch(() => {});
+      }
+
+      await deleteDoc(doc(db, "users", u.id));
+
+      showToast(`${label} deleted`);
+      await loadUsers();
+      await loadCustomers(uid, true);
+      await loadPipeline();
+    } catch (err) {
+      alert(err.message || "Couldn't delete this account");
+    }
   };
 
   const myPermissions = role === "admin"
@@ -2404,9 +2491,13 @@ export default function Dashboard() {
                               <option value="admin">Admin</option>
                             </select>
                             <button className="btn btn-secondary" onClick={() => openEditPermissions(u)}>Permissions</button>
+                            {!u.disabled && (
+                              <button className="btn btn-secondary" onClick={() => sendResetLink(u)}>Send Reset Link</button>
+                            )}
                             <button className="btn btn-danger" onClick={() => toggleUserDisabled(u)}>
                               {u.disabled ? "Reactivate" : "Deactivate"}
                             </button>
+                            <button className="btn btn-danger" onClick={() => deleteUserCompletely(u)}>Delete Permanently</button>
                           </>
                         )}
                       </td>

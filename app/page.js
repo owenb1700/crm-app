@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { useRouter } from "next/navigation";
@@ -98,18 +98,19 @@ export default function Login() {
       return alert("Enter your email");
     }
     try {
-      const disabledSnap = await getDoc(doc(db, "disabledEmails", resetEmail));
-      if (disabledSnap.exists()) {
-        alert("This account has been disabled. Contact your admin.");
-        return;
-      }
+      const res = await fetch("/api/send-reset-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not send reset email");
 
-      await sendPasswordResetEmail(auth, resetEmail);
-      alert("Password reset email sent");
+      alert("If an account exists for that email, a reset link is on its way.");
       setShowForgot(false);
       setResetEmail("");
-    } catch {
-      alert("Could not send reset email");
+    } catch (err) {
+      alert(err.message || "Could not send reset email");
     }
   };
 
