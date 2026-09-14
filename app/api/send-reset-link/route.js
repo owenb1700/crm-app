@@ -9,11 +9,11 @@ const BASE_URL = "https://crm-app-coral-five.vercel.app";
 // The one place that sends a password set/reset link -- used by account
 // creation (the very first link a new user gets), the login page's Forgot
 // Password, and an admin's "Send Reset Link" button. All three just pass an
-// email; issueResetToken decides on its own whether this is the account's
-// first-ever link (48-hour window) or a resend (no expiration, valid until
-// used) -- see lib/passwordReset.js.
+// email; account creation also passes newAccount, which is what gets the
+// 48-hour window -- every other link has no expiration and stays valid
+// until used. See lib/passwordReset.js.
 export async function POST(req) {
-  const { email } = await req.json();
+  const { email, newAccount } = await req.json();
   if (!email) {
     return Response.json({ error: "Missing email" }, { status: 400 });
   }
@@ -34,7 +34,7 @@ export async function POST(req) {
     return Response.json({ error: "This account has been disabled. Contact your admin." }, { status: 403 });
   }
 
-  const { token, kind } = await issueResetToken(db, { uid: userDoc.id, email });
+  const { token, kind } = await issueResetToken(db, { uid: userDoc.id, email, newAccount: newAccount === true });
   const link = `${BASE_URL}/reset-password?token=${token}`;
   const isInitial = kind === "initial";
 

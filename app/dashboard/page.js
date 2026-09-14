@@ -10,7 +10,6 @@ import {
 import { auth, db, getSecondaryAuth } from "../../lib/firebase";
 import {
   collection,
-  collectionGroup,
   addDoc,
   getDocs,
   updateDoc,
@@ -1278,7 +1277,7 @@ export default function Dashboard() {
       const res = await fetch("/api/send-reset-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: newUserEmail })
+        body: JSON.stringify({ email: newUserEmail, newAccount: true })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Account created, but the setup email failed to send");
@@ -1349,19 +1348,9 @@ export default function Dashboard() {
     }
   };
 
-  // A full delete, not a deactivation: removes their login entirely and
-  // can't be undone. Anything they owned would otherwise be left pointing
-  // at a uid that no longer exists anywhere -- unrecoverable and, since
-  // only an owner can edit a project or pipeline entry, permanently
-  // un-editable by anyone but an admin going straight into Firestore. So
-  // this reassigns everything they owned to the admin doing the deleting
-  // (same "orphaned work adopts whichever admin next touches it" pattern
-  // loadCustomers already uses) and strips them out of every
-  // collaborator/tracked-by/assigned list first. The Auth account is
-  // deleted first and the rest only proceeds if that succeeds -- otherwise
-  // their profile could disappear while their login still works, and a
-  // login with no profile silently re-provisions a fresh one on next
-  // sign-in (see the login page's bootstrap logic).
+  // A full delete, not a deactivation -- see /api/admin/delete-user for
+  // why the whole thing (login + reassigning their work + cleanup) has to
+  // run server-side rather than here.
   const deleteUserCompletely = async (u) => {
     const label = u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email;
     const ownedCustomers = customers.filter(c => c.ownerId === u.id);
@@ -1376,42 +1365,13 @@ export default function Dashboard() {
 
     try {
       const idToken = await auth.currentUser.getIdToken();
-      const res = await fetch("/api/admin/delete-auth-user", {
+      const res = await fetch("/api/admin/delete-user", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ uid: u.id })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't delete this account's login");
-
-      await Promise.all(ownedCustomers.map(c => updateDoc(doc(db, "customers", c.id), { ownerId: uid })));
-      await Promise.all(ownedPipeline.map(p => updateDoc(doc(db, "pipeline", p.id), { ownerId: uid })));
-
-      const collabCustomers = customers.filter(c => (c.collaboratorIds || []).includes(u.id));
-      await Promise.all(collabCustomers.map(c => updateDoc(doc(db, "customers", c.id), { collaboratorIds: arrayRemove(u.id) })));
-
-      const trackedPipeline = pipelineEntries.filter(p => (p.trackedByIds || []).includes(u.id));
-      await Promise.all(trackedPipeline.map(p => updateDoc(doc(db, "pipeline", p.id), { trackedByIds: arrayRemove(u.id) })));
-
-      const assignedPipeline = pipelineEntries.filter(p => p.salespersonId === u.id || p.projectPointPersonId === u.id);
-      await Promise.all(assignedPipeline.map(p => {
-        const patch = {};
-        if (p.salespersonId === u.id) patch.salespersonId = null;
-        if (p.projectPointPersonId === u.id) patch.projectPointPersonId = null;
-        return updateDoc(doc(db, "pipeline", p.id), patch);
-      }));
-
-      const collabReqSnap = await getDocs(query(collectionGroup(db, "collabRequests"), where("requesterId", "==", u.id)));
-      await Promise.all(collabReqSnap.docs.map(d => deleteDoc(d.ref)));
-
-      const notifSnap = await getDocs(query(collection(db, "notifications"), where("userId", "==", u.id)));
-      await Promise.all(notifSnap.docs.map(d => deleteDoc(d.ref)));
-
-      if (u.email) {
-        await deleteDoc(doc(db, "disabledEmails", u.email)).catch(() => {});
-      }
-
-      await deleteDoc(doc(db, "users", u.id));
+      if (!res.ok) throw new Error(data.code ? `${data.error} (code ${data.code} -- admins have been emailed)` : (data.error || "Couldn't delete this account"));
 
       showToast(`${label} deleted`);
       await loadUsers();
