@@ -76,7 +76,7 @@ function buildDigestHtml({ customers, pipelineEntries, uid, daysAhead, includeOv
   };
 }
 
-async function sendDigestEmail(to, html) {
+async function sendDigestEmail(to, html, subject = "Your Upcoming Tasks") {
   const { GMAIL_USER, GMAIL_APP_PASSWORD } = process.env;
   const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -85,7 +85,7 @@ async function sendDigestEmail(to, html) {
   await transporter.sendMail({
     from: `CRM Updates <${GMAIL_USER}>`,
     to,
-    subject: "Your Upcoming Tasks",
+    subject,
     html
   });
 }
@@ -148,6 +148,23 @@ export async function GET(req) {
         failed.push({ email: user.email, error: err.message });
       }
     }
+  }
+
+  // A failure here would otherwise be completely silent -- nothing else
+  // ever looks at this route's response. On a real (non-test) run, tell
+  // every admin so a missed digest gets noticed the same day instead of
+  // whenever someone happens to mention it.
+  if (!testEmail && failed.length > 0) {
+    const admins = users.filter(u => u.role === "admin" && u.email && !u.disabled);
+    const summary = failed.map(f => `<li>${f.email}: ${f.error}</li>`).join("");
+    const alertHtml = `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;">
+        <h2 style="color:#111827;">Digest Send Failures</h2>
+        <p style="color:#6b7280;">${failed.length} of ${sent.length + failed.length} scheduled digest emails failed to send today.</p>
+        <ul style="color:#374151;">${summary}</ul>
+      </div>
+    `;
+    await Promise.all(admins.map(a => sendDigestEmail(a.email, alertHtml, "Digest Send Failures").catch(() => {})));
   }
 
   return Response.json({ ok: true, dayOfWeek: todayCentral, sent, failed, userCount: users.length });
