@@ -26,7 +26,7 @@ import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import DashboardHeader from "../../../components/DashboardHeader";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
-const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Design", "Budgeting"];
+const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
 
 const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
