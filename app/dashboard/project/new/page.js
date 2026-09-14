@@ -158,8 +158,7 @@ export default function NewProject() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // This screen shouldn't be left except via Cancel Entry or Finish and
-  // Add. Neither of those triggers beforeunload/popstate (they're plain
+  // This screen shouldn't be left except via Cancel or Add Project. Neither of those triggers beforeunload/popstate (they're plain
   // client-side router.push calls, not real navigation/unload events) --
   // this guard only has to catch the other ways out: closing the tab,
   // refreshing, typing a new address, or the browser back/forward buttons.
@@ -176,7 +175,7 @@ export default function NewProject() {
     window.history.pushState(null, "", window.location.href);
 
     const handlePopState = () => {
-      if (window.confirm("Leave without finishing this project? Use Cancel Entry or Finish and Add instead.")) {
+      if (window.confirm("Leave without finishing this project? Use Cancel or Add Project instead.")) {
         window.removeEventListener("beforeunload", handleBeforeUnload);
         router.back();
       } else {
@@ -278,12 +277,17 @@ export default function NewProject() {
 
   return (
     <div className="dashboard-page">
-      <div className="dashboard-header">
+      <div className="dashboard-header is-sticky">
         <div className="dashboard-brand">
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
           <h1 className="dashboard-title">Add Project</h1>
         </div>
         <div className="dashboard-header-actions">
+          <button className="btn btn-on-dark" onClick={handleCancel}>Cancel</button>
+          <button className="btn btn-primary" disabled={saving} onClick={addProject}>
+            {saving ? "Adding…" : "Add Project"}
+          </button>
+          <span className="header-divider" aria-hidden="true" />
           <DashboardHeader uid={uid} />
         </div>
       </div>
@@ -446,12 +450,6 @@ export default function NewProject() {
         </div>
       </div>
 
-      <div style={{ position: "fixed", top: 100, right: 24, display: "flex", flexDirection: "column", gap: 10, zIndex: 10 }}>
-        <button className="btn btn-primary" style={{ padding: "20px 32px", fontSize: 28 }} disabled={saving} onClick={addProject}>
-          {saving ? "Adding..." : "Finish and Add"}
-        </button>
-        <button className="btn btn-secondary" style={{ padding: "20px 32px", fontSize: 28 }} onClick={handleCancel}>Cancel Entry</button>
-      </div>
     </div>
   );
 }

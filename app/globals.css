@@ -562,6 +562,35 @@ a {
   gap: 10px;
 }
 
+/* Long entry forms (Add Project, Add Pipeline Entry) keep their top bar,
+   and its Cancel / Add buttons, in view while scrolling. */
+.dashboard-header.is-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+/* Cancel on the dark top bar: outlined so it reads as secondary to the
+   primary Add button beside it. */
+.btn.btn-on-dark {
+  background: transparent;
+  color: #e5e9f2;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.btn.btn-on-dark:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #ffffff;
+}
+
+.header-divider {
+  width: 1px;
+  height: 28px;
+  margin: 0 6px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
 .avatar-menu {
   position: relative;
 }

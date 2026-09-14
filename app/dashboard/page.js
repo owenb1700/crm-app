@@ -67,7 +67,7 @@ export default function Dashboard() {
   const [uid, setUid] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [role, setRole] = useState(null); // 'admin' | 'member' | null (loading)
-  // A #personal or #pipeline hash in the URL (e.g. after Cancel Entry on
+  // A #personal or #pipeline hash in the URL (e.g. after Cancel on
   // the Add Project / Add Pipeline Entry pages) opens straight to that
   // tab instead of always defaulting to Home.
   const [view, setView] = useState(() => {

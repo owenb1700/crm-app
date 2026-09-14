@@ -172,8 +172,7 @@ export default function NewPipelineEntry() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // This screen shouldn't be left except via Cancel Entry or Finish and
-  // Add -- see the matching guard on the Add Project page for why
+  // This screen shouldn't be left except via Cancel or Add Entry -- see the matching guard on the Add Project page for why
   // beforeunload/popstate are the only events that need catching.
   useEffect(() => {
     const handleBeforeUnload = (e) => {
@@ -185,7 +184,7 @@ export default function NewPipelineEntry() {
     window.history.pushState(null, "", window.location.href);
 
     const handlePopState = () => {
-      if (window.confirm("Leave without finishing this pipeline entry? Use Cancel Entry or Finish and Add instead.")) {
+      if (window.confirm("Leave without finishing this pipeline entry? Use Cancel or Add Entry instead.")) {
         window.removeEventListener("beforeunload", handleBeforeUnload);
         router.back();
       } else {
@@ -283,12 +282,17 @@ export default function NewPipelineEntry() {
 
   return (
     <div className="dashboard-page">
-      <div className="dashboard-header">
+      <div className="dashboard-header is-sticky">
         <div className="dashboard-brand">
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
           <h1 className="dashboard-title">Add Pipeline Entry</h1>
         </div>
         <div className="dashboard-header-actions">
+          <button className="btn btn-on-dark" onClick={handleCancel}>Cancel</button>
+          <button className="btn btn-primary" disabled={saving} onClick={addPipelineEntry}>
+            {saving ? "Adding…" : "Add Entry"}
+          </button>
+          <span className="header-divider" aria-hidden="true" />
           <DashboardHeader uid={uid} />
         </div>
       </div>
@@ -447,12 +451,6 @@ export default function NewPipelineEntry() {
         </div>
       </div>
 
-      <div style={{ position: "fixed", top: 100, right: 24, display: "flex", flexDirection: "column", gap: 10, zIndex: 10 }}>
-        <button className="btn btn-primary" style={{ padding: "20px 32px", fontSize: 28 }} disabled={saving} onClick={addPipelineEntry}>
-          {saving ? "Adding..." : "Finish and Add"}
-        </button>
-        <button className="btn btn-secondary" style={{ padding: "20px 32px", fontSize: 28 }} onClick={handleCancel}>Cancel Entry</button>
-      </div>
     </div>
   );
 }
