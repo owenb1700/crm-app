@@ -527,6 +527,7 @@ export default function ProjectDetail() {
                 {customer.company && customer.projectName && customer.projectName !== customer.company && <span>{customer.company}</span>}
                 <span>Owned by {ownerLabel(customer.ownerId)}</span>
                 <span>{customer.buildingSector || "No building sector"}</span>
+                <span>{customer.projectAddress || "No address"}</span>
                 {customer.projectValue && <span>Value {customer.projectValue}</span>}
                 {customer.nextCheckIn && <span>Next check-in {formatDate(customer.nextCheckIn)}</span>}
               </p>
@@ -715,7 +716,6 @@ export default function ProjectDetail() {
             <div className="project-section">
               <h4 className="field-label">Schedule</h4>
               <dl className="detail-list">
-                <dt>Address</dt><dd>{customer.projectAddress || "—"}</dd>
                 <dt>Next Check-In</dt><dd>{formatDate(customer.nextCheckIn) || "—"}</dd>
                 <dt>Last Contact</dt><dd>{formatDate(customer.lastContact) || "—"}</dd>
                 <dt>Sector</dt><dd>{customer.buildingSector || "—"}</dd>

@@ -634,6 +634,7 @@ export default function PipelineDetail() {
               <p className="modal-subtitle detail-facts">
                 <span>Owned by {ownerLabel(pipeline.ownerId)}</span>
                 <span>{pipeline.buildingSector || "No building sector"}</span>
+                <span>{pipeline.projectAddress || "No address"}</span>
                 {pipeline.bidDate && <span>Bid {pipeline.bidDate}</span>}
                 {pipeline.value && <span>Value {pipeline.value}</span>}
                 {pipeline.convertedToProjectId && (
@@ -768,7 +769,6 @@ export default function PipelineDetail() {
                   <dt>Contact</dt><dd>{pipeline.contact || "—"}</dd>
                   <dt>Email</dt><dd>{pipeline.email || "—"}</dd>
                   <dt>Phone</dt><dd>{formatPhone(pipeline.phone) || "—"}</dd>
-                  <dt>Address</dt><dd>{pipeline.projectAddress || "—"}</dd>
                 </dl>
               </div>
 
