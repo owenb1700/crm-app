@@ -890,7 +890,7 @@ export default function Dashboard() {
       return alert("Please select a building sector");
     }
     if (!editData.workType) {
-      return alert("Please select new installation or repair");
+      return alert("Please select a work type (new installation, replacement, or repair)");
     }
     const original = customers.find(c => c.id === editingId);
     const payload = { ...editData };

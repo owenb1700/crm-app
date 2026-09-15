@@ -169,7 +169,7 @@ export default function NewPipelineEntry() {
       return alert("Please select a building sector");
     }
     if (!workType) {
-      return alert("Please select new installation or repair");
+      return alert("Please select a work type (new installation, replacement, or repair)");
     }
     // Every bidder needs one of our salespeople assigned to it.
     const missingSalesperson = bidderMissingSalesperson(biddingCompanies);
