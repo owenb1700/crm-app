@@ -2433,3 +2433,22 @@ a {
     min-width: 0;
   }
 }
+
+/* Admin Settings: Add User */
+.add-user-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.modal-card.add-user-modal {
+  max-width: 460px;
+}
+
+.add-user-actions {
+  justify-content: flex-end;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}

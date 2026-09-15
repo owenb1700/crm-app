@@ -162,6 +162,8 @@ export default function Dashboard() {
   const [newUserFirstName, setNewUserFirstName] = useState("");
   const [newUserLastName, setNewUserLastName] = useState("");
   const [newUserPermissions, setNewUserPermissions] = useState(DEFAULT_PERMISSIONS);
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
   const [editPermissionsTarget, setEditPermissionsTarget] = useState(null);
   const [editPermissionsData, setEditPermissionsData] = useState(DEFAULT_PERMISSIONS);
 
@@ -1369,16 +1371,36 @@ export default function Dashboard() {
     : "This Week";
 
   // ADMIN
-  const createUser = async () => {
-    if (!newUserEmail) return alert("Enter an email");
+  const resetNewUserForm = () => {
+    setNewUserEmail("");
+    setNewUserRole("member");
+    setNewUserFirstName("");
+    setNewUserLastName("");
+    setNewUserPermissions(DEFAULT_PERMISSIONS);
+  };
 
+  // The Add User popup only closes through Add User (on success) or Cancel,
+  // and Cancel wipes the form -- so nothing half-entered is left behind.
+  const cancelAddUser = () => {
+    if (creatingUser) return;
+    resetNewUserForm();
+    setShowAddUser(false);
+  };
+
+  const createUser = async () => {
+    const email = newUserEmail.trim();
+    if (!email) return alert("Enter an email");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return alert("Enter a valid email address");
+
+    setCreatingUser(true);
+    let accountCreated = false;
     try {
       const secondaryAuth = getSecondaryAuth();
       const tempPassword = Math.random().toString(36).slice(-10) + "Aa1!";
-      const cred = await createUserWithEmailAndPassword(secondaryAuth, newUserEmail, tempPassword);
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, email, tempPassword);
 
       await setDoc(doc(db, "users", cred.user.uid), {
-        email: newUserEmail,
+        email,
         role: newUserRole,
         firstName: newUserFirstName.trim() || null,
         lastName: newUserLastName.trim() || null,
@@ -1386,6 +1408,7 @@ export default function Dashboard() {
         permissions: newUserPermissions,
         createdAt: new Date().toISOString()
       });
+      accountCreated = true;
 
       await signOut(secondaryAuth);
 
@@ -1394,20 +1417,29 @@ export default function Dashboard() {
       const res = await fetch("/api/send-reset-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: newUserEmail, newAccount: true })
+        body: JSON.stringify({ email, newAccount: true })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Account created, but the setup email failed to send");
+      if (!res.ok) throw new Error(data.error || "the setup email failed to send");
 
-      setNewUserEmail("");
-      setNewUserRole("member");
-      setNewUserFirstName("");
-      setNewUserLastName("");
-      setNewUserPermissions(DEFAULT_PERMISSIONS);
+      resetNewUserForm();
+      setShowAddUser(false);
       showToast("Account created — setup email sent (link valid for 48 hours)");
       loadUsers();
     } catch (err) {
-      alert(err.message || "Could not create account");
+      if (accountCreated) {
+        // The account exists now, so leaving the form open would only lead to
+        // an "email already in use" error on retry. Close it and point to
+        // the way to get them their setup email.
+        resetNewUserForm();
+        setShowAddUser(false);
+        loadUsers();
+        alert(`The account for ${email} was created, but ${err.message}. Use "Send Reset Link" on their row in Team Members to email them a setup link.`);
+      } else {
+        alert(err.message || "Could not create account");
+      }
+    } finally {
+      setCreatingUser(false);
     }
   };
 
@@ -2658,68 +2690,12 @@ export default function Dashboard() {
             Company account management — create logins and control access.
           </p>
 
-          <div className="admin-card">
-            <h3 className="modal-title">Create Account</h3>
-
-            <label className="field-label">First Name (optional)</label>
-            <input
-              className="field"
-              name="newUserFirstName"
-              autoComplete="off"
-              placeholder="First name"
-              value={newUserFirstName}
-              onChange={e => setNewUserFirstName(e.target.value)}
-            />
-
-            <label className="field-label">Last Name (optional)</label>
-            <input
-              className="field"
-              name="newUserLastName"
-              autoComplete="off"
-              placeholder="Last name"
-              value={newUserLastName}
-              onChange={e => setNewUserLastName(e.target.value)}
-            />
-
-            <label className="field-label">Email</label>
-            <input
-              className="field"
-              name="newUserEmail"
-              autoComplete="off"
-              placeholder="name@company.com"
-              value={newUserEmail}
-              onChange={e => setNewUserEmail(e.target.value)}
-            />
-
-            <label className="field-label">Role</label>
-            <select className="field" value={newUserRole} onChange={e => setNewUserRole(e.target.value)}>
-              <option value="member">Salesperson</option>
-              <option value="estimating">Estimating Department</option>
-              <option value="admin">Admin</option>
-            </select>
-
-            <label className="field-label" style={{ marginTop: 8 }}>Permissions</label>
-            {PERMISSION_DEFS.map(p => {
-              const always = (p.alwaysForRoles || []).includes(newUserRole);
-              return (
-                <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: always ? "default" : "pointer" }}>
-                  <input
-                    type="checkbox"
-                    disabled={always}
-                    checked={always || !!newUserPermissions[p.key]}
-                    onChange={() => setNewUserPermissions(prev => ({ ...prev, [p.key]: !prev[p.key] }))}
-                  />
-                  {p.label}
-                  {always && <span className="private-note-hint" style={{ margin: 0 }}>(always on for this role)</span>}
-                </label>
-              );
-            })}
-
-            <button className="btn btn-primary" style={{ marginTop: 8 }} onClick={createUser}>Create Account</button>
-            <p className="modal-subtitle" style={{ marginTop: 10 }}>
-              They'll get an email to set their own password.
-              {(!newUserFirstName || !newUserLastName) && " If you skip the name fields, they'll be asked for it on first login."}
-            </p>
+          <div className="admin-card add-user-card">
+            <div>
+              <h3 className="modal-title" style={{ margin: 0 }}>Team Accounts</h3>
+              <p className="modal-subtitle" style={{ margin: "2px 0 0" }}>New users get an email to set their own password.</p>
+            </div>
+            <button className="btn btn-primary" onClick={() => setShowAddUser(true)}>+ Add User</button>
           </div>
 
           <div className="admin-card">
@@ -2799,6 +2775,85 @@ export default function Dashboard() {
             <button className="btn btn-secondary" disabled={fixingContractorCategories} onClick={fixContractorCategories}>
               {fixingContractorCategories ? "Fixing..." : "Fix Contractor Categories"}
             </button>
+          </div>
+        </div>
+      )}
+
+      {showAddUser && (
+        // No backdrop click, ✕, or Escape: this only closes through Add User
+        // or Cancel, so a half-filled account is never left behind.
+        <div className="modal-overlay">
+          <div className="modal-card add-user-modal" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
+            <h3 id="add-user-title" className="modal-title">Add User</h3>
+            <p className="modal-subtitle" style={{ marginBottom: 12 }}>
+              They'll get an email to set their own password.
+              {(!newUserFirstName || !newUserLastName) && " If you skip the name fields, they'll be asked for it on first login."}
+            </p>
+
+            <label className="field-label" htmlFor="new-user-first">First Name (optional)</label>
+            <input
+              id="new-user-first"
+              className="field"
+              name="newUserFirstName"
+              autoComplete="off"
+              placeholder="First name"
+              value={newUserFirstName}
+              onChange={e => setNewUserFirstName(e.target.value)}
+            />
+
+            <label className="field-label" htmlFor="new-user-last">Last Name (optional)</label>
+            <input
+              id="new-user-last"
+              className="field"
+              name="newUserLastName"
+              autoComplete="off"
+              placeholder="Last name"
+              value={newUserLastName}
+              onChange={e => setNewUserLastName(e.target.value)}
+            />
+
+            <label className="field-label" htmlFor="new-user-email">Email</label>
+            <input
+              id="new-user-email"
+              className="field"
+              type="email"
+              name="newUserEmail"
+              autoComplete="off"
+              placeholder="name@company.com"
+              value={newUserEmail}
+              onChange={e => setNewUserEmail(e.target.value)}
+            />
+
+            <label className="field-label" htmlFor="new-user-role">Role</label>
+            <select id="new-user-role" className="field" value={newUserRole} onChange={e => setNewUserRole(e.target.value)}>
+              <option value="member">Salesperson</option>
+              <option value="estimating">Estimating Department</option>
+              <option value="admin">Admin</option>
+            </select>
+
+            <label className="field-label" style={{ marginTop: 8 }}>Permissions</label>
+            {PERMISSION_DEFS.map(p => {
+              const always = (p.alwaysForRoles || []).includes(newUserRole);
+              return (
+                <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: always ? "default" : "pointer" }}>
+                  <input
+                    type="checkbox"
+                    disabled={always}
+                    checked={always || !!newUserPermissions[p.key]}
+                    onChange={() => setNewUserPermissions(prev => ({ ...prev, [p.key]: !prev[p.key] }))}
+                  />
+                  {p.label}
+                  {always && <span className="private-note-hint" style={{ margin: 0 }}>(always on for this role)</span>}
+                </label>
+              );
+            })}
+
+            <div className="modal-actions add-user-actions">
+              <button className="btn btn-secondary" disabled={creatingUser} onClick={cancelAddUser}>Cancel</button>
+              <button className="btn btn-primary" disabled={creatingUser} onClick={createUser}>
+                {creatingUser ? "Adding…" : "Add User"}
+              </button>
+            </div>
           </div>
         </div>
       )}
