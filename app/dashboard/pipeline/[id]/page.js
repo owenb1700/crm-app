@@ -16,7 +16,7 @@ import {
   arrayRemove
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { ensureCompanyAndContactBatch, firmTypeOf } from "../../../../lib/directory";
+import { ensureCompanyAndContactBatch, firmTypeOf, salespersonAfterFirmChange } from "../../../../lib/directory";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
@@ -739,7 +739,11 @@ export default function PipelineDetail() {
                 contactValue={editData.contact}
                 emailValue={editData.email}
                 phoneValue={editData.phone}
-                onCompanyChange={v => setEditData({ ...editData, company: v })}
+                onCompanyChange={v => setEditData({
+                  ...editData,
+                  company: v,
+                  salespersonId: salespersonAfterFirmChange({ companies, users, previousFirm: editData.company, nextFirm: v, currentSalespersonId: editData.salespersonId })
+                })}
                 onContactChange={v => setEditData({ ...editData, contact: v })}
                 onEmailChange={v => setEditData({ ...editData, email: v })}
                 onPhoneChange={v => setEditData({ ...editData, phone: v })}

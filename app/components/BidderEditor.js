@@ -2,6 +2,7 @@
 
 import { firmTypeOf, primaryEmail, primaryPhone } from "../../lib/directory";
 import { blankBidder, blankContact } from "../../lib/bidders";
+import { salespersonAfterFirmChange } from "../../lib/directory";
 import FirmTypeSelect from "./FirmTypeSelect";
 import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "./DirectoryPickers";
 import { sameCompany } from "../../lib/companyMatch";
@@ -45,7 +46,10 @@ export default function BidderEditor({ idPrefix, bidders, onChange, companies, c
                   companies={companies}
                   category={type}
                   value={b.company}
-                  onChange={v => updateBidder(bi, { company: v })}
+                  onChange={v => updateBidder(bi, {
+                    company: v,
+                    salespersonId: salespersonAfterFirmChange({ companies, users, previousFirm: b.company, nextFirm: v, currentSalespersonId: b.salespersonId })
+                  })}
                 />
               </div>
               <SalespersonSelect

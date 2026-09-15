@@ -23,6 +23,7 @@ import { isTrashed } from "../../../../../lib/trash";
 import { companyKeyOf, sameCompany, samePerson, findSimilarPeople, findSimilarCompanies } from "../../../../../lib/companyMatch";
 import { companyConflicts, personConflicts, describeConflicts, reviewSignature, emailsOf, phonesOf, companyValues, FIELD_LABELS } from "../../../../../lib/directoryConflicts";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
+import SalespersonSelect from "../../../../components/SalespersonSelect";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -89,6 +90,7 @@ export default function CompanyDetail() {
 
   const [company, setCompany] = useState(null);
   const [people, setPeople] = useState([]);
+  const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [pipelineJobs, setPipelineJobs] = useState([]);
 
@@ -128,11 +130,13 @@ export default function CompanyDetail() {
     const data = { id: snap.id, ...snap.data() };
     setCompany(data);
 
-    const [peopleSnap, customersSnap, pipelineSnap] = await Promise.all([
+    const [peopleSnap, customersSnap, pipelineSnap, usersSnap] = await Promise.all([
       getDocs(query(collection(db, "contacts"), where("companyId", "==", companyId))),
       getDocs(collection(db, "customers")),
-      getDocs(collection(db, "pipeline"))
+      getDocs(collection(db, "pipeline")),
+      getDocs(collection(db, "users"))
     ]);
+    setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
     setPeople(peopleSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
@@ -213,7 +217,8 @@ export default function CompanyDetail() {
       phone: company.phone || "",
       address: company.address || "",
       website: company.website || "",
-      notes: company.notes || ""
+      notes: company.notes || "",
+      salespersonId: company.salespersonId || ""
     });
     setIsEditing(true);
   };
@@ -251,7 +256,8 @@ export default function CompanyDetail() {
         phone: editData.phone || null,
         address: editData.address || null,
         website: editData.website || null,
-        notes: editData.notes || null
+        notes: editData.notes || null,
+        salespersonId: editData.salespersonId || null
       });
       if (renamed) await directoryAction("renameCompany", { companyId, name });
       setIsEditing(false);
@@ -508,6 +514,16 @@ export default function CompanyDetail() {
               {COMPANY_CATEGORIES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
             </select>
 
+            <SalespersonSelect
+              id="company-salesperson"
+              users={users}
+              label="Assigned Salesperson (optional)"
+              value={editData.salespersonId}
+              onChange={v => setEditData({ ...editData, salespersonId: v })}
+              optional
+            />
+            <p className="private-note-hint" style={{ marginTop: -4 }}>Filled in automatically when this firm is chosen on a pipeline entry; it can still be changed there.</p>
+
             <h4 className="field-label">Phone</h4>
             <input className="field" autoComplete="off" value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} />
 
@@ -528,6 +544,10 @@ export default function CompanyDetail() {
                 <button type="button" className="btn btn-secondary" onClick={() => openReview("company")}>Review</button>
               </div>
             )}
+            <p><strong>Assigned Salesperson:</strong> {(() => {
+              const u = users.find(x => x.id === company.salespersonId);
+              return u ? (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email) : "—";
+            })()}</p>
             <p><strong>Phone:</strong> {formatPhone(company.phone) || "—"}</p>
             <p><strong>Address:</strong> {company.address || "—"}</p>
             <p><strong>Website:</strong> {company.website || "—"}</p>

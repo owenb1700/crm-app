@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../lib/firebase";
 import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
-import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, firmTypeOf } from "../../../../lib/directory";
+import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, firmTypeOf, salespersonAfterFirmChange } from "../../../../lib/directory";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import BidderEditor from "../../../components/BidderEditor";
@@ -295,7 +295,16 @@ export default function NewPipelineEntry() {
 
             <div>
               <label className="field-label">Engineering Firm</label>
-              <FirmSelect id="new-pipeline-firm" companies={companies} category="Engineering Firm" value={company} onChange={setCompany} />
+              <FirmSelect
+                id="new-pipeline-firm"
+                companies={companies}
+                category="Engineering Firm"
+                value={company}
+                onChange={v => {
+                  setSalespersonId(salespersonAfterFirmChange({ companies, users, previousFirm: company, nextFirm: v, currentSalespersonId: salespersonId }));
+                  setCompany(v);
+                }}
+              />
             </div>
             <div>
               <label className="field-label">Contact</label>
