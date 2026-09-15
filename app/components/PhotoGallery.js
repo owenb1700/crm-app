@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "../../lib/firebase";
-import { dateKeyOf, isImageFile, preparePhoto } from "../../lib/photos";
+import { dateKeyOf, isImageFile, preparePhoto, PHOTO_ACCEPT, PHOTO_TYPES_LABEL } from "../../lib/photos";
 import ConfirmDialog from "./ConfirmDialog";
 
 // Photos on a project or pipeline entry. Everyone who can open the entry
@@ -25,6 +25,7 @@ export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canM
   const [editing, setEditing] = useState(null); // { date, caption }
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [dragOver, setDragOver] = useState(false);
+  const [skippedNote, setSkippedNote] = useState("");
   const inputRef = useRef(null);
 
   const load = async () => {
@@ -50,14 +51,20 @@ export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canM
 
   // Picking or dropping files opens the details step (date + caption each).
   const choose = (fileList) => {
-    const files = Array.from(fileList || []).filter(isImageFile);
+    const all = Array.from(fileList || []);
+    const files = all.filter(isImageFile);
+    const skipped = all.filter(f => !isImageFile(f));
+    setSkippedNote(skipped.length
+      ? `${skipped.map(f => f.name).join(", ")} ${skipped.length === 1 ? "isn't a" : "aren't"} supported photo type${skipped.length === 1 ? "" : "s"}. Use ${PHOTO_TYPES_LABEL}.`
+      : "");
+    if (inputRef.current) inputRef.current.value = "";
     if (!files.length) return;
     setUploadError("");
     setPending(files.map(file => ({
       file,
       date: dateKeyOf(new Date(file.lastModified || Date.now())),
       caption: "",
-      previewUrl: file.type.startsWith("image/") && !/hei[cf]/i.test(file.type) ? URL.createObjectURL(file) : null
+      previewUrl: /^image\/(jpeg|png|gif|webp|avif|bmp)$/i.test(file.type) ? URL.createObjectURL(file) : null
     })));
   };
 
@@ -172,7 +179,7 @@ export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canM
               ref={inputRef}
               id={`photo-input-${recordId}`}
               type="file"
-              accept="image/*,.heic,.heif"
+              accept={PHOTO_ACCEPT}
               multiple
               className="photo-input"
               onChange={e => choose(e.target.files)}
@@ -182,6 +189,7 @@ export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canM
         )}
       </div>
 
+      {skippedNote && <p className="settings-status is-error">{skippedNote}</p>}
       {loadError && <p className="settings-status is-error">⚠ Couldn&apos;t load photos: {loadError}</p>}
       {!loadError && photos.length === 0 && (
         <p className="private-note-hint">
