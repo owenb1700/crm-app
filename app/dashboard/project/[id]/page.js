@@ -791,17 +791,6 @@ export default function ProjectDetail() {
           </div>
         )}
 
-        {uid && (
-          <PhotoGallery
-            kind="project"
-            recordId={projectId}
-            uid={uid}
-            myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
-            canAdd={isOwner || isCollaborator || role === "admin"}
-            canManageAll={isOwner || role === "admin"}
-          />
-        )}
-
         <div className="detail-grid">
           {isEditing && closedCheckInSection}
 
@@ -878,6 +867,18 @@ export default function ProjectDetail() {
 
         {uid && <ProjectMyReminders projectId={projectId} uid={uid} />}
         </div>
+
+        {uid && (
+          <PhotoGallery
+            kind="project"
+            recordId={projectId}
+            uid={uid}
+            myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
+            canAdd={isOwner || isCollaborator || role === "admin"}
+            canManageAll={isOwner || role === "admin"}
+          />
+        )}
+
         </>)}
       </div>
     </div>

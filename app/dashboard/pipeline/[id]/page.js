@@ -857,17 +857,6 @@ export default function PipelineDetail() {
           </>
         )}
 
-        {uid && (
-          <PhotoGallery
-            kind="pipeline"
-            recordId={pipelineId}
-            uid={uid}
-            myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
-            canAdd
-            canManageAll={isOwner || role === "admin"}
-          />
-        )}
-
         <div className="detail-grid">
           {isEditing && outcomeSection}
 
@@ -967,6 +956,18 @@ export default function PipelineDetail() {
             )}
           </div>
         </div>
+
+        {uid && (
+          <PhotoGallery
+            kind="pipeline"
+            recordId={pipelineId}
+            uid={uid}
+            myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
+            canAdd
+            canManageAll={isOwner || role === "admin"}
+          />
+        )}
+
       </div>
 
       {showWonModal && (
