@@ -20,7 +20,7 @@ const authedFetch = async (url, options = {}) => {
 };
 
 // The Trash, opened from User Settings: deleted projects and pipeline
-// entries (your own, or everyone's for an admin). Each row has Revive (puts
+// entries you own (every one for an admin). Each row has Revive (puts
 // it back exactly where it was) and Delete (gone for good); both ask for
 // confirmation first.
 export default function TrashModal({ onClose }) {
@@ -78,7 +78,7 @@ export default function TrashModal({ onClose }) {
           <div>
             <h3 id="trash-title" className="modal-title" style={{ margin: 0 }}>Trash</h3>
             <p className="settings-hint" style={{ margin: "2px 0 0" }}>
-              {isAdmin ? "Every deleted project and pipeline entry." : "Projects and pipeline entries you deleted."}{" "}
+              {isAdmin ? "Every deleted project and pipeline entry." : "Your deleted projects and pipeline entries."}{" "}
               Each is deleted forever {TRASH_DAYS} days after it was deleted.
             </p>
           </div>
@@ -111,7 +111,8 @@ export default function TrashModal({ onClose }) {
                   {item.sub && <div className="notes-history-date">{item.sub}</div>}
                   <div className="notes-history-date">
                     Deleted {String(item.deletedAt).slice(0, 10)}
-                    {isAdmin ? ` by ${item.deletedBy} · owner ${item.owner}` : ""}
+                    {` by ${item.deletedBy}`}
+                    {isAdmin ? ` · owner ${item.owner}` : ""}
                   </div>
                   <div className={`trash-days ${days <= 3 ? "is-soon" : ""}`}>
                     {days === 0 ? "Deleting forever today" : `${days} day${days === 1 ? "" : "s"} left`}

@@ -2,9 +2,10 @@ import { getAdminDb, getAdminAuth } from "../../../lib/firebaseAdmin";
 import { purgeExpiredTrash } from "../../../lib/deleteRecord";
 import { purgeAtFrom } from "../../../lib/trash";
 
-// Lists the signed-in user's Trash: the projects and pipeline entries they
-// deleted, or every deleted one for an admin. Anything past its 30 days is
-// deleted for good first, so the list never shows something already expired.
+// Lists the signed-in user's Trash: deleted projects and pipeline entries
+// they own (whoever deleted them), or every deleted one for an admin.
+// Anything past its 30 days is deleted for good first, so the list never
+// shows something already expired.
 export async function GET(req) {
   const idToken = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   if (!idToken) {
@@ -42,7 +43,7 @@ export async function GET(req) {
   }));
 
   const isAdmin = caller.role === "admin";
-  const visible = (data) => isAdmin || data.deletedBy === callerUid;
+  const visible = (data) => isAdmin || data.ownerId === callerUid;
   const item = (kind, d) => {
     const data = d.data();
     return {

@@ -166,7 +166,7 @@ export default function UserSettingsModal({ uid, profile, onClose, onSaved }) {
             <p className="settings-hint">
               {profile?.role === "admin"
                 ? "Every deleted project and pipeline entry, kept for 30 days before it's deleted forever."
-                : "Projects and pipeline entries you deleted, kept for 30 days before they're deleted forever."}
+                : "Your deleted projects and pipeline entries, kept for 30 days before they're deleted forever."}
             </p>
             <button type="button" className="btn btn-secondary" style={{ marginTop: 8 }} onClick={() => setShowTrash(true)}>
               Open Trash

@@ -560,7 +560,7 @@ export default function PipelineDetail() {
           <h3 className="modal-title">{notFound === "trash" ? "This pipeline entry is in the trash" : "Pipeline entry not found"}</h3>
           <p className="modal-subtitle">
             {notFound === "trash"
-              ? "It was deleted. Whoever deleted it (or an admin) can revive it from Trash in User Settings within 30 days."
+              ? "It was deleted. Its owner (or an admin) can revive it from Trash in User Settings within 30 days."
               : "It may have been deleted."}
           </p>
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard#pipeline")}>Back to Pipeline</button>

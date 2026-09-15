@@ -7,7 +7,7 @@ import { alertAdmins } from "../../../lib/adminAlert";
 //   30 days. Admins can trash anything; otherwise only the record's owner.
 // - "restore" / "purge" (from the Trash): brings it back, or deletes it for
 //   good with full cleanup (see lib/deleteRecord.js). Admins can do either
-//   to anything; otherwise only the person who trashed it.
+//   to anything; otherwise only the record's owner.
 export async function POST(req) {
   const idToken = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   if (!idToken) {
@@ -46,8 +46,8 @@ export async function POST(req) {
     if (!record.data.deletedAt) {
       return Response.json({ error: "That isn't in the trash" }, { status: 400 });
     }
-    if (!isAdmin && record.data.deletedBy !== callerUid) {
-      return Response.json({ error: "Only an admin or the person who deleted this can do that" }, { status: 403 });
+    if (!isAdmin && record.data.ownerId !== callerUid) {
+      return Response.json({ error: "Only an admin or the owner can do that" }, { status: 403 });
     }
   }
 
