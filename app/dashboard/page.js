@@ -31,6 +31,7 @@ import UserSettingsModal from "../components/UserSettingsModal";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../components/FilterBar";
 import { canViewAnalytics } from "../../lib/analytics";
 import ClosedCheckInActions from "../components/ClosedCheckInActions";
+import MyScorecard from "../components/MyScorecard";
 import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, yearsFrom, localDateKey } from "../../lib/closedProjects";
 import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
@@ -1953,6 +1954,8 @@ export default function Dashboard() {
 
       {view === "personal" && role !== "estimating" && (
         <>
+          <MyScorecard pipelineEntries={pipelineEntries} uid={uid} />
+
           {/* ADD PROJECT BUTTON */}
           <div style={{ marginBottom: 20 }}>
             <button className="btn btn-primary" onClick={() => router.push("/dashboard/project/new")}>ADD PROJECT</button>
@@ -2414,6 +2417,8 @@ export default function Dashboard() {
         <>
           {/* Estimating's My Dashboard is the pipeline list, so their
               reminders get their own section on top of it instead. */}
+          {view === "personal" && <MyScorecard pipelineEntries={pipelineEntries} uid={uid} />}
+
           {view === "personal" && (
             <div style={{ marginBottom: 24 }}>
               <h3 className="modal-title" style={{ marginBottom: 12 }}>My Reminders</h3>

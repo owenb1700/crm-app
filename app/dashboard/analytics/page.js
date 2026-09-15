@@ -6,7 +6,8 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { BUILDING_SECTORS } from "../../../lib/directory";
-import { canViewAnalytics, summarize, breakdown, outcomesByMonth, formatMoney } from "../../../lib/analytics";
+import { canViewAnalytics, summarize, breakdown, breakdownMulti, manufacturersOf, bidForecast, outcomesByMonth, formatMoney, parseMoney, statusOf } from "../../../lib/analytics";
+import { downloadCsv, csvDateStamp } from "../../../lib/csv";
 import DashboardHeader from "../../components/DashboardHeader";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../../components/FilterBar";
 
@@ -22,6 +23,27 @@ const SERIES = [
 ];
 
 const pct = (n) => (n === null || n === undefined ? "—" : `${Math.round(n * 100)}%`);
+const STATUS_LABEL = { won: "Won", lost: "Lost", dnb: "Did Not Bid", open: "Open" };
+
+// Exports use raw numbers (whole dollars, win rate as a percent) so they
+// sort and sum correctly in a spreadsheet.
+const exportBreakdown = (filename, nameHeader, rows) => downloadCsv(
+  `${filename}-${csvDateStamp()}`,
+  [nameHeader, "Entries", "Won", "Lost", "Did Not Bid", "Open", "Win rate %", "Won volume", "Lost volume", "Open volume", "Total volume"],
+  rows.map(r => [
+    r.label || r.key, r.total, r.won, r.lost, r.dnb, r.open,
+    r.winRate === null ? "" : Math.round(r.winRate * 1000) / 10,
+    Math.round(r.volume.won), Math.round(r.volume.lost), Math.round(r.volume.open), Math.round(r.volume.total)
+  ])
+);
+
+function ExportButton({ onClick, label = "Download CSV" }) {
+  return (
+    <button type="button" className="btn btn-secondary btn-small" onClick={onClick}>
+      ⬇ {label}
+    </button>
+  );
+}
 
 function StatTile({ label, value, sub }) {
   return (
@@ -118,9 +140,16 @@ function OutcomesChart({ buckets }) {
         </div>
       )}
 
-      <button type="button" className="settings-link" style={{ marginTop: 12 }} onClick={() => setShowTable(v => !v)}>
-        {showTable ? "Hide table" : "Show as table"}
-      </button>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+        <button type="button" className="settings-link" onClick={() => setShowTable(v => !v)}>
+          {showTable ? "Hide table" : "Show as table"}
+        </button>
+        <ExportButton onClick={() => downloadCsv(
+          `outcomes-by-month-${csvDateStamp()}`,
+          ["Month", "Won", "Lost", "Did Not Bid"],
+          buckets.map(b => [b.key, b.won, b.lost, b.dnb])
+        )} />
+      </div>
       {showTable && (
         <div className="analytics-table-wrap" style={{ marginTop: 8 }}>
           <table className="analytics-table">
@@ -142,11 +171,16 @@ function OutcomesChart({ buckets }) {
   );
 }
 
-function BreakdownTable({ title, sub, rows }) {
+function BreakdownTable({ title, sub, rows, nameHeader, filename }) {
   return (
     <div className="analytics-card">
-      <h3 className="analytics-card-title">{title}</h3>
-      {sub && <p className="analytics-card-sub">{sub}</p>}
+      <div className="analytics-card-head" style={{ marginBottom: 0 }}>
+        <div>
+          <h3 className="analytics-card-title">{title}</h3>
+          {sub && <p className="analytics-card-sub">{sub}</p>}
+        </div>
+        {rows.length > 0 && <ExportButton onClick={() => exportBreakdown(filename, nameHeader, rows)} />}
+      </div>
       {rows.length === 0 ? (
         <p className="private-note-hint">No entries match these filters.</p>
       ) : (
@@ -154,7 +188,7 @@ function BreakdownTable({ title, sub, rows }) {
           <table className="analytics-table">
             <thead>
               <tr>
-                <th>{title.replace("By ", "")}</th>
+                <th>{nameHeader}</th>
                 <th>Entries</th>
                 <th>Won</th>
                 <th>Lost</th>
@@ -282,6 +316,9 @@ export default function AnalyticsPage() {
   const stats = useMemo(() => summarize(filtered), [filtered]);
   const months = useMemo(() => outcomesByMonth(filtered), [filtered]);
   const bySector = useMemo(() => breakdown(filtered, e => e.buildingSector), [filtered]);
+  const byFirm = useMemo(() => breakdown(filtered, e => e.company), [filtered]);
+  const byManufacturer = useMemo(() => breakdownMulti(filtered, manufacturersOf), [filtered]);
+  const forecast = useMemo(() => bidForecast(filtered), [filtered]);
   const byPerson = useMemo(
     () => breakdown(filtered, salespersonOf).map(r => ({ ...r, label: r.key === "Not set" ? "Not set" : personLabel(r.key) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -325,6 +362,22 @@ export default function AnalyticsPage() {
 
   const anyFilter = Object.values(filters).some(isFilterActive);
 
+  const exportEntries = () => downloadCsv(
+    `pipeline-entries-${csvDateStamp()}`,
+    ["Title", "Status", "Stage", "Sector", "Salesperson", "Engineering firm", "Bid date", "Estimated value (as entered)", "Estimated value ($)",
+      "Manufacturers", "Bidders", "Won by / lost to", "Reason (lost / did not bid)", "Created", "Resolved", "Converted to project"],
+    filtered.map(e => [
+      e.title, STATUS_LABEL[statusOf(e)], e.stage, e.buildingSector, personLabel(salespersonOf(e)), e.company, e.bidDate,
+      e.value, parseMoney(e.value) ?? "",
+      Array.from(new Set(manufacturersOf(e).filter(Boolean))).join("; "),
+      (e.biddingCompanies || []).map(b => b.company).filter(Boolean).join("; "),
+      e.wonByContractor || e.lostTo || "",
+      e.lostReason || "",
+      String(e.createdAt || "").slice(0, 10), String(e.resolvedAt || "").slice(0, 10),
+      e.convertedToProjectId ? "Yes" : "No"
+    ])
+  );
+
   return (
     <div className="dashboard-page">
       <div className="dashboard-header">
@@ -347,6 +400,10 @@ export default function AnalyticsPage() {
         resultCount={filtered.length}
         resultNoun={filtered.length === 1 ? "pipeline entry" : "pipeline entries"}
       />
+
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -6, marginBottom: 14 }}>
+        <ExportButton label="Download these entries" onClick={exportEntries} />
+      </div>
 
       <h2 className="analytics-section-title">Bids</h2>
       <div className="stat-row">
@@ -373,10 +430,72 @@ export default function AnalyticsPage() {
         </p>
       )}
 
+      <h2 className="analytics-section-title">Pipeline forecast</h2>
+      <div className="stat-row">
+        {["next30", "next60", "next90", "pastDue"].map(k => {
+          const w = forecast.windows[k];
+          return (
+            <StatTile
+              key={k}
+              label={w.label}
+              value={formatMoney(w.volume)}
+              sub={`${w.count} open ${w.count === 1 ? "entry" : "entries"}${k === "pastDue" && w.count ? " still need an outcome" : ""}`}
+            />
+          );
+        })}
+      </div>
+
+      <div className="analytics-card">
+        <div className="analytics-card-head" style={{ marginBottom: 0 }}>
+          <div>
+            <h3 className="analytics-card-title">Upcoming bids</h3>
+            <p className="analytics-card-sub">Open entries bidding in the next 90 days</p>
+          </div>
+          {forecast.upcoming.length > 0 && (
+            <ExportButton onClick={() => downloadCsv(
+              `upcoming-bids-${csvDateStamp()}`,
+              ["Bid date", "Title", "Stage", "Sector", "Salesperson", "Engineering firm", "Estimated value ($)"],
+              forecast.upcoming.map(e => [e.bidDate, e.title, e.stage, e.buildingSector, personLabel(salespersonOf(e)), e.company, parseMoney(e.value) ?? ""])
+            )} />
+          )}
+        </div>
+        {forecast.upcoming.length === 0 ? (
+          <p className="private-note-hint">No open entries bid in the next 90 days.</p>
+        ) : (
+          <div className="analytics-table-wrap">
+            <table className="analytics-table">
+              <thead>
+                <tr><th>Opportunity</th><th>Bid date</th><th>Stage</th><th>Sector</th><th>Salesperson</th><th>Value</th></tr>
+              </thead>
+              <tbody>
+                {forecast.upcoming.map(e => (
+                  <tr key={e.id} className="analytics-row-link" onClick={() => router.push(`/dashboard/pipeline/${e.id}`)}>
+                    <td className="analytics-table-name">{e.title}</td>
+                    <td>{e.bidDate}</td>
+                    <td>{e.stage || "—"}</td>
+                    <td>{e.buildingSector || "—"}</td>
+                    <td>{personLabel(salespersonOf(e))}</td>
+                    <td>{parseMoney(e.value) === null ? "—" : formatMoney(parseMoney(e.value))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       <OutcomesChart buckets={months} />
 
-      <BreakdownTable title="By sector" sub="Entries missing a sector show as Not set." rows={bySector} />
-      <BreakdownTable title="By salesperson" sub="Credited to the assigned salesperson, or whoever created the entry if none was assigned." rows={byPerson} />
+      <BreakdownTable title="By sector" nameHeader="Sector" filename="by-sector" sub="Entries missing a sector show as Not set." rows={bySector} />
+      <BreakdownTable title="By salesperson" nameHeader="Salesperson" filename="by-salesperson" sub="Credited to the assigned salesperson, or whoever created the entry if none was assigned." rows={byPerson} />
+      <BreakdownTable title="By engineering firm" nameHeader="Engineering firm" filename="by-engineering-firm" sub="The engineering firm on each pipeline entry." rows={byFirm} />
+      <BreakdownTable
+        title="By manufacturer"
+        nameHeader="Manufacturer"
+        filename="by-manufacturer"
+        sub="Every manufacturer quoted on an entry. An entry quoting two manufacturers counts under both, so these rows can add up to more than the total."
+        rows={byManufacturer}
+      />
     </div>
   );
 }

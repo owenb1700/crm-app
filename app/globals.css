@@ -1612,3 +1612,79 @@ a {
   justify-content: space-between;
   gap: 10px;
 }
+
+.btn.btn-small {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.analytics-row-link {
+  cursor: pointer;
+}
+
+.analytics-row-link:hover td {
+  background: #f6f8fb;
+}
+
+/* My Dashboard scorecard */
+.scorecard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+
+.scorecard-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.scorecard-toggle {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.scorecard-toggle button {
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border: none;
+  cursor: pointer;
+}
+
+.scorecard-toggle button + button {
+  border-left: 1px solid var(--color-border);
+}
+
+.scorecard-toggle button.is-active {
+  background: #eef2fd;
+  color: var(--color-primary);
+}
+
+.scorecard-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.scorecard-tile {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f8f9fb;
+}
+
+.scorecard-value {
+  margin-top: 2px;
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
