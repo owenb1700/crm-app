@@ -2731,7 +2731,9 @@ export default function Dashboard() {
                               <option value="admin">Admin</option>
                             </select>
                             <button className="btn btn-secondary" onClick={() => openEditPermissions(u)}>Permissions</button>
-                            <button className="btn btn-secondary" onClick={() => setExportFor({ target: u })}>Export Data</button>
+                            {u.role !== "admin" && (
+                              <button className="btn btn-secondary" onClick={() => setExportFor({ target: u })}>Export Data</button>
+                            )}
                             {!u.disabled && (
                               <button className="btn btn-secondary" onClick={() => sendResetLink(u)}>Send Reset Link</button>
                             )}

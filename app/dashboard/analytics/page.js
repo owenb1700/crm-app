@@ -403,8 +403,7 @@ export default function AnalyticsPage() {
       />
 
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginTop: -6, marginBottom: 14 }}>
-        <span className="export-caption">Download these entries</span>
-        <ExportButtons label="these entries" onExport={exportEntries} />
+        <ExportButtons label="these entries" buttonText="Export these entries" onExport={exportEntries} />
       </div>
 
       <h2 className="analytics-section-title">Bids</h2>
@@ -493,14 +492,15 @@ export default function AnalyticsPage() {
         <div className="analytics-card">
           <h3 className="analytics-card-title">Export a person's data</h3>
           <p className="analytics-card-sub">
-            Download one person's projects, pipeline, and past projects. Their private notes are only included for projects you collaborate on.
+            Download one person's projects, pipeline, and past projects. Their private notes are only included for projects you collaborate on. Admins' data can't be exported.
           </p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <label className="sr-only" htmlFor="export-person">Person</label>
             <select id="export-person" className="field" style={{ maxWidth: 280, marginBottom: 0 }} value={exportPersonId} onChange={e => setExportPersonId(e.target.value)}>
               <option value="">Choose a person...</option>
               {users
-                .filter(u => !u.disabled && u.id !== uid)
+                // An admin's data can only be exported by that admin.
+                .filter(u => !u.disabled && u.id !== uid && u.role !== "admin")
                 .sort((a, b) => personLabel(a.id).localeCompare(personLabel(b.id)))
                 .map(u => <option key={u.id} value={u.id}>{personLabel(u.id)}</option>)}
             </select>

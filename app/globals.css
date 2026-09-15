@@ -1690,10 +1690,30 @@ a {
 }
 
 /* Export My Data / person export */
-.export-list {
+.modal-card.export-modal {
+  max-width: 480px;
+  padding: 20px 20px 16px;
+}
+
+.export-modal-head {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.export-modal-who {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.export-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .export-row {
@@ -1701,9 +1721,21 @@ a {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
+  padding: 12px 0;
+}
+
+.export-row + .export-row {
+  border-top: 1px solid #f0f2f5;
+}
+
+.export-row-text {
+  min-width: 0;
+}
+
+.export-modal-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
 }
 
 .export-row-label {
@@ -1730,13 +1762,56 @@ a {
   border: 0;
 }
 
-.export-buttons {
-  display: inline-flex;
-  gap: 6px;
+/* Export dropdown (CSV / Excel / PDF) */
+.export-menu {
+  position: relative;
+  display: inline-block;
   flex-shrink: 0;
 }
 
-.export-caption {
-  font-size: 13px;
+.export-menu-trigger {
+  gap: 6px;
+}
+
+.export-menu-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 60;
+  min-width: 220px;
+  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+}
+
+.export-menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.export-menu-item:hover,
+.export-menu-item:focus-visible {
+  background: #f2f5ff;
+  outline: none;
+}
+
+.export-menu-item-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.export-menu-item-hint {
+  font-size: 12px;
   color: var(--color-text-muted);
 }
