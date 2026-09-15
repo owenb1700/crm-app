@@ -1301,6 +1301,43 @@ a {
   color: #78350f;
 }
 
+/* Quick view for anything clicked on the Home calendar. */
+.modal-card.calendar-popup {
+  max-width: 460px;
+}
+
+.calendar-popup-details {
+  margin-top: 14px;
+}
+
+.calendar-popup-notes {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-bg);
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.calendar-popup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.calendar-popup-actions:empty {
+  display: none;
+}
+
+.calendar-popup-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
 /* Past-due alerts are carried onto today so they're never off the calendar. */
 .calendar-event-pill.calendar-event-pill-overdue {
   box-shadow: inset 3px 0 0 var(--color-danger);

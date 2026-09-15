@@ -136,6 +136,8 @@ export default function Dashboard() {
 
   // COMPLETED
   const [completedTarget, setCompletedTarget] = useState(null);
+  // The calendar item whose quick-view popup is open (Home calendar).
+  const [calendarPopup, setCalendarPopup] = useState(null);
   const [completedOutcome, setCompletedOutcome] = useState("Won");
   const [wonNextDate, setWonNextDate] = useState("");
   const [lostNotes, setLostNotes] = useState("");
@@ -1341,14 +1343,20 @@ export default function Dashboard() {
     return [...projectItems, ...pipelineFollowUps, ...bidDates, ...reminderItems];
   }, [customers, pipelineEntries, reminders, uid, role]);
 
-  const openCalendarItem = (c) => {
-    if (c._kind === "reminder" && c.pipelineId) {
-      router.push(`/dashboard/pipeline/${c.pipelineId}`);
-    } else if (c._kind === "reminder") {
-      openEditReminder(c);
-    } else {
-      router.push(c._kind === "pipeline" || c._kind === "bid" ? `/dashboard/pipeline/${c.id}` : `/dashboard/project/${c.id}`);
-    }
+  // Everything on the Home calendar opens a quick-view popup first; the
+  // popup has the item's own actions plus a button to its full page.
+  const openCalendarItem = (c) => setCalendarPopup(c);
+
+  const calendarItemLink = (c) => {
+    if (c._kind === "reminder") return c.pipelineId ? `/dashboard/pipeline/${c.pipelineId}` : null;
+    return c._kind === "pipeline" || c._kind === "bid" ? `/dashboard/pipeline/${c.id}` : `/dashboard/project/${c.id}`;
+  };
+
+  // Runs a popup action, then closes the popup.
+  const fromPopup = (action) => async () => {
+    const item = calendarPopup;
+    setCalendarPopup(null);
+    await action(item);
   };
 
   // Which calendar day an alert sits on. The calendar only has weekdays
@@ -2246,63 +2254,6 @@ export default function Dashboard() {
             <p className="private-note-hint">Nothing on your dashboard yet.</p>
           )}
 
-          {/* COMPLETED POPUP */}
-          {completedTarget && (
-            <div className="modal-overlay">
-              <div className="modal-card">
-                <h3 className="modal-title">Mark Completed</h3>
-                <p className="modal-subtitle" style={{ marginBottom: 12 }}>
-                  {completedOutcome === "Won" && "The project stays on My Dashboard as an Ongoing Project, due on the date below."}
-                  {completedOutcome === CLOSED_OUTCOME && "The project moves to Past Projects. You'll get a check-in reminder in 1 year to follow up with the customer."}
-                  {completedOutcome !== "Won" && completedOutcome !== CLOSED_OUTCOME && "This closes the project out and moves it to Past Projects. "}
-                  {completedOutcome === "Lost" && "No further alerts -- it stays in Past Projects until someone moves it back."}
-                  {completedOutcome === "Not Pursuing" && "No further alerts -- it stays in Past Projects until someone moves it back."}
-                  {completedOutcome === "Prospecting Only" && "You'll be alerted and it'll move back to My Dashboard on the date below to reach out to the contractor."}
-                </p>
-
-                <label className="field-label">Outcome</label>
-                <select className="field" value={completedOutcome} onChange={e => setCompletedOutcome(e.target.value)}>
-                  <option value="Won">Job Won</option>
-                  <option value={CLOSED_OUTCOME}>Project Closed</option>
-                  <option value="Lost">Job Lost</option>
-                  <option value="Not Pursuing">Not Pursuing Anymore</option>
-                  <option value="Prospecting Only">Prospecting Only</option>
-                </select>
-
-                {completedOutcome === "Won" && (
-                  <div style={{ marginTop: 10 }}>
-                    <label className="field-label" htmlFor="won-next-date">Next Due Date</label>
-                    <input id="won-next-date" className="field" type="date" value={wonNextDate} onChange={e => setWonNextDate(e.target.value)} />
-                  </div>
-                )}
-
-                {completedOutcome === "Lost" && (
-                  <div style={{ marginTop: 10 }}>
-                    <label className="field-label" htmlFor="lost-reason">Why was it lost?</label>
-                    <textarea id="lost-reason" className="field" style={{ width: "100%", height: 70 }} value={lostNotes} onChange={e => setLostNotes(e.target.value)} />
-                    <label className="field-label" htmlFor="lost-to">Who won it? (optional)</label>
-                    <input id="lost-to" className="field" list="lost-to-options" autoComplete="off" value={lostTo} onChange={e => setLostTo(e.target.value)} />
-                    <datalist id="lost-to-options">
-                      {companies.map(co => <option key={co.id} value={co.name} />)}
-                    </datalist>
-                  </div>
-                )}
-
-                {completedOutcome === "Prospecting Only" && (
-                  <div style={{ marginTop: 10 }}>
-                    <label className="field-label">Next Alert Date</label>
-                    <input className="field" type="date" value={prospectingNextDate} onChange={e => setProspectingNextDate(e.target.value)} />
-                  </div>
-                )}
-
-                <div className="modal-actions">
-                  <button className="btn btn-primary" onClick={confirmCompleted}>Confirm</button>
-                  <button className="btn btn-secondary" onClick={() => setCompletedTarget(null)}>Cancel</button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* MODAL */}
           {selected && (
             <div className="modal-overlay">
@@ -2815,6 +2766,149 @@ export default function Dashboard() {
           }}
         />
       )}
+
+      {/* COMPLETED POPUP */}
+      {completedTarget && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <h3 className="modal-title">Mark Completed</h3>
+            <p className="modal-subtitle" style={{ marginBottom: 12 }}>
+              {completedOutcome === "Won" && "The project stays on My Dashboard as an Ongoing Project, due on the date below."}
+              {completedOutcome === CLOSED_OUTCOME && "The project moves to Past Projects. You'll get a check-in reminder in 1 year to follow up with the customer."}
+              {completedOutcome !== "Won" && completedOutcome !== CLOSED_OUTCOME && "This closes the project out and moves it to Past Projects. "}
+              {completedOutcome === "Lost" && "No further alerts -- it stays in Past Projects until someone moves it back."}
+              {completedOutcome === "Not Pursuing" && "No further alerts -- it stays in Past Projects until someone moves it back."}
+              {completedOutcome === "Prospecting Only" && "You'll be alerted and it'll move back to My Dashboard on the date below to reach out to the contractor."}
+            </p>
+
+            <label className="field-label">Outcome</label>
+            <select className="field" value={completedOutcome} onChange={e => setCompletedOutcome(e.target.value)}>
+              <option value="Won">Job Won</option>
+              <option value={CLOSED_OUTCOME}>Project Closed</option>
+              <option value="Lost">Job Lost</option>
+              <option value="Not Pursuing">Not Pursuing Anymore</option>
+              <option value="Prospecting Only">Prospecting Only</option>
+            </select>
+
+            {completedOutcome === "Won" && (
+              <div style={{ marginTop: 10 }}>
+                <label className="field-label" htmlFor="won-next-date">Next Due Date</label>
+                <input id="won-next-date" className="field" type="date" value={wonNextDate} onChange={e => setWonNextDate(e.target.value)} />
+              </div>
+            )}
+
+            {completedOutcome === "Lost" && (
+              <div style={{ marginTop: 10 }}>
+                <label className="field-label" htmlFor="lost-reason">Why was it lost?</label>
+                <textarea id="lost-reason" className="field" style={{ width: "100%", height: 70 }} value={lostNotes} onChange={e => setLostNotes(e.target.value)} />
+                <label className="field-label" htmlFor="lost-to">Who won it? (optional)</label>
+                <input id="lost-to" className="field" list="lost-to-options" autoComplete="off" value={lostTo} onChange={e => setLostTo(e.target.value)} />
+                <datalist id="lost-to-options">
+                  {companies.map(co => <option key={co.id} value={co.name} />)}
+                </datalist>
+              </div>
+            )}
+
+            {completedOutcome === "Prospecting Only" && (
+              <div style={{ marginTop: 10 }}>
+                <label className="field-label">Next Alert Date</label>
+                <input className="field" type="date" value={prospectingNextDate} onChange={e => setProspectingNextDate(e.target.value)} />
+              </div>
+            )}
+
+            <div className="modal-actions">
+              <button className="btn btn-primary" onClick={confirmCompleted}>Confirm</button>
+              <button className="btn btn-secondary" onClick={() => setCompletedTarget(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HOME CALENDAR QUICK VIEW */}
+      {calendarPopup && (() => {
+        const c = calendarPopup;
+        const link = calendarItemLink(c);
+        const due = String(formatDate(c.nextCheckIn) || "").slice(0, 10);
+        const isOwnerOfProject = c._kind === "project" && c.ownerId === uid;
+        const kindLabel = c._kind === "reminder"
+          ? (c.pipelineId ? "My pipeline alert" : "Reminder")
+          : c._kind === "bid" ? `Bid date · ${c.stage || "Pipeline"}`
+          : c._kind === "pipeline" ? "Won — check in"
+          : isClosedWithCheckIn(c) ? "Closed project check-in"
+          : (c.category || "Project check-in");
+        return (
+          <div className="modal-overlay" onClick={() => setCalendarPopup(null)}>
+            <div className="modal-card calendar-popup" role="dialog" aria-modal="true" aria-labelledby="calendar-popup-title" onClick={e => e.stopPropagation()}>
+              <button className="modal-close" aria-label="Close" onClick={() => setCalendarPopup(null)}>✕</button>
+              <span className={`role-badge ${c._kind === "reminder" ? "" : "role-badge-admin"}`}>{kindLabel}</span>
+              <h3 id="calendar-popup-title" className="modal-title" style={{ margin: "8px 0 2px" }}>{c.projectName || c.company}</h3>
+              {c.company && c.projectName && c.projectName !== c.company && (
+                <p className="modal-subtitle" style={{ margin: 0 }}>{c.company}</p>
+              )}
+
+              <dl className="detail-list calendar-popup-details">
+                <dt>{c._kind === "bid" ? "Bid date" : "Due"}</dt>
+                <dd>
+                  {due || "—"}
+                  {isOverdueItem(c) && <span className="calendar-overdue-tag">Overdue</span>}
+                </dd>
+                {c._kind !== "reminder" && c.projectAddress && (<><dt>Address</dt><dd>{c.projectAddress}</dd></>)}
+                {c._kind === "project" && c.contact && (<><dt>Contact</dt><dd>{[c.contact, formatPhone(c.phone)].filter(Boolean).join(" · ")}</dd></>)}
+                {c._kind === "project" && c.ownerId !== uid && (<><dt>Owner</dt><dd>{ownerLabel(c.ownerId)}</dd></>)}
+                {(c._kind === "bid" || c._kind === "pipeline") && c.value && (<><dt>Value</dt><dd>{c.value}</dd></>)}
+                {c._kind === "project" && c.projectValue && (<><dt>Value</dt><dd>{c.projectValue}</dd></>)}
+                {c.workType && c._kind !== "reminder" && (<><dt>Work type</dt><dd>{c.workType}</dd></>)}
+              </dl>
+              {c._kind === "reminder" && c.notes && (
+                <p className="calendar-popup-notes">{c.notes}</p>
+              )}
+
+              <div className="calendar-popup-actions">
+                {c._kind === "reminder" && (
+                  <>
+                    <button className="btn btn-secondary" onClick={fromPopup(followUpReminder)}>Follow Up (2 Weeks)</button>
+                    <button className="btn btn-primary" onClick={fromPopup(completeReminder)}>Complete</button>
+                    {!c.pipelineId && (
+                      <button className="btn btn-secondary" onClick={fromPopup(openEditReminder)}>Edit</button>
+                    )}
+                  </>
+                )}
+                {c._kind === "project" && !isClosedWithCheckIn(c) && isOwnerOfProject && (
+                  <>
+                    <button className="btn btn-secondary" onClick={fromPopup(handleFollowUp)}>Follow Up (2 Weeks)</button>
+                    <button className="btn btn-primary" onClick={fromPopup(openCompletedPopup)}>Complete</button>
+                  </>
+                )}
+                {c._kind === "project" && isClosedWithCheckIn(c) && isOwnerOfProject && (
+                  <ClosedCheckInActions
+                    project={c}
+                    compact
+                    byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
+                    onDone={(msg) => { setCalendarPopup(null); showToast(msg); loadCustomers(uid, role === "admin"); }}
+                  />
+                )}
+                {c._kind === "pipeline" && (
+                  <>
+                    <button className="btn btn-secondary" onClick={fromPopup(snoozePipelineFollowUp)}>Snooze 3 Months</button>
+                    <button className="btn btn-secondary" onClick={fromPopup(pipelineFollowUpAnotherYear)}>Follow Up in 1 Year</button>
+                  </>
+                )}
+              </div>
+              {c._kind === "project" && !isOwnerOfProject && (
+                <p className="private-note-hint" style={{ marginBottom: 0 }}>Only {ownerLabel(c.ownerId)} can follow up on or complete this project.</p>
+              )}
+
+              {link && (
+                <div className="calendar-popup-footer">
+                  <button className="btn btn-secondary" onClick={() => { setCalendarPopup(null); router.push(link); }}>
+                    {c._kind === "project" ? "Open project page →" : "Open pipeline entry →"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {reminderForm && (
         <div className="modal-overlay" onClick={() => setReminderForm(null)}>
