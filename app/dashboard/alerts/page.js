@@ -6,7 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import DashboardHeader from "../../components/DashboardHeader";
-import { isPipelineBidAlertFor } from "../../../lib/directory";
+import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor } from "../../../lib/alertRecipients";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -55,10 +55,7 @@ export default function AllAlerts() {
 
     const customers = customersSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter(c => c.ownerId === currentUid || (c.collaboratorIds || []).includes(currentUid))
-      // A closed project's check-in is the owner's reminder only.
-      .filter(c => !(c.category === "Project Closed" && c.closedOutcome === "Closed") || c.ownerId === currentUid)
-      .filter(c => c.nextCheckIn)
+      .filter(c => isProjectCheckInFor(c, currentUid, currentRole))
       .map(c => ({
         key: `project-${c.id}`,
         kind: "project",
@@ -80,8 +77,7 @@ export default function AllAlerts() {
     // then owner) who sees it.
     const pipeline = pipelineSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter(p => p.outcome === "Won" && p.nextCheckIn)
-      .filter(p => (p.projectPointPersonId || p.salespersonId || p.ownerId) === currentUid)
+      .filter(p => isWonFollowUpFor(p, currentUid, currentRole))
       .map(p => ({
         key: `pipeline-${p.id}`,
         kind: "pipeline",

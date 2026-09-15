@@ -493,6 +493,7 @@ export default function PipelineDetail() {
         activityLog: [{ type: "converted", outcome: "From won pipeline entry", notes: `Converted by ${myName}`, timestamp: now }],
         ownerId: convertData.salespersonId,
         collaboratorIds: [],
+        projectPointPersonId: pipeline.projectPointPersonId || null,
         sourcePipelineId: pipeline.id,
         bidHistory: buildBidSnapshot(pipeline),
         createdAt: now

@@ -23,7 +23,8 @@ import {
   query,
   where
 } from "firebase/firestore";
-import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf, BUILDING_SECTORS, isPipelineBidAlertFor } from "../../lib/directory";
+import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf, BUILDING_SECTORS } from "../../lib/directory";
+import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor } from "../../lib/alertRecipients";
 import FirmTypeSelect from "../components/FirmTypeSelect";
 import BuildingSectorSelect from "../components/BuildingSectorSelect";
 import UserSettingsModal from "../components/UserSettingsModal";
@@ -1300,19 +1301,14 @@ export default function Dashboard() {
   const weekKeys = useMemo(() => calendarDays.slice(0, 5).map(d => d.key), [calendarDays]);
 
   const myCalendarProjects = useMemo(() => {
+    // Who sees what is decided in lib/alertRecipients.js, shared with All
+    // Alerts and the digest emails.
     const projectItems = customers
-      .filter(c => c.ownerId === uid || (c.collaboratorIds || []).includes(uid))
-      // A closed project's check-in is the owner's reminder only.
-      .filter(c => !isClosedWithCheckIn(c) || c.ownerId === uid)
+      .filter(c => isProjectCheckInFor(c, uid, role))
       .map(c => ({ ...c, _kind: "project" }));
 
-    // Won pipeline entries follow up with whoever's actually responsible
-    // for the relationship -- the assigned point person, falling back to
-    // the salesperson, falling back to whoever owns the entry. Lost
-    // entries never get a nextCheckIn set, so they never appear here.
     const pipelineFollowUps = pipelineEntries
-      .filter(p => p.outcome === "Won" && p.nextCheckIn)
-      .filter(p => (p.projectPointPersonId || p.salespersonId || p.ownerId) === uid)
+      .filter(p => isWonFollowUpFor(p, uid, role))
       .map(p => ({ ...p, _kind: "pipeline", projectName: p.title }));
 
     // Open pipeline entries' bid dates, for everyone on the hook for them
