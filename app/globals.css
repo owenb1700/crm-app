@@ -1397,14 +1397,16 @@ a {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  max-width: 760px;
+  /* Uses the width of wide monitors, without stretching forms edge to edge
+     on ultra-wide ones. */
+  max-width: 1800px;
 }
 
 .project-page {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 760px;
+  max-width: 1800px;
 }
 
 .project-section {
@@ -1443,6 +1445,18 @@ a {
 .bidding-company-row.with-type .bidder-remove {
   grid-column: 1 / -1;
   justify-self: end;
+}
+
+/* Wide screens: the whole bidder fits on one line. */
+@media (min-width: 1200px) {
+  .bidding-company-row.with-type {
+    grid-template-columns: minmax(150px, 0.8fr) repeat(4, minmax(0, 1fr)) minmax(170px, 1fr) auto;
+  }
+
+  .bidding-company-row.with-type .bidder-remove {
+    grid-column: auto;
+    justify-self: stretch;
+  }
 }
 
 .field.field-needs-value {
