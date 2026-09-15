@@ -19,6 +19,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { ensureCompanyAndContactBatch, firmTypeOf } from "../../../../lib/directory";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
+import SalespersonSelect from "../../../components/SalespersonSelect";
 import { buildBidSnapshot } from "../../../../lib/bidHistory";
 import PipelineMyAlerts from "../../../components/PipelineMyAlerts";
 import DeleteRecordButton from "../../../components/DeleteRecordButton";
@@ -228,7 +229,7 @@ export default function PipelineDetail() {
   };
 
   const addBiddingRow = () => {
-    setBiddingRows(prev => [...prev, { category: "Contractor", company: "", contact: "", email: "", phone: "" }]);
+    setBiddingRows(prev => [...prev, { category: "Contractor", company: "", contact: "", email: "", phone: "", salespersonId: "" }]);
   };
 
   const updateBiddingRow = (index, field, value) => {
@@ -245,6 +246,13 @@ export default function PipelineDetail() {
     }
     if (!editData.buildingSector) {
       return alert("Please select a building sector");
+    }
+    // Every bidder needs one of our salespeople assigned to it.
+    const bidderMissingSalesperson = biddingRows
+      .filter(r => r.company || r.contact)
+      .find(r => !r.salespersonId);
+    if (bidderMissingSalesperson) {
+      return alert(`Select a salesperson for bidder "${bidderMissingSalesperson.company || bidderMissingSalesperson.contact}"`);
     }
 
     const payload = {};
@@ -666,7 +674,13 @@ export default function PipelineDetail() {
                   onEmailChange={v => updateBiddingRow(i, "email", v)}
                   onPhoneChange={v => updateBiddingRow(i, "phone", v)}
                 />
-                <button className="btn btn-danger" onClick={() => removeBiddingRow(i)}>Remove</button>
+                <SalespersonSelect
+                  id={`pipeline-detail-bidder-salesperson-${i}`}
+                  users={users}
+                  value={row.salespersonId}
+                  onChange={v => updateBiddingRow(i, "salespersonId", v)}
+                />
+                <button className="btn btn-danger bidder-remove" onClick={() => removeBiddingRow(i)}>Remove</button>
               </div>
             ))}
             <button className="btn btn-secondary" onClick={addBiddingRow}>+ Add Bidder</button>
@@ -740,7 +754,9 @@ export default function PipelineDetail() {
               {(pipeline.biddingCompanies || []).map((row, i) => (
                 <div key={i} className="notes-history-item">
                   <div><strong>{row.company}</strong>{row.contact ? ` — ${row.contact}` : ""}</div>
-                  <div className="notes-history-date">{firmTypeOf(row.category)}</div>
+                  <div className="notes-history-date">
+                    {firmTypeOf(row.category)} · Salesperson: {row.salespersonId ? ownerLabel(row.salespersonId) : "Not assigned"}
+                  </div>
                   <div className="notes-history-date">{[row.email, formatPhone(row.phone)].filter(Boolean).join(" | ")}</div>
                 </div>
               ))}

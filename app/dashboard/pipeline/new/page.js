@@ -8,6 +8,7 @@ import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/fires
 import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, firmTypeOf } from "../../../../lib/directory";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
+import SalespersonSelect from "../../../components/SalespersonSelect";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import SearchableSelect from "../../../components/SearchableSelect";
@@ -16,7 +17,7 @@ import MobileNav from "../../../components/MobileNav";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
-const BLANK_BIDDER_ROW = { category: "Contractor", company: "", contact: "", email: "", phone: "" };
+const BLANK_BIDDER_ROW = { category: "Contractor", company: "", contact: "", email: "", phone: "", salespersonId: "" };
 const BLANK_EQUIPMENT_ROW = { manufacturer: "", model: "" };
 
 const clearSession = () => {
@@ -211,6 +212,13 @@ export default function NewPipelineEntry() {
     if (!buildingSector) {
       return alert("Please select a building sector");
     }
+    // Every bidder needs one of our salespeople assigned to it.
+    const bidderMissingSalesperson = biddingCompanies
+      .filter(r => r.company || r.contact)
+      .find(r => !r.salespersonId);
+    if (bidderMissingSalesperson) {
+      return alert(`Select a salesperson for bidder "${bidderMissingSalesperson.company || bidderMissingSalesperson.contact}"`);
+    }
 
     setSaving(true);
     try {
@@ -390,7 +398,13 @@ export default function NewPipelineEntry() {
                 <label className="field-label">Phone</label>
                 <input className="field" autoComplete="off" value={row.phone} onChange={e => updateBiddingCompanyRow(i, "phone", e.target.value)} />
               </div>
-              <button className="btn btn-danger" onClick={() => removeBiddingCompanyRow(i)}>Remove</button>
+              <SalespersonSelect
+                id={`new-pipeline-bidder-salesperson-${i}`}
+                users={users}
+                value={row.salespersonId}
+                onChange={v => updateBiddingCompanyRow(i, "salespersonId", v)}
+              />
+              <button className="btn btn-danger bidder-remove" onClick={() => removeBiddingCompanyRow(i)}>Remove</button>
             </div>
           ))}
           <button className="btn btn-secondary" onClick={addBiddingCompanyRow}>+ Add Bidder</button>

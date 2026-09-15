@@ -372,7 +372,7 @@ export default function AnalyticsPage() {
       e.title, STATUS_LABEL[statusOf(e)], e.stage, e.buildingSector, personLabel(salespersonOf(e)), e.company, e.bidDate,
       e.value, parseMoney(e.value) ?? "",
       Array.from(new Set(manufacturersOf(e).filter(Boolean))).join("; "),
-      (e.biddingCompanies || []).map(b => b.company).filter(Boolean).join("; "),
+      (e.biddingCompanies || []).filter(b => b.company).map(b => `${b.company}${b.salespersonId ? ` - ${personLabel(b.salespersonId)}` : ""}`).join("; "),
       e.wonByContractor || e.lostTo || "",
       e.lostReason || "",
       String(e.createdAt || "").slice(0, 10), String(e.resolvedAt || "").slice(0, 10),

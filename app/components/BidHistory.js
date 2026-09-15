@@ -94,7 +94,7 @@ export default function BidHistory({ snapshot, isLive, bidFiles, canSeePrivate, 
                 {isWinner && <span className="role-badge role-badge-admin" style={{ marginLeft: 8 }}>Won</span>}
               </div>
               <div className="notes-history-date">
-                {[firmTypeOf(b.category), b.email, formatPhone(b.phone)].filter(Boolean).join(" | ")}
+                {[firmTypeOf(b.category), b.salespersonId && `Salesperson: ${personLabel(b.salespersonId)}`, b.email, formatPhone(b.phone)].filter(Boolean).join(" | ")}
               </div>
             </div>
           );

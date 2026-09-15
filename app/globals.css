@@ -1428,8 +1428,25 @@ a {
   margin-bottom: 8px;
 }
 
+/* Bidder rows (type, firm, contact / email, phone, salesperson + Remove)
+   sit in a bordered block across two lines. */
 .bidding-company-row.with-type {
-  grid-template-columns: minmax(150px, 0.8fr) repeat(4, 1fr) auto;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: end;
+  padding: 10px 12px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #fafbfc;
+}
+
+.bidding-company-row.with-type .bidder-remove {
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+
+.field.field-needs-value {
+  border-color: #f0b4ae;
 }
 
 .bidding-company-row .field {
