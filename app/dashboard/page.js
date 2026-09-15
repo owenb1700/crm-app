@@ -29,6 +29,7 @@ import FirmTypeSelect from "../components/FirmTypeSelect";
 import BuildingSectorSelect from "../components/BuildingSectorSelect";
 import UserSettingsModal from "../components/UserSettingsModal";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../components/FilterBar";
+import { canViewAnalytics } from "../../lib/analytics";
 import ClosedCheckInActions from "../components/ClosedCheckInActions";
 import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, yearsFrom, localDateKey } from "../../lib/closedProjects";
 import { ensureTowerModel } from "../../lib/towerModels";
@@ -56,9 +57,13 @@ const PERMISSION_DEFS = [
   { key: "pipeline", label: "Pipeline" },
   { key: "directory", label: "Directory (Companies & Contacts)" },
   { key: "towers", label: "Installed Towers & Tower Models" },
-  { key: "products", label: "Product Options" }
+  { key: "products", label: "Product Options" },
+  // Off by default (see below) -- Estimating and Admin always have it, and
+  // an admin grants it to individual salespeople on purpose.
+  { key: "analytics", label: "Estimating Analytics", alwaysForRoles: ["estimating", "admin"] }
 ];
-const DEFAULT_PERMISSIONS = PERMISSION_DEFS.reduce((acc, p) => ({ ...acc, [p.key]: true }), {});
+const OFF_BY_DEFAULT = ["analytics"];
+const DEFAULT_PERMISSIONS = PERMISSION_DEFS.reduce((acc, p) => ({ ...acc, [p.key]: !OFF_BY_DEFAULT.includes(p.key) }), {});
 
 // A pipeline entry with one of these outcomes is finished and lives in
 // Past Projects. Only Won ever gets a follow-up check-in.
@@ -1787,6 +1792,12 @@ export default function Dashboard() {
             </div>
           )}
 
+          {canViewAnalytics(myProfile) && (
+            <button className="tab-btn" onClick={() => router.push("/dashboard/analytics")}>
+              Analytics
+            </button>
+          )}
+
           {myPermissions.team && (
             <button
               className={`tab-btn ${view === "team" ? "tab-btn-active" : ""}`}
@@ -2638,16 +2649,21 @@ export default function Dashboard() {
             </select>
 
             <label className="field-label" style={{ marginTop: 8 }}>Permissions</label>
-            {PERMISSION_DEFS.map(p => (
-              <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={newUserPermissions[p.key]}
-                  onChange={() => setNewUserPermissions(prev => ({ ...prev, [p.key]: !prev[p.key] }))}
-                />
-                {p.label}
-              </label>
-            ))}
+            {PERMISSION_DEFS.map(p => {
+              const always = (p.alwaysForRoles || []).includes(newUserRole);
+              return (
+                <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: always ? "default" : "pointer" }}>
+                  <input
+                    type="checkbox"
+                    disabled={always}
+                    checked={always || !!newUserPermissions[p.key]}
+                    onChange={() => setNewUserPermissions(prev => ({ ...prev, [p.key]: !prev[p.key] }))}
+                  />
+                  {p.label}
+                  {always && <span className="private-note-hint" style={{ margin: 0 }}>(always on for this role)</span>}
+                </label>
+              );
+            })}
 
             <button className="btn btn-primary" style={{ marginTop: 8 }} onClick={createUser}>Create Account</button>
             <p className="modal-subtitle" style={{ marginTop: 10 }}>
@@ -2741,16 +2757,21 @@ export default function Dashboard() {
             <h3 className="modal-title">Permissions</h3>
             <p className="modal-subtitle" style={{ marginBottom: 12 }}>{editPermissionsTarget.email}</p>
 
-            {PERMISSION_DEFS.map(p => (
-              <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={editPermissionsData[p.key]}
-                  onChange={() => setEditPermissionsData(prev => ({ ...prev, [p.key]: !prev[p.key] }))}
-                />
-                {p.label}
-              </label>
-            ))}
+            {PERMISSION_DEFS.map(p => {
+              const always = (p.alwaysForRoles || []).includes(editPermissionsTarget.role);
+              return (
+                <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: always ? "default" : "pointer" }}>
+                  <input
+                    type="checkbox"
+                    disabled={always}
+                    checked={always || !!editPermissionsData[p.key]}
+                    onChange={() => setEditPermissionsData(prev => ({ ...prev, [p.key]: !prev[p.key] }))}
+                  />
+                  {p.label}
+                  {always && <span className="private-note-hint" style={{ margin: 0 }}>(always on for {roleLabel(editPermissionsTarget.role)})</span>}
+                </label>
+              );
+            })}
 
             <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={savePermissions}>Save Permissions</button>
           </div>
