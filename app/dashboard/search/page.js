@@ -119,7 +119,8 @@ function SearchPageContent() {
   // first), so a serial number search here lands on the same tower record
   // that page would show.
   const towersBySerial = {};
-  [...customers, ...pipelineEntries].forEach(entry => {
+  // Pipeline entries are only quoted, never installed, so they have no serials.
+  customers.forEach(entry => {
     equipmentRowsFrom(entry).forEach(row => {
       const serial = (row.serial || "").trim();
       if (!serial) return;

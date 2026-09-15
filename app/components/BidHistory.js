@@ -118,7 +118,7 @@ export default function BidHistory({ snapshot, isLive, bidFiles, canSeePrivate, 
           <p className="private-note-hint">No equipment was recorded.</p>
         )}
         {equipment.map((e, i) => (
-          <p key={i}>{[e.manufacturer, e.model].filter(Boolean).join(" — ") || "—"}</p>
+          <p key={i}>{e.type && <strong>{e.type}: </strong>}{[e.manufacturer, e.model].filter(Boolean).join(" — ") || "—"}</p>
         ))}
         {equipment.length === 0 && (snapshot.towerManufacturer || snapshot.modelNumber) && (
           <p>{[snapshot.towerManufacturer, snapshot.modelNumber, snapshot.serialNumber && `Serial ${snapshot.serialNumber}`].filter(Boolean).join(" — ")}</p>

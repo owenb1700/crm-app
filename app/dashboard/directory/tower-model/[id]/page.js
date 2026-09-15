@@ -264,7 +264,7 @@ export default function TowerModelDetail() {
           {pipelineJobs.map(p => (
             <div key={p.id} className="notes-history-item" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/pipeline/${p.id}`)}>
               <div><strong>{p.title}</strong></div>
-              <div className="notes-history-date">Serial: {p.serialNumber || "—"}</div>
+              <div className="notes-history-date">{[p.stage, p.bidDate && `Bid ${p.bidDate}`].filter(Boolean).join(" · ") || "—"}</div>
             </div>
           ))}
         </div>

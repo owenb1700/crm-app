@@ -90,7 +90,8 @@ export default function TowersPage() {
   // them by serial (case-insensitive) into one card per physical tower,
   // with a running count of how much work references it.
   const towersBySerial = {};
-  [...customers, ...pipelineEntries].forEach(entry => {
+  // Pipeline entries are only quoted, never installed, so they have no serials.
+  customers.forEach(entry => {
     equipmentRowsFrom(entry).forEach(row => {
       const serial = (row.serial || "").trim();
       if (!serial) return;

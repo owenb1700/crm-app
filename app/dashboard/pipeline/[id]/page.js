@@ -25,6 +25,8 @@ import { buildBidSnapshot } from "../../../../lib/bidHistory";
 import PipelineMyAlerts from "../../../components/PipelineMyAlerts";
 import DeleteRecordButton from "../../../components/DeleteRecordButton";
 import { ensureTowerModel } from "../../../../lib/towerModels";
+import ProductOptionsEditor from "../../../components/ProductOptionsEditor";
+import { blankProductRow, productRowsFrom, productRowsForStorage, isTowerRow } from "../../../../lib/equipment";
 import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import DashboardHeader from "../../../components/DashboardHeader";
@@ -37,7 +39,7 @@ const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
 };
 
-const EDITABLE_FIELDS = ["title", "buildingSector", "stage", "bidDate", "value", "company", "contact", "email", "phone", "projectAddress", "towerManufacturer", "modelNumber", "serialNumber", "salespersonId", "projectPointPersonId"];
+const EDITABLE_FIELDS = ["title", "buildingSector", "stage", "bidDate", "value", "company", "contact", "email", "phone", "projectAddress", "salespersonId", "projectPointPersonId"];
 
 const formatBytes = (bytes) => {
   if (!bytes) return "";
@@ -62,12 +64,14 @@ export default function PipelineDetail() {
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [towerModels, setTowerModels] = useState([]);
+  const [products, setProducts] = useState([]);
   const [privateData, setPrivateData] = useState(null);
   const [modalNotes, setModalNotes] = useState("");
 
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
   const [biddingRows, setBiddingRows] = useState([]);
+  const [productRows, setProductRows] = useState([]);
 
   const [uploading, setUploading] = useState(false);
 
@@ -115,16 +119,18 @@ export default function PipelineDetail() {
     const data = { id: snap.id, ...snap.data() };
     setPipeline(data);
 
-    const [usersSnap, companiesSnap, contactsSnap, towerModelsSnap] = await Promise.all([
+    const [usersSnap, companiesSnap, contactsSnap, towerModelsSnap, productsSnap] = await Promise.all([
       getDocs(collection(db, "users")),
       getDocs(collection(db, "companies")),
       getDocs(collection(db, "contacts")),
-      getDocs(collection(db, "towerModels"))
+      getDocs(collection(db, "towerModels")),
+      getDocs(collection(db, "products"))
     ]);
     setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setTowerModels(towerModelsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setProducts(productsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
     const isOwner = data.ownerId === currentUid;
 
@@ -213,13 +219,12 @@ export default function PipelineDetail() {
       email: pipeline.email || "",
       phone: pipeline.phone || "",
       projectAddress: pipeline.projectAddress || "",
-      towerManufacturer: pipeline.towerManufacturer || "",
-      modelNumber: pipeline.modelNumber || "",
-      serialNumber: pipeline.serialNumber || "",
       salespersonId: pipeline.salespersonId || "",
       projectPointPersonId: pipeline.projectPointPersonId || ""
     });
     setBiddingRows(bidderRowsForEditing(pipeline.biddingCompanies));
+    const rows = productRowsFrom(pipeline);
+    setProductRows(rows.length ? rows : [blankProductRow()]);
     setIsEditing(true);
   };
 
@@ -227,6 +232,7 @@ export default function PipelineDetail() {
     setIsEditing(false);
     setEditData({});
     setBiddingRows([]);
+    setProductRows([]);
   };
 
   const saveEdit = async () => {
@@ -248,6 +254,12 @@ export default function PipelineDetail() {
     });
     // One row per firm, with all of that firm's people grouped under it.
     payload.biddingCompanies = biddersForStorage(biddingRows);
+    // Products quoted; not installed yet, so never a serial number. The
+    // first row is mirrored into the older single-product fields.
+    payload.equipment = productRowsForStorage(productRows);
+    payload.towerManufacturer = payload.equipment[0]?.manufacturer || null;
+    payload.modelNumber = payload.equipment[0]?.model || null;
+    payload.serialNumber = null;
 
     await updateDoc(doc(db, "pipeline", pipelineId), payload);
 
@@ -256,7 +268,9 @@ export default function PipelineDetail() {
       ...bidderDirectoryEntries(payload.biddingCompanies, firmTypeOf)
     ];
     await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });
-    await ensureTowerModel({ towerModels, manufacturer: editData.towerManufacturer, model: editData.modelNumber, uid });
+    await Promise.all(
+      payload.equipment.filter(isTowerRow).map(row => ensureTowerModel({ towerModels, manufacturer: row.manufacturer, model: row.model, uid }))
+    );
 
     setIsEditing(false);
     await loadPipelineEntry(uid, role);
@@ -457,9 +471,9 @@ export default function PipelineDetail() {
     try {
       const now = new Date().toISOString();
       const myName = myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown");
-      const equipment = (pipeline.equipment || []).map(e => ({
-        type: "", manufacturer: e.manufacturer || "", model: e.model || "", serial: "", yearInstalled: ""
-      }));
+      // Serial numbers and install years get filled in on the project once
+      // the equipment is actually installed.
+      const equipment = productRowsFrom(pipeline).map(e => ({ ...e, serial: "", yearInstalled: "" }));
       const first = equipment[0] || {};
 
       const ref3 = await addDoc(collection(db, "customers"), {
@@ -477,7 +491,7 @@ export default function PipelineDetail() {
         equipment,
         towerManufacturer: first.manufacturer || pipeline.towerManufacturer || null,
         modelNumber: first.model || pipeline.modelNumber || null,
-        serialNumber: pipeline.serialNumber || null,
+        serialNumber: null,
         nextCheckIn: adjustWeekend(convertNextDate + "T12:00:00"),
         lastContact: now.split("T")[0],
         activityLog: [{ type: "converted", outcome: "From won pipeline entry", notes: `Converted by ${myName}`, timestamp: now }],
@@ -542,6 +556,59 @@ export default function PipelineDetail() {
     return <div className="dashboard-page">Loading...</div>;
   }
 
+  // Shown with the details normally, and in the lower row while editing.
+  const outcomeSection = (
+    <div className="project-section">
+      <h4 className="field-label">Outcome</h4>
+      {!pipeline.outcome && (
+        <>
+          <p className="private-note-hint">Still in progress.</p>
+          {canEdit && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn btn-primary" onClick={() => setShowWonModal(true)}>Mark Won</button>
+              <button className="btn btn-danger" onClick={() => setLostModalOutcome("Lost")}>Mark Lost</button>
+              <button className="btn btn-secondary" onClick={() => setLostModalOutcome("Did Not Bid")}>Not Bidding</button>
+            </div>
+          )}
+        </>
+      )}
+      {pipeline.outcome === "Won" && (
+        <>
+          <p>✅ <strong>Won</strong>{pipeline.wonByContractor ? ` — awarded to ${pipeline.wonByContractor}` : ""}</p>
+          {pipeline.nextCheckIn && (
+            <p className="private-note-hint">Follow-up check-in scheduled: {pipeline.nextCheckIn}</p>
+          )}
+          {pipeline.convertedToProjectId ? (
+            <p>
+              ✅ Converted to a project —{" "}
+              <a className="link-muted" href={`/dashboard/project/${pipeline.convertedToProjectId}`}>View project</a>
+            </p>
+          ) : (
+            <p className="private-note-hint">Next step: convert this into a project so it's tracked on a salesperson's dashboard.</p>
+          )}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {!pipeline.convertedToProjectId && (isOwner || role === "admin") && (
+              <button className="btn btn-primary" onClick={openConvert}>Convert to Project</button>
+            )}
+            {canEdit && !pipeline.convertedToProjectId && <button className="btn btn-secondary" onClick={reopenPipeline}>Reopen</button>}
+          </div>
+        </>
+      )}
+      {(pipeline.outcome === "Lost" || pipeline.outcome === "Did Not Bid") && (
+        <>
+          <p>
+            {pipeline.outcome === "Lost" ? "❌ " : "🚫 "}
+            <strong>{pipeline.outcome === "Lost" ? "Lost" : "Did Not Bid"}</strong>
+            {pipeline.resolvedAt ? ` on ${pipeline.resolvedAt.slice(0, 10)}` : ""}
+          </p>
+          <p><strong>Why:</strong> {pipeline.lostReason || "No reason recorded"}</p>
+          <p><strong>Won by:</strong> {pipeline.lostTo || "Not recorded"}</p>
+          {canEdit && <button className="btn btn-secondary" onClick={reopenPipeline}>Reopen</button>}
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="dashboard-page">
       <div className="dashboard-header">
@@ -558,25 +625,28 @@ export default function PipelineDetail() {
 
       <div className="project-page">
         <div className="project-section">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+          <div className="detail-header">
             <div>
-              <h2 className="modal-title" style={{ marginBottom: 2 }}>{pipeline.title}</h2>
-              <p className="modal-subtitle">Owned by {ownerLabel(pipeline.ownerId)}</p>
-              <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>{pipeline.stage}</span>
-              <p className="modal-subtitle" style={{ marginTop: 6 }}>Building Sector: {pipeline.buildingSector || "Not set"}</p>
-              {pipeline.value && <p className="modal-subtitle" style={{ marginTop: 6 }}>Value: {pipeline.value}</p>}
-              {pipeline.convertedToProjectId && (
-                <p className="modal-subtitle" style={{ marginTop: 6 }}>
-                  ✅ Converted —{" "}
-                  <a className="link-muted" href={`/dashboard/project/${pipeline.convertedToProjectId}`}>
-                    View project
-                  </a>
-                </p>
-              )}
+              <div className="detail-title-row">
+                <h2 className="modal-title" style={{ margin: 0 }}>{pipeline.title}</h2>
+                <span className="role-badge role-badge-admin">{pipeline.stage}</span>
+              </div>
+              <p className="modal-subtitle detail-facts">
+                <span>Owned by {ownerLabel(pipeline.ownerId)}</span>
+                <span>{pipeline.buildingSector || "No building sector"}</span>
+                {pipeline.bidDate && <span>Bid {pipeline.bidDate}</span>}
+                {pipeline.value && <span>Value {pipeline.value}</span>}
+                {pipeline.convertedToProjectId && (
+                  <span>
+                    ✅ Converted —{" "}
+                    <a className="link-muted" href={`/dashboard/project/${pipeline.convertedToProjectId}`}>View project</a>
+                  </span>
+                )}
+              </p>
             </div>
 
             {canEdit && !isEditing && (
-              <div style={{ display: "flex", gap: 8 }}>
+              <div className="detail-header-actions">
                 <button className="btn btn-secondary" onClick={toggleTracked}>
                   {isTracked ? "Remove From My Dashboard" : "Add To My Dashboard"}
                 </button>
@@ -592,7 +662,7 @@ export default function PipelineDetail() {
               </div>
             )}
             {isEditing && (
-              <div style={{ display: "flex", gap: 8 }}>
+              <div className="detail-header-actions">
                 <button className="btn btn-primary" onClick={saveEdit}>Save</button>
                 <button className="btn btn-secondary" onClick={cancelEdit}>Cancel</button>
               </div>
@@ -674,227 +744,181 @@ export default function PipelineDetail() {
               </div>
             </div>
 
-            <h4 className="field-label" style={{ marginTop: 16 }}>Tower Details</h4>
-            <div className="form-grid-2">
-              <div>
-                <label className="field-label">Tower Manufacturer</label>
-                <input className="field" name="pipeline-detail-towerManufacturer" autoComplete="off" value={editData.towerManufacturer} onChange={e => setEditData({ ...editData, towerManufacturer: e.target.value })} />
-              </div>
-              <div>
-                <label className="field-label">Model Number</label>
-                <input className="field" name="pipeline-detail-modelNumber" autoComplete="off" value={editData.modelNumber} onChange={e => setEditData({ ...editData, modelNumber: e.target.value })} />
-              </div>
-              <div>
-                <label className="field-label">Serial Number</label>
-                <input className="field" name="pipeline-detail-serialNumber" autoComplete="off" value={editData.serialNumber} onChange={e => setEditData({ ...editData, serialNumber: e.target.value })} />
-              </div>
-            </div>
+            <h4 className="field-label" style={{ marginTop: 16 }}>Product Options</h4>
+            <ProductOptionsEditor idPrefix="pipeline-detail-product" rows={productRows} onChange={setProductRows} products={products} />
           </div>
         ) : (
           <>
-            <div className="project-section">
-              <h4 className="field-label">Contact Info</h4>
-              <p><strong>Engineering Firm:</strong> {pipeline.company || "—"}</p>
-              <p><strong>Contact:</strong> {pipeline.contact || "—"}</p>
-              <p><strong>Email:</strong> {pipeline.email || "—"}</p>
-              <p><strong>Phone:</strong> {formatPhone(pipeline.phone) || "—"}</p>
-              <p><strong>Project Address:</strong> {pipeline.projectAddress || "—"}</p>
-            </div>
+            <div className="detail-grid">
+              <div className="project-section">
+                <h4 className="field-label">Bid & Team</h4>
+                <dl className="detail-list">
+                  <dt>Bid Date</dt><dd>{pipeline.bidDate || "—"}</dd>
+                  <dt>Est. Value</dt><dd>{pipeline.value || "—"}</dd>
+                  <dt>Sector</dt><dd>{pipeline.buildingSector || "—"}</dd>
+                  <dt>Salesperson</dt><dd>{pipeline.salespersonId ? ownerLabel(pipeline.salespersonId) : "Unassigned"}</dd>
+                  <dt>Point Person</dt><dd>{pipeline.projectPointPersonId ? ownerLabel(pipeline.projectPointPersonId) : "Unassigned"}</dd>
+                </dl>
+              </div>
 
-            <div className="project-section">
-              <h4 className="field-label">Bid Info</h4>
-              <p><strong>Bid Date:</strong> {pipeline.bidDate || "—"}</p>
-              <p><strong>Estimated Value:</strong> {pipeline.value || "—"}</p>
-            </div>
+              <div className="project-section">
+                <h4 className="field-label">Engineering Firm</h4>
+                <dl className="detail-list">
+                  <dt>Firm</dt><dd>{pipeline.company || "—"}</dd>
+                  <dt>Contact</dt><dd>{pipeline.contact || "—"}</dd>
+                  <dt>Email</dt><dd>{pipeline.email || "—"}</dd>
+                  <dt>Phone</dt><dd>{formatPhone(pipeline.phone) || "—"}</dd>
+                  <dt>Address</dt><dd>{pipeline.projectAddress || "—"}</dd>
+                </dl>
+              </div>
 
-            <div className="project-section">
-              <h4 className="field-label">Assigned Team</h4>
-              <p><strong>Salesperson:</strong> {pipeline.salespersonId ? ownerLabel(pipeline.salespersonId) : "Unassigned"}</p>
-              <p><strong>Project Point Person:</strong> {pipeline.projectPointPersonId ? ownerLabel(pipeline.projectPointPersonId) : "Unassigned"}</p>
-            </div>
+              {outcomeSection}
 
-            <div className="project-section">
-              <h4 className="field-label">Contractors & Owners Bidding</h4>
-              {(pipeline.biddingCompanies || []).length === 0 && (
-                <p className="private-note-hint">None added yet.</p>
-              )}
-              {groupBidders(pipeline.biddingCompanies).map((row, i) => (
-                <div key={i} className="notes-history-item">
-                  <div><strong>{row.company || "Unnamed firm"}</strong></div>
-                  <div className="notes-history-date">
-                    {firmTypeOf(row.category)} · Salesperson: {row.salespersonId ? ownerLabel(row.salespersonId) : "Not assigned"}
-                  </div>
-                  {contactsOf(row).length === 0 ? (
-                    <div className="notes-history-date">No people added</div>
-                  ) : (
-                    <ul className="bidder-people-list">
-                      {contactsOf(row).map((c, ci) => (
-                        <li key={ci}>
-                          <span>{c.name || "Unnamed contact"}</span>
-                          {(c.email || c.phone) && (
-                            <span className="notes-history-date"> — {[c.email, formatPhone(c.phone)].filter(Boolean).join(" | ")}</span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+              <div className="project-section detail-span-2">
+                <h4 className="field-label">Contractors & Owners Bidding</h4>
+                {(pipeline.biddingCompanies || []).length === 0 && (
+                  <p className="private-note-hint">None added yet.</p>
+                )}
+                <div className="bidder-card-grid">
+                  {groupBidders(pipeline.biddingCompanies).map((row, i) => (
+                    <div key={i} className="bidder-card">
+                      <div><strong>{row.company || "Unnamed firm"}</strong></div>
+                      <div className="notes-history-date">
+                        {firmTypeOf(row.category)} · Salesperson: {row.salespersonId ? ownerLabel(row.salespersonId) : "Not assigned"}
+                      </div>
+                      {contactsOf(row).length === 0 ? (
+                        <div className="notes-history-date">No people added</div>
+                      ) : (
+                        <ul className="bidder-people-list">
+                          {contactsOf(row).map((c, ci) => (
+                            <li key={ci}>
+                              <span>{c.name || "Unnamed contact"}</span>
+                              {(c.email || c.phone) && (
+                                <div className="notes-history-date">{[c.email, formatPhone(c.phone)].filter(Boolean).join(" | ")}</div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
 
-            <div className="project-section">
-              <h4 className="field-label">Tower Details</h4>
-              <p><strong>Tower Manufacturer:</strong> {pipeline.towerManufacturer || "—"}</p>
-              <p><strong>Model Number:</strong> {pipeline.modelNumber || "—"}</p>
-              <p><strong>Serial Number:</strong> {pipeline.serialNumber || "—"}</p>
+              <div className="project-section">
+                <h4 className="field-label">Product Options</h4>
+                {productRowsFrom(pipeline).length === 0 ? (
+                  <p className="private-note-hint">None added yet.</p>
+                ) : (
+                  productRowsFrom(pipeline).map((row, i) => (
+                    <p key={i}>
+                      <strong>{row.type || "Product"}:</strong> {[row.manufacturer, row.model].filter(Boolean).join(" — ") || "—"}
+                    </p>
+                  ))
+                )}
+              </div>
             </div>
           </>
         )}
 
-        <div className="project-section">
-          <h4 className="field-label">Outcome</h4>
-          {!pipeline.outcome && (
-            <>
-              <p className="private-note-hint">Still in progress.</p>
-              {canEdit && (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button className="btn btn-primary" onClick={() => setShowWonModal(true)}>Mark Won</button>
-                  <button className="btn btn-danger" onClick={() => setLostModalOutcome("Lost")}>Mark Lost</button>
-                  <button className="btn btn-secondary" onClick={() => setLostModalOutcome("Did Not Bid")}>Not Bidding</button>
-                </div>
-              )}
-            </>
+        <div className="detail-grid">
+          {isEditing && outcomeSection}
+
+          {!pipeline.outcome && !pipeline.convertedToProjectId && uid && (
+            <PipelineMyAlerts pipeline={pipeline} uid={uid} />
           )}
-          {pipeline.outcome === "Won" && (
-            <>
-              <p>✅ <strong>Won</strong>{pipeline.wonByContractor ? ` — awarded to ${pipeline.wonByContractor}` : ""}</p>
-              {pipeline.nextCheckIn && (
-                <p className="private-note-hint">Follow-up check-in scheduled: {pipeline.nextCheckIn}</p>
-              )}
-              {pipeline.convertedToProjectId ? (
-                <p>
-                  ✅ Converted to a project —{" "}
-                  <a className="link-muted" href={`/dashboard/project/${pipeline.convertedToProjectId}`}>View project</a>
-                </p>
-              ) : (
-                <p className="private-note-hint">Next step: convert this into a project so it's tracked on a salesperson's dashboard.</p>
-              )}
-              <div style={{ display: "flex", gap: 8 }}>
-                {!pipeline.convertedToProjectId && (isOwner || role === "admin") && (
-                  <button className="btn btn-primary" onClick={openConvert}>Convert to Project</button>
+
+          <div className="project-section">
+            <h4 className="field-label">Notes</h4>
+
+            {!canSeeNotes && (
+              <p className="private-note-hint">🔒 Notes are private to {ownerLabel(pipeline.ownerId)}.</p>
+            )}
+
+            {canSeeNotes && !canEditPrivate && (
+              <>
+                <p>{privateData?.notes || "(no notes yet)"}</p>
+                {privateData?.notesAuthorName && (
+                  <p className="private-note-hint">Last written by {privateData.notesAuthorName}</p>
                 )}
-                {canEdit && !pipeline.convertedToProjectId && <button className="btn btn-secondary" onClick={reopenPipeline}>Reopen</button>}
-              </div>
-            </>
-          )}
-          {(pipeline.outcome === "Lost" || pipeline.outcome === "Did Not Bid") && (
-            <>
-              <p>
-                {pipeline.outcome === "Lost" ? "❌ " : "🚫 "}
-                <strong>{pipeline.outcome === "Lost" ? "Lost" : "Did Not Bid"}</strong>
-                {pipeline.resolvedAt ? ` on ${pipeline.resolvedAt.slice(0, 10)}` : ""}
-              </p>
-              <p><strong>Why:</strong> {pipeline.lostReason || "No reason recorded"}</p>
-              <p><strong>Won by:</strong> {pipeline.lostTo || "Not recorded"}</p>
-              {canEdit && <button className="btn btn-secondary" onClick={reopenPipeline}>Reopen</button>}
-            </>
-          )}
-        </div>
+              </>
+            )}
 
-        {!pipeline.outcome && !pipeline.convertedToProjectId && uid && (
-          <PipelineMyAlerts pipeline={pipeline} uid={uid} />
-        )}
+            {canEditPrivate && (
+              <>
+                {privateData?.notesAuthorName && (
+                  <p className="private-note-hint">Last written by {privateData.notesAuthorName}</p>
+                )}
+                <textarea
+                  className="field"
+                  name="pd-notes"
+                  autoComplete="off"
+                  style={{ width: "100%", height: 100 }}
+                  value={modalNotes}
+                  onChange={e => setModalNotes(e.target.value)}
+                />
+                <button className="btn btn-primary" onClick={saveNotes}>Save Notes</button>
+              </>
+            )}
 
-        <div className="project-section">
-          <h4 className="field-label">Notes</h4>
-
-          {!canSeeNotes && (
-            <p className="private-note-hint">🔒 Notes are private to {ownerLabel(pipeline.ownerId)}.</p>
-          )}
-
-          {canSeeNotes && !canEditPrivate && (
-            <>
-              <p>{privateData?.notes || "(no notes yet)"}</p>
-              {privateData?.notesAuthorName && (
-                <p className="private-note-hint">Last written by {privateData.notesAuthorName}</p>
-              )}
-            </>
-          )}
-
-          {canEditPrivate && (
-            <>
-              {privateData?.notesAuthorName && (
-                <p className="private-note-hint">Last written by {privateData.notesAuthorName}</p>
-              )}
-              <textarea
-                className="field"
-                name="pd-notes"
-                autoComplete="off"
-                style={{ width: "100%", height: 100 }}
-                value={modalNotes}
-                onChange={e => setModalNotes(e.target.value)}
-              />
-              <button className="btn btn-primary" onClick={saveNotes}>Save Notes</button>
-            </>
-          )}
-
-          {canSeeNotes && (privateData?.notesHistory || []).length > 0 && (
-            <>
-              <h4 className="field-label" style={{ marginTop: 16 }}>Notes History</h4>
-              {privateData.notesHistory.map((h, i) => (
-                <div key={i} className="notes-history-item notes-history-row">
-                  <div>
-                    <div>{h.text}</div>
-                    <div className="notes-history-date">{h.authorName || "Unknown"} · {h.date}</div>
-                  </div>
-                  {canEditPrivate && (
-                    <button className="btn btn-danger" onClick={() => deleteHistoryEntry(i)}>Delete</button>
-                  )}
-                </div>
-              ))}
-            </>
-          )}
-        </div>
-
-        <div className="project-section">
-          <h4 className="field-label">Files (PDF)</h4>
-
-          {!canSeeNotes && (
-            <p className="private-note-hint">🔒 Files are private to {ownerLabel(pipeline.ownerId)}.</p>
-          )}
-
-          {canSeeNotes && (
-            <>
-              {(privateData?.files || []).length === 0 && (
-                <p className="private-note-hint">No files uploaded yet.</p>
-              )}
-              {(privateData?.files || []).map((f, i) => (
-                <div key={i} className="notes-history-item notes-history-row">
-                  <div>
-                    <a className="link-muted" href={f.url} target="_blank" rel="noopener noreferrer">{f.name}</a>
-                    <div className="notes-history-date">
-                      {formatBytes(f.size)} · uploaded by {f.uploadedByName} · {f.uploadedAt?.slice(0, 10)}
+            {canSeeNotes && (privateData?.notesHistory || []).length > 0 && (
+              <>
+                <h4 className="field-label" style={{ marginTop: 16 }}>Notes History</h4>
+                {privateData.notesHistory.map((h, i) => (
+                  <div key={i} className="notes-history-item notes-history-row">
+                    <div>
+                      <div>{h.text}</div>
+                      <div className="notes-history-date">{h.authorName || "Unknown"} · {h.date}</div>
                     </div>
+                    {canEditPrivate && (
+                      <button className="btn btn-danger" onClick={() => deleteHistoryEntry(i)}>Delete</button>
+                    )}
                   </div>
-                  {canEditPrivate && (
-                    <button className="btn btn-danger" onClick={() => deleteFile(f)}>Delete</button>
-                  )}
-                </div>
-              ))}
+                ))}
+              </>
+            )}
+          </div>
 
-              {canEditPrivate && (
-                <div style={{ marginTop: 12 }}>
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    disabled={uploading}
-                    onChange={e => uploadFile(e.target.files)}
-                  />
-                  {uploading && <p className="private-note-hint">Uploading...</p>}
-                </div>
-              )}
-            </>
-          )}
+          <div className="project-section">
+            <h4 className="field-label">Files (PDF)</h4>
+
+            {!canSeeNotes && (
+              <p className="private-note-hint">🔒 Files are private to {ownerLabel(pipeline.ownerId)}.</p>
+            )}
+
+            {canSeeNotes && (
+              <>
+                {(privateData?.files || []).length === 0 && (
+                  <p className="private-note-hint">No files uploaded yet.</p>
+                )}
+                {(privateData?.files || []).map((f, i) => (
+                  <div key={i} className="notes-history-item notes-history-row">
+                    <div>
+                      <a className="link-muted" href={f.url} target="_blank" rel="noopener noreferrer">{f.name}</a>
+                      <div className="notes-history-date">
+                        {formatBytes(f.size)} · uploaded by {f.uploadedByName} · {f.uploadedAt?.slice(0, 10)}
+                      </div>
+                    </div>
+                    {canEditPrivate && (
+                      <button className="btn btn-danger" onClick={() => deleteFile(f)}>Delete</button>
+                    )}
+                  </div>
+                ))}
+
+                {canEditPrivate && (
+                  <div style={{ marginTop: 12 }}>
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      disabled={uploading}
+                      onChange={e => uploadFile(e.target.files)}
+                    />
+                    {uploading && <p className="private-note-hint">Uploading...</p>}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
