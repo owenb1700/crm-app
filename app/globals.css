@@ -2212,13 +2212,10 @@ a {
     font-size: 10px;
   }
 
-  .scorecard-tiles {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-  }
-
-  .scorecard-value {
-    font-size: 17px;
+  /* My Scorecard is desktop and tablet only -- on phones My Dashboard goes
+     straight to the work. */
+  .scorecard {
+    display: none;
   }
 
   .filter-bar-fields {
@@ -2241,10 +2238,6 @@ a {
   .bidding-company-row.with-type,
   .filter-bar-fields {
     grid-template-columns: 1fr;
-  }
-
-  .scorecard-tiles {
-    grid-template-columns: repeat(2, 1fr);
   }
 
   .filter-field-wide {
