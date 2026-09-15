@@ -779,30 +779,38 @@ export default function PipelineDetail() {
                 {(pipeline.biddingCompanies || []).length === 0 && (
                   <p className="private-note-hint">None added yet.</p>
                 )}
-                <div className="bidder-card-grid">
-                  {groupBidders(pipeline.biddingCompanies).map((row, i) => (
-                    <div key={i} className="bidder-card">
-                      <div><strong>{row.company || "Unnamed firm"}</strong></div>
-                      <div className="notes-history-date">
-                        {firmTypeOf(row.category)} · Salesperson: {row.salespersonId ? ownerLabel(row.salespersonId) : "Not assigned"}
-                      </div>
-                      {contactsOf(row).length === 0 ? (
-                        <div className="notes-history-date">No people added</div>
-                      ) : (
-                        <ul className="bidder-people-list">
-                          {contactsOf(row).map((c, ci) => (
-                            <li key={ci}>
-                              <span>{c.name || "Unnamed contact"}</span>
-                              {(c.email || c.phone) && (
-                                <div className="notes-history-date">{[c.email, formatPhone(c.phone)].filter(Boolean).join(" | ")}</div>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                {groupBidders(pipeline.biddingCompanies).length > 0 && (
+                  <div className="bidder-list">
+                    <div className="bidder-list-row bidder-list-head">
+                      <span>Firm</span>
+                      <span>Salesperson</span>
+                      <span>People</span>
                     </div>
-                  ))}
-                </div>
+                    {groupBidders(pipeline.biddingCompanies).map((row, i) => (
+                      <div key={i} className="bidder-list-row">
+                        <div>
+                          <strong>{row.company || "Unnamed firm"}</strong>
+                          <div className="notes-history-date">{firmTypeOf(row.category)}</div>
+                        </div>
+                        <div>{row.salespersonId ? ownerLabel(row.salespersonId) : "Not assigned"}</div>
+                        <div>
+                          {contactsOf(row).length === 0 ? (
+                            <span className="notes-history-date">No people added</span>
+                          ) : (
+                            contactsOf(row).map((c, ci) => (
+                              <div key={ci} className="bidder-list-person">
+                                <span>{c.name || "Unnamed contact"}</span>
+                                {(c.email || c.phone) && (
+                                  <span className="notes-history-date"> — {[c.email, formatPhone(c.phone)].filter(Boolean).join(" | ")}</span>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="project-section">
