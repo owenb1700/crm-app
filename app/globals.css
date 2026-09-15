@@ -2487,3 +2487,93 @@ a {
 .btn.btn-danger-solid:hover {
   background: #c7362e;
 }
+
+/* Admin Settings: Team Members + Edit User */
+.team-table {
+  table-layout: auto;
+}
+
+.team-table-email {
+  word-break: break-word;
+}
+
+.team-table-edit {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.modal-card.edit-user-modal {
+  max-width: 520px;
+}
+
+.edit-user-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.edit-user-section {
+  padding: 14px 0;
+}
+
+.edit-user-section + .edit-user-section {
+  border-top: 1px solid var(--color-border);
+}
+
+.edit-user-perms {
+  display: flex;
+  flex-direction: column;
+}
+
+.edit-user-save,
+.edit-user-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.edit-user-section .edit-user-actions:first-of-type {
+  margin-top: 4px;
+}
+
+.edit-user-danger .field-label {
+  color: var(--color-danger);
+}
+
+/* Confirmation step sits above whatever popup opened it. */
+.modal-overlay.confirm-overlay {
+  z-index: 80;
+}
+
+.modal-card.confirm-dialog {
+  max-width: 420px;
+}
+
+.confirm-body {
+  margin: 8px 0 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.confirm-body p {
+  margin: 0 0 8px;
+}
+
+.confirm-list {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+
+.confirm-list li {
+  margin-bottom: 4px;
+}
+
+.confirm-actions {
+  justify-content: flex-end;
+}

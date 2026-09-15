@@ -38,36 +38,13 @@ import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue,
 import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
 import MobileNav from "../components/MobileNav";
+import EditUserModal from "../components/EditUserModal";
+import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, roleLabel, accessSummary } from "../../lib/permissions";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
 
-
-// "member" and "estimating" are stored as-is in Firestore (estimating has
-// identical permissions to member for now, just a distinct label/identity)
-// -- only the displayed text changes.
-const ROLE_LABELS = { admin: "Admin", member: "Salesperson", estimating: "Estimating Department" };
-const roleLabel = (role) => ROLE_LABELS[role] || role;
-
-// Per-user feature access, set at account creation and editable anytime
-// from Settings -> Team Members. Admins always have every permission
-// regardless of this map. Anyone created before this existed (or with no
-// permissions field at all) defaults to everything on, so nothing changes
-// until an admin deliberately restricts something.
-const PERMISSION_DEFS = [
-  { key: "dashboard", label: "Home & My Dashboard" },
-  { key: "team", label: "Team" },
-  { key: "pipeline", label: "Pipeline" },
-  { key: "directory", label: "Directory (Companies & Contacts)" },
-  { key: "towers", label: "Installed Towers & Tower Models" },
-  { key: "products", label: "Product Options" },
-  // Off by default (see below) -- Estimating and Admin always have it, and
-  // an admin grants it to individual salespeople on purpose.
-  { key: "analytics", label: "Estimating Analytics", alwaysForRoles: ["estimating", "admin"] }
-];
-const OFF_BY_DEFAULT = ["analytics"];
-const DEFAULT_PERMISSIONS = PERMISSION_DEFS.reduce((acc, p) => ({ ...acc, [p.key]: !OFF_BY_DEFAULT.includes(p.key) }), {});
 
 // A pipeline entry with one of these outcomes is finished and lives in
 // Past Projects. Only Won ever gets a follow-up check-in.
@@ -165,8 +142,7 @@ export default function Dashboard() {
   const [newUserPermissions, setNewUserPermissions] = useState(DEFAULT_PERMISSIONS);
   const [showAddUser, setShowAddUser] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
-  const [editPermissionsTarget, setEditPermissionsTarget] = useState(null);
-  const [editPermissionsData, setEditPermissionsData] = useState(DEFAULT_PERMISSIONS);
+  const [editUserTarget, setEditUserTarget] = useState(null);
 
   const col = collection(db, "customers");
 
@@ -1436,94 +1412,6 @@ export default function Dashboard() {
     }
   };
 
-  const changeUserRole = async (u, newRole) => {
-    if (u.id === uid) {
-      return alert("You can't change your own role. Ask another admin to do it.");
-    }
-    await updateDoc(doc(db, "users", u.id), { role: newRole });
-    loadUsers();
-  };
-
-  const openEditPermissions = (u) => {
-    setEditPermissionsTarget(u);
-    setEditPermissionsData({ ...DEFAULT_PERMISSIONS, ...(u.permissions || {}) });
-  };
-
-  const savePermissions = async () => {
-    await updateDoc(doc(db, "users", editPermissionsTarget.id), { permissions: editPermissionsData });
-    setEditPermissionsTarget(null);
-    showToast("Permissions updated");
-    loadUsers();
-  };
-
-  const toggleUserDisabled = async (u) => {
-    if (u.id === uid) {
-      return alert("You can't deactivate your own account.");
-    }
-    const nowDisabled = !u.disabled;
-
-    await updateDoc(doc(db, "users", u.id), { disabled: nowDisabled });
-
-    // Mirror to a publicly-readable lookup so the (unauthenticated) forgot
-    // password screen can also refuse disabled accounts, not just login.
-    if (nowDisabled) {
-      await setDoc(doc(db, "disabledEmails", u.email), { disabled: true });
-    } else {
-      await deleteDoc(doc(db, "disabledEmails", u.email));
-    }
-
-    loadUsers();
-  };
-
-  const sendResetLink = async (u) => {
-    try {
-      const res = await fetch("/api/send-reset-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: u.email })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't send reset link");
-      showToast(`Reset link sent to ${u.email}`);
-    } catch (err) {
-      alert(err.message || "Couldn't send reset link");
-    }
-  };
-
-  // A full delete, not a deactivation -- see /api/admin/delete-user for
-  // why the whole thing (login + reassigning their work + cleanup) has to
-  // run server-side rather than here.
-  const deleteUserCompletely = async (u) => {
-    const label = u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email;
-    const ownedCustomers = customers.filter(c => c.ownerId === u.id);
-    const ownedPipeline = pipelineEntries.filter(p => p.ownerId === u.id);
-
-    const impact = (ownedCustomers.length || ownedPipeline.length)
-      ? ` ${ownedCustomers.length} project${ownedCustomers.length === 1 ? "" : "s"} and ${ownedPipeline.length} pipeline entr${ownedPipeline.length === 1 ? "y" : "ies"} they own will be reassigned to you.`
-      : "";
-    if (!window.confirm(`Permanently delete ${label}? This can't be undone -- their login stops working immediately.${impact}`)) {
-      return;
-    }
-
-    try {
-      const idToken = await auth.currentUser.getIdToken();
-      const res = await fetch("/api/admin/delete-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ uid: u.id })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.code ? `${data.error} (code ${data.code} -- admins have been emailed)` : (data.error || "Couldn't delete this account"));
-
-      showToast(`${label} deleted`);
-      await loadUsers();
-      await loadCustomers(uid, true);
-      await loadPipeline();
-    } catch (err) {
-      alert(err.message || "Couldn't delete this account");
-    }
-  };
-
   const myPermissions = role === "admin"
     ? PERMISSION_DEFS.reduce((acc, p) => ({ ...acc, [p.key]: true }), {})
     : { ...DEFAULT_PERMISSIONS, ...(myProfile?.permissions || {}) };
@@ -2702,61 +2590,44 @@ export default function Dashboard() {
           <div className="admin-card">
             <h3 className="modal-title">Team Members</h3>
 
-            <div className="admin-table-wrap">
-              <table className="admin-table stack-on-phone">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th></th>
+            <table className="admin-table team-table stack-on-phone">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Access</th>
+                  <th><span className="sr-only">Edit</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(u => (
+                  <tr key={u.id}>
+                    <td data-label="Name">
+                      {u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : (
+                        <span className="private-note-hint">Not set yet</span>
+                      )}
+                    </td>
+                    <td data-label="Email" className="team-table-email">{u.email}{u.id === uid ? " (You)" : ""}</td>
+                    <td data-label="Role">
+                      <span className={`role-badge ${u.role === "admin" ? "role-badge-admin" : ""}`}>
+                        {roleLabel(u.role)}
+                      </span>
+                    </td>
+                    <td data-label="Status">{u.disabled ? "Deactivated" : "Active"}</td>
+                    <td data-label="Access">{accessSummary(u)}</td>
+                    <td data-label="" className="team-table-edit">
+                      {u.id === uid ? (
+                        <span className="private-note-hint" style={{ margin: 0 }} title="Another admin manages your account">That's you</span>
+                      ) : (
+                        <button className="btn btn-secondary btn-small" onClick={() => setEditUserTarget(u)}>Edit User</button>
+                      )}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {users.map(u => (
-                    <tr key={u.id}>
-                      <td data-label="Name">
-                        {u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : (
-                          <span className="private-note-hint">Not set yet</span>
-                        )}
-                      </td>
-                      <td data-label="Email">{u.email}{u.id === uid ? " (You)" : ""}</td>
-                      <td data-label="Role">
-                        <span className={`role-badge ${u.role === "admin" ? "role-badge-admin" : ""}`}>
-                          {roleLabel(u.role)}
-                        </span>
-                      </td>
-                      <td data-label="Status">{u.disabled ? "Disabled" : "Active"}</td>
-                      <td className="admin-table-actions" data-label="Actions">
-                        {u.id === uid ? (
-                          <span className="private-note-hint">Manage your own account from another admin's login.</span>
-                        ) : (
-                          <>
-                            <select className="field" style={{ marginBottom: 0, display: "inline-block", width: "auto" }} value={u.role} onChange={e => changeUserRole(u, e.target.value)}>
-                              <option value="member">Salesperson</option>
-                              <option value="estimating">Estimating Department</option>
-                              <option value="admin">Admin</option>
-                            </select>
-                            <button className="btn btn-secondary" onClick={() => openEditPermissions(u)}>Permissions</button>
-                            {u.role !== "admin" && (
-                              <button className="btn btn-secondary" onClick={() => setExportFor({ target: u })}>Export Data</button>
-                            )}
-                            {!u.disabled && (
-                              <button className="btn btn-secondary" onClick={() => sendResetLink(u)}>Send Reset Link</button>
-                            )}
-                            <button className="btn btn-danger" onClick={() => toggleUserDisabled(u)}>
-                              {u.disabled ? "Reactivate" : "Deactivate"}
-                            </button>
-                            <button className="btn btn-danger" onClick={() => deleteUserCompletely(u)}>Delete Permanently</button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           <div className="admin-card">
@@ -2859,32 +2730,24 @@ export default function Dashboard() {
         </div>
       )}
 
-      {editPermissionsTarget && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <button className="modal-close" onClick={() => setEditPermissionsTarget(null)}>✕</button>
-            <h3 className="modal-title">Permissions</h3>
-            <p className="modal-subtitle" style={{ marginBottom: 12 }}>{editPermissionsTarget.email}</p>
-
-            {PERMISSION_DEFS.map(p => {
-              const always = (p.alwaysForRoles || []).includes(editPermissionsTarget.role);
-              return (
-                <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: always ? "default" : "pointer" }}>
-                  <input
-                    type="checkbox"
-                    disabled={always}
-                    checked={always || !!editPermissionsData[p.key]}
-                    onChange={() => setEditPermissionsData(prev => ({ ...prev, [p.key]: !prev[p.key] }))}
-                  />
-                  {p.label}
-                  {always && <span className="private-note-hint" style={{ margin: 0 }}>(always on for {roleLabel(editPermissionsTarget.role)})</span>}
-                </label>
-              );
-            })}
-
-            <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={savePermissions}>Save Permissions</button>
-          </div>
-        </div>
+      {editUserTarget && (
+        <EditUserModal
+          user={editUserTarget}
+          ownedCounts={{
+            projects: customers.filter(c => c.ownerId === editUserTarget.id).length,
+            pipeline: pipelineEntries.filter(p => p.ownerId === editUserTarget.id).length
+          }}
+          onClose={() => setEditUserTarget(null)}
+          onExport={(u) => { setEditUserTarget(null); setExportFor({ target: u }); }}
+          onChanged={async (message, { deleted } = {}) => {
+            showToast(message);
+            await loadUsers();
+            if (deleted) {
+              await loadCustomers(uid, true);
+              await loadPipeline();
+            }
+          }}
+        />
       )}
 
       {reminderForm && (
