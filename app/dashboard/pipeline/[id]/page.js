@@ -33,6 +33,7 @@ import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
 import { isTrashed } from "../../../../lib/trash";
+import PhotoGallery from "../../../components/PhotoGallery";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
@@ -522,6 +523,11 @@ export default function PipelineDetail() {
         bidFiles: privateData?.files || []
       });
 
+      const pipelinePhotos = await getDocs(collection(db, "pipeline", pipelineId, "photos"));
+      await Promise.all(pipelinePhotos.docs.map(d =>
+        addDoc(collection(db, "customers", ref3.id, "photos"), { ...d.data(), fromPipeline: true })
+      ));
+
       await ensureCompanyAndContactBatch([
         { companyName: convertData.company, category: convertData.companyCategory, contactName: convertData.contact, email: convertData.email, phone: convertData.phone }
       ], { companies, contacts, uid });
@@ -849,6 +855,17 @@ export default function PipelineDetail() {
               </div>
             </div>
           </>
+        )}
+
+        {uid && (
+          <PhotoGallery
+            kind="pipeline"
+            recordId={pipelineId}
+            uid={uid}
+            myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
+            canAdd
+            canManageAll={isOwner || role === "admin"}
+          />
         )}
 
         <div className="detail-grid">

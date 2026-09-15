@@ -47,6 +47,43 @@ service firebase.storage {
       allow write: if isSignedIn() && (customerOwnerId() == request.auth.uid || isAdmin());
     }
 
+    // Photos on a pipeline entry: the whole team can see and add them (JPEG
+    // images only, up to 20 MB -- the app shrinks photos before upload).
+    match /pipeline/{pipelineId}/photos/{fileName} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null &&
+        request.resource.contentType.matches('image/.*') &&
+        request.resource.size < 20 * 1024 * 1024;
+      allow delete: if request.auth != null;
+    }
+
+    // Photos on a project: the whole team can see them; the owner,
+    // collaborators, and admins can add or remove them.
+    match /customers/{customerId}/photos/{fileName} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function customer() {
+        return firestore.get(/databases/(default)/documents/customers/$(customerId)).data;
+      }
+
+      function canWork() {
+        return isSignedIn() && (
+          customer().ownerId == request.auth.uid ||
+          request.auth.uid in customer().get('collaboratorIds', []) ||
+          (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+            firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        );
+      }
+
+      allow read: if isSignedIn();
+      allow create, update: if canWork() &&
+        request.resource.contentType.matches('image/.*') &&
+        request.resource.size < 20 * 1024 * 1024;
+      allow delete: if canWork();
+    }
+
     // Tower model drawings are shared reference material, not owned by
     // any one person -- same "anyone signed in can manage" model as the
     // companies/contacts directory records.

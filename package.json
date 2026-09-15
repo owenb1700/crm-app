@@ -11,6 +11,7 @@
     "@aws-sdk/client-sesv2": "^3.1098.0",
     "firebase": "^10.0.0",
     "firebase-admin": "^14.4.0",
+    "heic2any": "0.0.4",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "next": "latest",

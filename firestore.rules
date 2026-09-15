@@ -126,6 +126,21 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow write: if isSignedIn() && (isOwner(customerId) || isAdmin());
       }
+
+      // Photos: the whole team can see them. The owner, collaborators, and
+      // admins can add photos (and whoever converts a pipeline entry brings
+      // its photos along); a photo's uploader, the owner, or an admin can
+      // change its date/caption or delete it.
+      match /photos/{photoId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && (
+          (request.resource.data.uploadedBy == request.auth.uid &&
+            (isOwner(customerId) || isCollaborator(customerId) || isAdmin())) ||
+          isConvertingOwnPipeline(customerData(customerId))
+        );
+        allow update, delete: if isSignedIn() &&
+          (resource.data.uploadedBy == request.auth.uid || isOwner(customerId) || isAdmin());
+      }
     }
 
     // PIPELINE: pre-bid/bidding/design/budgeting opportunities, tracked
@@ -148,6 +163,19 @@ service cloud.firestore {
           (get(/databases/$(database)/documents/pipeline/$(pipelineId)).data.ownerId == request.auth.uid || isAdmin());
         allow write: if isSignedIn() &&
           get(/databases/$(database)/documents/pipeline/$(pipelineId)).data.ownerId == request.auth.uid;
+      }
+
+      // Photos: like the entry itself, the whole team can see and add them.
+      // A photo's uploader, the entry's owner, or an admin can change its
+      // date/caption or delete it.
+      match /photos/{photoId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.uploadedBy == request.auth.uid;
+        allow update, delete: if isSignedIn() && (
+          resource.data.uploadedBy == request.auth.uid ||
+          get(/databases/$(database)/documents/pipeline/$(pipelineId)).data.ownerId == request.auth.uid ||
+          isAdmin()
+        );
       }
     }
 

@@ -32,6 +32,7 @@ import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
 import ProjectMyReminders from "../../../components/ProjectMyReminders";
 import { isTrashed } from "../../../../lib/trash";
+import PhotoGallery from "../../../components/PhotoGallery";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
@@ -788,6 +789,17 @@ export default function ProjectDetail() {
 
             {drawingsSection}
           </div>
+        )}
+
+        {uid && (
+          <PhotoGallery
+            kind="project"
+            recordId={projectId}
+            uid={uid}
+            myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
+            canAdd={isOwner || isCollaborator || role === "admin"}
+            canManageAll={isOwner || role === "admin"}
+          />
         )}
 
         <div className="detail-grid">
