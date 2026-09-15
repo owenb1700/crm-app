@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { exportProjects, exportPipeline, exportPastProjects, exportNotes, exportMyReminders, personName, canExportPerson } from "../../lib/personalExport";
+import { exportProjects, exportPipeline, exportPastProjects, exportMyReminders, personName, canExportPerson } from "../../lib/personalExport";
 import ExportButtons from "./ExportButtons";
 
 const FORMAT_NAMES = { csv: "CSV", xlsx: "Excel", pdf: "PDF" };
@@ -14,25 +14,21 @@ export default function ExportDataModal({ viewer, target, onClose }) {
   const who = isSelf ? viewer : target;
   const allowed = canExportPerson(viewer, who);
   const [status, setStatus] = useState(null); // { ok, message }
+  const [includeNotes, setIncludeNotes] = useState(false);
 
   const files = [
-    { key: "projects", label: "Projects", desc: isSelf ? "Active projects you own or collaborate on" : "Active projects they own or collaborate on", run: exportProjects },
-    { key: "pipeline", label: "Pipeline", desc: isSelf ? "Entries you own, are assigned to, or track" : "Entries they own, are assigned to, or track", run: exportPipeline },
-    { key: "past", label: "Past projects", desc: "Closed projects and resolved pipeline entries", run: exportPastProjects },
-    {
-      key: "notes",
-      label: "Notes",
-      desc: isSelf ? "Current and earlier notes, with author and date" : "Only from their projects that you collaborate on",
-      run: exportNotes
-    },
+    { key: "projects", label: "Projects", desc: isSelf ? "Active projects you own or collaborate on" : "Active projects they own or collaborate on", run: exportProjects, notes: true },
+    { key: "pipeline", label: "Pipeline", desc: isSelf ? "Entries you own, are assigned to, or track" : "Entries they own, are assigned to, or track", run: exportPipeline, notes: true },
+    { key: "past", label: "Past projects", desc: "Closed projects and resolved pipeline entries", run: exportPastProjects, notes: true },
     ...(isSelf ? [{ key: "reminders", label: "Reminders", desc: "Your reminders and personal pipeline alerts", run: exportMyReminders }] : [])
   ];
 
   const run = async (file, format) => {
     setStatus(null);
     try {
-      const count = await file.run({ target: who, viewer, format });
-      setStatus({ ok: true, message: `${file.label} downloaded as ${FORMAT_NAMES[format]} (${count} ${count === 1 ? "row" : "rows"}).` });
+      const withNotes = includeNotes && file.notes;
+      const count = await file.run({ target: who, viewer, format, includeNotes: withNotes });
+      setStatus({ ok: true, message: `${file.label}${withNotes ? " with notes" : ""} downloaded as ${FORMAT_NAMES[format]} (${count} ${count === 1 ? "row" : "rows"}).` });
     } catch (err) {
       setStatus({ ok: false, message: `Couldn't export ${file.label.toLowerCase()}: ${err.message}` });
     }
@@ -55,6 +51,23 @@ export default function ExportDataModal({ viewer, target, onClose }) {
           </p>
         ) : (
           <>
+            <label className="export-notes-toggle" htmlFor="export-include-notes">
+              <input
+                id="export-include-notes"
+                type="checkbox"
+                checked={includeNotes}
+                onChange={e => setIncludeNotes(e.target.checked)}
+              />
+              <span>
+                <strong>Include notes</strong>
+                <span className="export-row-desc">
+                  {isSelf
+                    ? "Adds current and earlier notes to Projects, Pipeline, and Past projects."
+                    : "Adds notes only from their projects that you collaborate on. Anything else stays blank."}
+                </span>
+              </span>
+            </label>
+
             <ul className="export-list">
               {files.map(f => (
                 <li key={f.key} className="export-row">
@@ -67,7 +80,7 @@ export default function ExportDataModal({ viewer, target, onClose }) {
               ))}
             </ul>
             {!isSelf && (
-              <p className="export-modal-note">Their other private notes and reminders are never included.</p>
+              <p className="export-modal-note">Their other private notes and their reminders are never included.</p>
             )}
             {status && <p className={`settings-status ${status.ok ? "is-ok" : "is-error"}`}>{status.message}</p>}
           </>
