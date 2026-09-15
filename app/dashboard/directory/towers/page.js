@@ -138,7 +138,7 @@ export default function TowersPage() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load installed towers</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to Dashboard</button>
         </div>
       </div>
     );
@@ -157,7 +157,7 @@ export default function TowersPage() {
           <h1 className="dashboard-title">Directory — Installed Towers</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to Dashboard</button>
           <DashboardHeader uid={uid} />
         </div>
       </div>

@@ -339,7 +339,7 @@ export default function AnalyticsPage() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load analytics</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to Dashboard</button>
         </div>
       </div>
     );
@@ -351,7 +351,7 @@ export default function AnalyticsPage() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">No access to Analytics</h3>
           <p className="modal-subtitle">Estimating Analytics is available to the Estimating Department and admins. Ask an admin to turn it on for your account.</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to Dashboard</button>
         </div>
       </div>
     );
@@ -389,7 +389,7 @@ export default function AnalyticsPage() {
           <h1 className="dashboard-title">Estimating Analytics</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to Dashboard</button>
           <DashboardHeader uid={uid} />
         </div>
       </div>
