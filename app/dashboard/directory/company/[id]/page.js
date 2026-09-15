@@ -19,6 +19,7 @@ import { COMPANY_CATEGORIES, propagateContactUpdate } from "../../../../../lib/d
 import DashboardHeader from "../../../../components/DashboardHeader";
 import AddressAutocomplete from "../../../../components/AddressAutocomplete";
 import MobileNav from "../../../../components/MobileNav";
+import { isTrashed } from "../../../../../lib/trash";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -129,6 +130,7 @@ export default function CompanyDetail() {
     setProjects(
       customersSnap.docs
         .map(d => ({ id: d.id, ...d.data() }))
+        .filter(r => !isTrashed(r))
         .filter(c =>
           (c.company || "").toLowerCase() === name ||
           (c.owners || []).some(o => (o.company || "").toLowerCase() === name)
@@ -137,6 +139,7 @@ export default function CompanyDetail() {
     setPipelineJobs(
       pipelineSnap.docs
         .map(d => ({ id: d.id, ...d.data() }))
+        .filter(r => !isTrashed(r))
         .filter(p =>
           (p.company || "").toLowerCase() === name ||
           (p.biddingCompanies || []).some(b => (b.company || "").toLowerCase() === name)

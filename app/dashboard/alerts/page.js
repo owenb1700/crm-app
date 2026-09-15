@@ -8,6 +8,7 @@ import { collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore"
 import DashboardHeader from "../../components/DashboardHeader";
 import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor } from "../../../lib/alertRecipients";
 import MobileNav from "../../components/MobileNav";
+import { isTrashed } from "../../../lib/trash";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -56,6 +57,7 @@ export default function AllAlerts() {
 
     const customers = customersSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
+      .filter(r => !isTrashed(r))
       .filter(c => isProjectCheckInFor(c, currentUid, currentRole))
       .map(c => ({
         key: `project-${c.id}`,
@@ -78,6 +80,7 @@ export default function AllAlerts() {
     // then owner) who sees it.
     const pipeline = pipelineSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
+      .filter(r => !isTrashed(r))
       .filter(p => isWonFollowUpFor(p, currentUid, currentRole))
       .map(p => ({
         key: `pipeline-${p.id}`,
@@ -97,6 +100,7 @@ export default function AllAlerts() {
     // Open entries' bid dates -- same recipients as the Home calendar.
     const bidDates = pipelineSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
+      .filter(r => !isTrashed(r))
       .filter(p => isPipelineBidAlertFor(p, currentUid, currentRole))
       .map(p => ({
         key: `bid-${p.id}`,

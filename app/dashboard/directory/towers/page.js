@@ -8,6 +8,7 @@ import { doc, getDoc, getDocs, collection } from "firebase/firestore";
 import { equipmentRowsFrom } from "../../../../lib/equipment";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
+import { withoutTrashed } from "../../../../lib/trash";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -31,8 +32,8 @@ export default function TowersPage() {
       getDocs(collection(db, "customers")),
       getDocs(collection(db, "pipeline"))
     ]);
-    setCustomers(customersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-    setPipelineEntries(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setCustomers(withoutTrashed(customersSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    setPipelineEntries(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
     setLoaded(true);
   };
 

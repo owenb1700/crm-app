@@ -9,6 +9,7 @@ import { equipmentRowsFrom } from "../../../../../lib/equipment";
 import { contactsOf } from "../../../../../lib/bidders";
 import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
+import { isTrashed } from "../../../../../lib/trash";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -45,9 +46,11 @@ export default function TowerDetail() {
     const key = serial.trim().toLowerCase();
     const matchingCustomers = customersSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
+      .filter(r => !isTrashed(r))
       .filter(c => matchingRow(c, key));
     const matchingPipeline = pipelineSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
+      .filter(r => !isTrashed(r))
       .filter(p => matchingRow(p, key));
 
     setProjects(matchingCustomers);
@@ -60,6 +63,7 @@ export default function TowerDetail() {
     const modelLower = model.toLowerCase();
     const matchedModel = towerModelsSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
+      .filter(r => !isTrashed(r))
       .find(t => (t.manufacturer || "").toLowerCase() === mfrLower && (t.model || "").toLowerCase() === modelLower);
     setTowerModel(matchedModel || null);
 

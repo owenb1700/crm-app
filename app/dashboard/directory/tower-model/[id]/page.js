@@ -8,6 +8,7 @@ import { doc, getDoc, updateDoc, getDocs, collection } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
+import { withoutTrashed } from "../../../../../lib/trash";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -61,8 +62,8 @@ export default function TowerModelDetail() {
       return entryMdl === mdl && !entryMfr;
     };
 
-    setProjects(customersSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(matches));
-    setPipelineJobs(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(matches));
+    setProjects(withoutTrashed(customersSnap.docs.map(d => ({ id: d.id, ...d.data() }))).filter(matches));
+    setPipelineJobs(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))).filter(matches));
   };
 
   useEffect(() => {

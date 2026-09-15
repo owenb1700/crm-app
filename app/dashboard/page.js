@@ -30,6 +30,8 @@ import FirmTypeSelect from "../components/FirmTypeSelect";
 import BuildingSectorSelect from "../components/BuildingSectorSelect";
 import WorkTypeSelect from "../components/WorkTypeSelect";
 import JobPicker from "../components/JobPicker";
+import { RECORDS_CHANGED_EVENT } from "../components/TrashModal";
+import { withoutTrashed, reminderJobIsActive } from "../../lib/trash";
 import UserSettingsModal from "../components/UserSettingsModal";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../components/FilterBar";
 import { canViewAnalytics } from "../../lib/analytics";
@@ -224,7 +226,7 @@ export default function Dashboard() {
 
   const loadCustomers = async (currentUid, isAdmin) => {
     const snap = await getDocs(col);
-    let list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    let list = withoutTrashed(snap.docs.map(d => ({ id: d.id, ...d.data() })));
 
     // Migrate legacy customers with no owner to whichever admin loads them.
     const orphans = list.filter(c => !c.ownerId);
@@ -316,7 +318,7 @@ export default function Dashboard() {
 
   const loadPipeline = async () => {
     const snap = await getDocs(collection(db, "pipeline"));
-    setPipelineEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setPipelineEntries(withoutTrashed(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
   };
 
   const loadDirectory = async () => {
@@ -1331,6 +1333,25 @@ export default function Dashboard() {
 
   const weekKeys = useMemo(() => calendarDays.slice(0, 5).map(d => d.key), [calendarDays]);
 
+  // Reminders attached to a job that's been deleted (in the Trash) stay
+  // hidden until the job is restored.
+  const activeReminders = useMemo(
+    () => reminders.filter(r => reminderJobIsActive(r, customers, pipelineEntries)),
+    [reminders, customers, pipelineEntries]
+  );
+
+  // Restoring something from the Trash refreshes the lists here.
+  useEffect(() => {
+    if (!uid) return undefined;
+    const reload = () => {
+      loadCustomers(uid, role === "admin");
+      loadPipeline();
+    };
+    window.addEventListener(RECORDS_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(RECORDS_CHANGED_EVENT, reload);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, role]);
+
   const myCalendarProjects = useMemo(() => {
     // Who sees what is decided in lib/alertRecipients.js, shared with All
     // Alerts and the digest emails.
@@ -1348,10 +1369,10 @@ export default function Dashboard() {
       .filter(p => isPipelineBidAlertFor(p, uid, role))
       .map(p => ({ ...p, _kind: "bid", projectName: p.title, nextCheckIn: p.bidDate }));
 
-    const reminderItems = reminders.map(r => ({ ...r, _kind: "reminder", projectName: r.subject, nextCheckIn: r.date }));
+    const reminderItems = activeReminders.map(r => ({ ...r, _kind: "reminder", projectName: r.subject, nextCheckIn: r.date }));
 
     return [...projectItems, ...pipelineFollowUps, ...bidDates, ...reminderItems];
-  }, [customers, pipelineEntries, reminders, uid, role]);
+  }, [customers, pipelineEntries, activeReminders, uid, role]);
 
   // Jobs a reminder can be attached to: active projects you own or
   // collaborate on (every active project for admins) and open pipeline
@@ -2266,7 +2287,7 @@ export default function Dashboard() {
                   </div>
                 )
               })),
-            ...reminders
+            ...activeReminders
               .filter(r => {
                 const q = searchQuery.trim().toLowerCase();
                 return !q || (r.subject || "").toLowerCase().includes(q) || (r.notes || "").toLowerCase().includes(q);
@@ -2301,7 +2322,7 @@ export default function Dashboard() {
             <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ Couldn't load your reminders: {remindersError}</p>
           )}
 
-          {filteredCustomers.length === 0 && myPipelineEntries.length === 0 && reminders.length === 0 && (
+          {filteredCustomers.length === 0 && myPipelineEntries.length === 0 && activeReminders.length === 0 && (
             <p className="private-note-hint">Nothing on your dashboard yet.</p>
           )}
 
@@ -2458,10 +2479,10 @@ export default function Dashboard() {
               {remindersError && (
                 <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ Couldn't load your reminders: {remindersError}</p>
               )}
-              {!remindersError && reminders.length === 0 && (
+              {!remindersError && activeReminders.length === 0 && (
                 <p className="private-note-hint">No reminders. Use + Add Reminder to create one.</p>
               )}
-              {[...reminders]
+              {[...activeReminders]
                 .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
                 .map(renderReminderCard)}
             </div>

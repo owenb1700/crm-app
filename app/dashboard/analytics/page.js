@@ -13,6 +13,7 @@ import DashboardHeader from "../../components/DashboardHeader";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../../components/FilterBar";
 import ExportDataModal from "../../components/ExportDataModal";
 import MobileNav from "../../components/MobileNav";
+import { withoutTrashed } from "../../../lib/trash";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -283,7 +284,7 @@ export default function AnalyticsPage() {
           getDocs(collection(db, "pipeline")),
           getDocs(collection(db, "users"))
         ]);
-        setEntries(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setEntries(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setLoaded(true);
       } catch (err) {

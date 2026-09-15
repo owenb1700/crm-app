@@ -4,10 +4,12 @@ import { useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { DAY_NAMES, DEFAULT_DIGEST_SCHEDULE, schedulesFor } from "../../lib/digest";
+import TrashModal from "./TrashModal";
 
 // The one User Settings window, opened from the avatar menu on every page.
 // Edits are held locally until Save, so Cancel (or ✕) really discards them.
 export default function UserSettingsModal({ uid, profile, onClose, onSaved }) {
+  const [showTrash, setShowTrash] = useState(false);
   const [schedules, setSchedules] = useState(() => schedulesFor(profile).map(s => ({ ...s })));
   const [notifyCollabRequest, setNotifyCollabRequest] = useState(profile?.notifyCollabRequest !== false);
   const [notifyCollabApproved, setNotifyCollabApproved] = useState(profile?.notifyCollabApproved !== false);
@@ -160,6 +162,18 @@ export default function UserSettingsModal({ uid, profile, onClose, onSaved }) {
           </section>
 
           <section className="settings-section">
+            <h4 className="settings-section-title">Trash</h4>
+            <p className="settings-hint">
+              {profile?.role === "admin"
+                ? "Every deleted project and pipeline entry, kept for 30 days before it's deleted forever."
+                : "Projects and pipeline entries you deleted, kept for 30 days before they're deleted forever."}
+            </p>
+            <button type="button" className="btn btn-secondary" style={{ marginTop: 8 }} onClick={() => setShowTrash(true)}>
+              Open Trash
+            </button>
+          </section>
+
+          <section className="settings-section">
             <h4 className="settings-section-title">Collaboration emails</h4>
             <p className="settings-hint">Email me when:</p>
             <label className="settings-check" htmlFor="notify-collab-request">
@@ -183,6 +197,8 @@ export default function UserSettingsModal({ uid, profile, onClose, onSaved }) {
             <p className="settings-hint" style={{ marginTop: 6 }}>These always show in the alerts bell either way.</p>
           </section>
         </div>
+
+        {showTrash && <TrashModal onClose={() => setShowTrash(false)} />}
 
         <div className="settings-footer">
           {saveError && <p className="settings-status is-error" style={{ margin: 0, marginRight: "auto" }}>{saveError}</p>}

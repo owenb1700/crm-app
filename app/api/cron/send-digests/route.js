@@ -2,7 +2,8 @@ import { getAdminDb } from "../../../../lib/firebaseAdmin";
 import { sendRawEmail } from "../../../../lib/mailer";
 import { renderEmail } from "../../../../lib/emailTemplate";
 import { buildDigestHtml, schedulesFor } from "../../../../lib/digest";
-import { generateIncidentCode } from "../../../../lib/adminAlert";
+import { generateIncidentCode, alertAdmins } from "../../../../lib/adminAlert";
+import { purgeExpiredTrash } from "../../../../lib/deleteRecord";
 
 // Runs daily (see vercel.json) at 4:00 AM Central. Every user's
 // digestSchedules is a list of {dayOfWeek, daysAhead, includeOverdue}
@@ -12,6 +13,16 @@ export async function GET(req) {
   const auth = req.headers.get("authorization");
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Anything that's been in the Trash for 30 days is deleted for good.
+  let purged = [];
+  if (!new URL(req.url).searchParams.get("testEmail")) {
+    try {
+      purged = await purgeExpiredTrash();
+    } catch (err) {
+      await alertAdmins({ area: "Trash cleanup", message: "Failed to delete expired items from the trash", detail: err.message }).catch(() => {});
+    }
   }
 
   const db = getAdminDb();
@@ -91,5 +102,5 @@ export async function GET(req) {
     await Promise.all(admins.map(a => sendRawEmail(a.email, `CRM Alert [${alertCode}]: Digest Send Failures`, alertHtml).catch(() => {})));
   }
 
-  return Response.json({ ok: true, dayOfWeek: todayCentral, sent, failed, userCount: users.length, alertCode });
+  return Response.json({ ok: true, dayOfWeek: todayCentral, sent, failed, userCount: users.length, alertCode, purged: purged.length });
 }

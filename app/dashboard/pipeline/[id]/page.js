@@ -32,6 +32,7 @@ import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
+import { isTrashed } from "../../../../lib/trash";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
@@ -118,6 +119,10 @@ export default function PipelineDetail() {
       return;
     }
     const data = { id: snap.id, ...snap.data() };
+    if (isTrashed(data)) {
+      setNotFound("trash");
+      return;
+    }
     setPipeline(data);
 
     const [usersSnap, companiesSnap, contactsSnap, towerModelsSnap, productsSnap] = await Promise.all([
@@ -552,8 +557,12 @@ export default function PipelineDetail() {
     return (
       <div className="dashboard-page">
         <div className="admin-card" style={{ maxWidth: 480 }}>
-          <h3 className="modal-title">Pipeline entry not found</h3>
-          <p className="modal-subtitle">It may have been deleted.</p>
+          <h3 className="modal-title">{notFound === "trash" ? "This pipeline entry is in the trash" : "Pipeline entry not found"}</h3>
+          <p className="modal-subtitle">
+            {notFound === "trash"
+              ? "It was deleted. Whoever deleted it (or an admin) can restore it from Trash in User Settings within 30 days."
+              : "It may have been deleted."}
+          </p>
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard#pipeline")}>Back to Pipeline</button>
         </div>
       </div>

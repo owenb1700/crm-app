@@ -10,6 +10,7 @@ import { equipmentRowsFrom } from "../../../lib/equipment";
 import { bidderContactNames } from "../../../lib/bidders";
 import DashboardHeader from "../../components/DashboardHeader";
 import MobileNav from "../../components/MobileNav";
+import { withoutTrashed } from "../../../lib/trash";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -45,8 +46,8 @@ function SearchPageContent() {
       getDocs(collection(db, "products")),
       getDocs(collection(db, "towerModels"))
     ]);
-    setCustomers(customersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-    setPipelineEntries(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setCustomers(withoutTrashed(customersSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    setPipelineEntries(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
     setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setProducts(productsSnap.docs.map(d => ({ id: d.id, ...d.data() })));

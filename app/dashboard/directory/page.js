@@ -9,6 +9,7 @@ import { COMPANY_CATEGORIES, CATEGORY_TITLES } from "../../../lib/directory";
 import DashboardHeader from "../../components/DashboardHeader";
 import AddressAutocomplete from "../../components/AddressAutocomplete";
 import MobileNav from "../../components/MobileNav";
+import { withoutTrashed } from "../../../lib/trash";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -47,8 +48,8 @@ function DirectoryPageContent() {
     ]);
     setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-    setCustomers(customersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-    setPipelineEntries(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setCustomers(withoutTrashed(customersSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    setPipelineEntries(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
     setLoaded(true);
   };
 
