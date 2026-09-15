@@ -12,6 +12,7 @@ import { ensureTowerModel } from "../../../../lib/towerModels";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import SearchableSelect from "../../../components/SearchableSelect";
 import DashboardHeader from "../../../components/DashboardHeader";
+import MobileNav from "../../../components/MobileNav";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
@@ -284,6 +285,7 @@ export default function NewPipelineEntry() {
     <div className="dashboard-page">
       <div className="dashboard-header is-sticky">
         <div className="dashboard-brand">
+          <MobileNav uid={uid} />
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
           <h1 className="dashboard-title">Add Pipeline Entry</h1>
         </div>

@@ -36,6 +36,7 @@ import ExportDataModal from "../components/ExportDataModal";
 import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, yearsFrom, localDateKey } from "../../lib/closedProjects";
 import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
+import MobileNav from "../components/MobileNav";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -87,7 +88,7 @@ export default function Dashboard() {
   // tab instead of always defaulting to Home.
   const [view, setView] = useState(() => {
     const hash = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
-    return ["personal", "pipeline", "team"].includes(hash) ? hash : "home";
+    return ["personal", "pipeline", "team", "pastProjects", "admin"].includes(hash) ? hash : "home";
   }); // 'home' | 'personal' | 'team' | 'admin'
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(null); // null = "this week" panel
 
@@ -1676,13 +1677,14 @@ export default function Dashboard() {
 
       <div className="dashboard-header">
         <div className="dashboard-brand">
+          <MobileNav uid={uid} profile={myProfile ? { ...myProfile, role } : null} currentView={view} onSelectView={setView} />
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
           <h1 className="dashboard-title">CRM Dashboard</h1>
         </div>
         <div className="dashboard-header-actions">
           {role === "admin" && (
             <button
-              className="btn btn-secondary"
+              className="btn btn-secondary hide-with-mobile-nav"
               onClick={() => setView(view === "admin" ? "personal" : "admin")}
             >
               {view === "admin" ? "Back to Dashboard" : "Admin Settings"}

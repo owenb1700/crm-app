@@ -8,6 +8,7 @@ import { doc, getDoc, getDocs, collection, addDoc } from "firebase/firestore";
 import { COMPANY_CATEGORIES, CATEGORY_TITLES } from "../../../lib/directory";
 import DashboardHeader from "../../components/DashboardHeader";
 import AddressAutocomplete from "../../components/AddressAutocomplete";
+import MobileNav from "../../components/MobileNav";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -189,6 +190,7 @@ function DirectoryPageContent() {
     <div className="dashboard-page">
       <div className="dashboard-header">
         <div className="dashboard-brand">
+          <MobileNav uid={uid} />
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
           <h1 className="dashboard-title">Directory — {title}</h1>
         </div>

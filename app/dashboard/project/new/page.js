@@ -13,6 +13,7 @@ import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import SearchableSelect from "../../../components/SearchableSelect";
 import DashboardHeader from "../../../components/DashboardHeader";
+import MobileNav from "../../../components/MobileNav";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
@@ -279,6 +280,7 @@ export default function NewProject() {
     <div className="dashboard-page">
       <div className="dashboard-header is-sticky">
         <div className="dashboard-brand">
+          <MobileNav uid={uid} />
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
           <h1 className="dashboard-title">Add Project</h1>
         </div>

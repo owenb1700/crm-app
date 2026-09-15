@@ -7,6 +7,7 @@ import { auth, db } from "../../../lib/firebase";
 import { collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import DashboardHeader from "../../components/DashboardHeader";
 import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor } from "../../../lib/alertRecipients";
+import MobileNav from "../../components/MobileNav";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -222,6 +223,7 @@ export default function AllAlerts() {
     <div className="dashboard-page">
       <div className="dashboard-header">
         <div className="dashboard-brand">
+          <MobileNav uid={uid} />
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
           <h1 className="dashboard-title">All Alerts</h1>
         </div>

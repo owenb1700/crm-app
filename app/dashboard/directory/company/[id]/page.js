@@ -18,6 +18,7 @@ import {
 import { COMPANY_CATEGORIES, propagateContactUpdate } from "../../../../../lib/directory";
 import DashboardHeader from "../../../../components/DashboardHeader";
 import AddressAutocomplete from "../../../../components/AddressAutocomplete";
+import MobileNav from "../../../../components/MobileNav";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -338,6 +339,7 @@ export default function CompanyDetail() {
     <div className="dashboard-page">
       <div className="dashboard-header">
         <div className="dashboard-brand">
+          <MobileNav uid={uid} />
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
           <h1 className="dashboard-title">{company.category || "Company"}</h1>
         </div>

@@ -7,6 +7,7 @@ import { auth, db } from "../../../../../lib/firebase";
 import { doc, getDoc, getDocs, collection, updateDoc, deleteDoc } from "firebase/firestore";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../../lib/products";
 import DashboardHeader from "../../../../components/DashboardHeader";
+import MobileNav from "../../../../components/MobileNav";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -167,6 +168,7 @@ export default function ProductDetail() {
     <div className="dashboard-page">
       <div className="dashboard-header">
         <div className="dashboard-brand">
+          <MobileNav uid={uid} />
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
           <h1 className="dashboard-title">Product</h1>
         </div>

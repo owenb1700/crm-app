@@ -12,6 +12,7 @@ import ExportButtons from "../../components/ExportButtons";
 import DashboardHeader from "../../components/DashboardHeader";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../../components/FilterBar";
 import ExportDataModal from "../../components/ExportDataModal";
+import MobileNav from "../../components/MobileNav";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -383,6 +384,7 @@ export default function AnalyticsPage() {
     <div className="dashboard-page">
       <div className="dashboard-header">
         <div className="dashboard-brand">
+          <MobileNav uid={uid} />
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
           <h1 className="dashboard-title">Estimating Analytics</h1>
         </div>

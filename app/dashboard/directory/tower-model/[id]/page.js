@@ -7,6 +7,7 @@ import { auth, db, storage } from "../../../../../lib/firebase";
 import { doc, getDoc, updateDoc, getDocs, collection } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import DashboardHeader from "../../../../components/DashboardHeader";
+import MobileNav from "../../../../components/MobileNav";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -197,6 +198,7 @@ export default function TowerModelDetail() {
     <div className="dashboard-page">
       <div className="dashboard-header">
         <div className="dashboard-brand">
+          <MobileNav uid={uid} />
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
           <h1 className="dashboard-title">Tower Model</h1>
         </div>

@@ -8,6 +8,7 @@ import { doc, getDoc, getDocs, collection } from "firebase/firestore";
 import { primaryEmail, primaryPhone, OWNER_CATEGORY } from "../../../lib/directory";
 import { equipmentRowsFrom } from "../../../lib/equipment";
 import DashboardHeader from "../../components/DashboardHeader";
+import MobileNav from "../../components/MobileNav";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -190,6 +191,7 @@ function SearchPageContent() {
     <div className="dashboard-page">
       <div className="dashboard-header">
         <div className="dashboard-brand">
+          <MobileNav uid={uid} />
           <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
           <h1 className="dashboard-title">Search</h1>
         </div>
