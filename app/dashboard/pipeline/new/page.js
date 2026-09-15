@@ -333,18 +333,6 @@ export default function NewPipelineEntry() {
         </div>
 
         <div className="project-section">
-          <h4 className="field-label" style={{ marginTop: 0 }}>Contractors & Owners Bidding (optional)</h4>
-          <BidderEditor
-            idPrefix="new-pipeline-bidder"
-            bidders={biddingCompanies}
-            onChange={setBiddingCompanies}
-            companies={companies}
-            contacts={contacts}
-            users={users}
-          />
-        </div>
-
-        <div className="project-section">
           <h4 className="field-label" style={{ marginTop: 0 }}>Assigned Team (optional)</h4>
           <div className="form-grid-2">
             <div>
@@ -366,6 +354,18 @@ export default function NewPipelineEntry() {
               </select>
             </div>
           </div>
+        </div>
+
+        <div className="project-section">
+          <h4 className="field-label" style={{ marginTop: 0 }}>Contractors & Owners Bidding (optional)</h4>
+          <BidderEditor
+            idPrefix="new-pipeline-bidder"
+            bidders={biddingCompanies}
+            onChange={setBiddingCompanies}
+            companies={companies}
+            contacts={contacts}
+            users={users}
+          />
         </div>
 
         <div className="project-section">

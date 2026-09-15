@@ -725,16 +725,6 @@ export default function PipelineDetail() {
               </div>
             </div>
 
-            <h4 className="field-label" style={{ marginTop: 16 }}>Contractors & Owners Bidding</h4>
-            <BidderEditor
-              idPrefix="pipeline-detail-bidder"
-              bidders={biddingRows}
-              onChange={setBiddingRows}
-              companies={companies}
-              contacts={contacts}
-              users={users}
-            />
-
             <h4 className="field-label" style={{ marginTop: 16 }}>Assigned Team</h4>
             <div className="form-grid-2">
               <div>
@@ -756,6 +746,16 @@ export default function PipelineDetail() {
                 </select>
               </div>
             </div>
+
+            <h4 className="field-label" style={{ marginTop: 16 }}>Contractors & Owners Bidding</h4>
+            <BidderEditor
+              idPrefix="pipeline-detail-bidder"
+              bidders={biddingRows}
+              onChange={setBiddingRows}
+              companies={companies}
+              contacts={contacts}
+              users={users}
+            />
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Product Options</h4>
             <ProductOptionsEditor idPrefix="pipeline-detail-product" rows={productRows} onChange={setProductRows} products={products} />
