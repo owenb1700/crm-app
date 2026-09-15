@@ -32,7 +32,7 @@ const toDateInputValue = (date) => {
 // Every nextCheckIn across projects and Won pipeline entries -- past and
 // upcoming alike -- in one place: the same "what's this alert for and when
 // does it fire" data that otherwise only surfaces piecemeal (Home calendar,
-// My Dashboard, the bell). Scoped to the current user's own projects/
+// My Projects, the bell). Scoped to the current user's own projects/
 // collaborations and pipeline responsibility, same as Home's calendar --
 // not an admin-wide view.
 export default function AllAlerts() {
@@ -209,7 +209,7 @@ export default function AllAlerts() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load alerts</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
         </div>
       </div>
     );
@@ -228,7 +228,7 @@ export default function AllAlerts() {
           <h1 className="dashboard-title">All Alerts</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
           <DashboardHeader uid={uid} />
         </div>
       </div>

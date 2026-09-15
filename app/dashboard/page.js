@@ -605,7 +605,7 @@ export default function Dashboard() {
     const now = new Date();
     await Promise.all(list.filter(c => c.category === "Project Closed" && canTouch(c)).map(c => {
       // Won projects no longer close -- anything closed as Won under the old
-      // flow goes back onto My Dashboard, keeping the date it was scheduled for.
+      // flow goes back onto My Projects, keeping the date it was scheduled for.
       if (c.closedOutcome === "Won") {
         return apply(c, {
           category: "Ongoing Project",
@@ -623,7 +623,7 @@ export default function Dashboard() {
           nextCheckIn: yearsFrom(closedDateOf(c).slice(0, 10) || localDateKey(now), 1)
         });
       }
-      // Prospecting Only still comes back to My Dashboard on its date.
+      // Prospecting Only still comes back to My Projects on its date.
       if (c.closedOutcome === "Prospecting Only" && c.nextCheckIn && new Date(c.nextCheckIn) <= now) {
         return apply(c, { category: "Prospecting", closedOutcome: null, nextCheckIn: null },
           (label) => `Reminder: reach out to the contractor on ${label} (prospecting follow-up)`);
@@ -690,7 +690,7 @@ export default function Dashboard() {
         link: `/dashboard/project/${customerId}`,
         email: requester.email,
         subject: `You can now collaborate on ${projectLabel}`,
-        emailHtml: `<p>Your request to collaborate on <strong>${projectLabel}</strong> was approved. It now shows up in your My Dashboard.</p>`,
+        emailHtml: `<p>Your request to collaborate on <strong>${projectLabel}</strong> was approved. It now shows up in your My Projects.</p>`,
         emailPref: requester.notifyCollabApproved
       });
     }
@@ -897,7 +897,7 @@ export default function Dashboard() {
 
     // Closing a project schedules a 6-month "how are things going" check-in
     // automatically, so it resurfaces on the Home calendar even though it's
-    // now hidden from the active My Dashboard list.
+    // now hidden from the active My Projects list.
     if (editData.category === "Project Closed" && original?.category !== "Project Closed") {
       Object.assign(payload, closeProjectPayload(original?.activityLog));
     } else if (editData.category !== "Project Closed" && original?.category === "Project Closed") {
@@ -992,12 +992,12 @@ export default function Dashboard() {
     }
 
     // What happens depends on the outcome:
-    // - Won: the project does NOT close. It stays on My Dashboard as an
+    // - Won: the project does NOT close. It stays on My Projects as an
     //   Ongoing Project, due on the chosen next date; the win is recorded
     //   in the activity log.
     // - Otherwise it closes out the same way changing its category to
-    //   "Project Closed" does: it drops off My Dashboard into Past Projects.
-    // - Prospecting Only: comes back to My Dashboard (as Prospecting) on
+    //   "Project Closed" does: it drops off My Projects into Past Projects.
+    // - Prospecting Only: comes back to My Projects (as Prospecting) on
     //   the chosen next-alert date (default 3 months), with an alert to
     //   reach out to the contractor. Picking Prospecting Only again from
     //   here restarts the same cycle -- it can be snoozed indefinitely by
@@ -1053,7 +1053,7 @@ export default function Dashboard() {
     setLostTo("");
 
     showToast(completedOutcome === "Won"
-      ? `Marked won — stays on My Dashboard, next due ${payload.nextCheckIn}`
+      ? `Marked won — stays on My Projects, next due ${payload.nextCheckIn}`
       : "Marked completed — moved to Past Projects");
     loadCustomers(uid, role === "admin");
   };
@@ -1626,7 +1626,7 @@ export default function Dashboard() {
           </div>
   );
 
-  // One reminder card for My Dashboard -- same card shape and overdue /
+  // One reminder card for My Projects -- same card shape and overdue /
   // due-soon edge color as a project, with its own Follow Up and Complete.
   const renderReminderCard = (r) => {
     const days = reminderDaysAway(r);
@@ -1719,7 +1719,7 @@ export default function Dashboard() {
               className="btn btn-secondary hide-with-mobile-nav"
               onClick={() => setView(view === "admin" ? "personal" : "admin")}
             >
-              {view === "admin" ? "Back to Dashboard" : "Admin Settings"}
+              {view === "admin" ? "Back to My Projects" : "Admin Settings"}
             </button>
           )}
 
@@ -1861,7 +1861,7 @@ export default function Dashboard() {
                 className={`tab-btn ${view === "personal" ? "tab-btn-active" : ""}`}
                 onClick={() => setView("personal")}
               >
-                My Dashboard
+                My Projects
               </button>
             </>
           )}
@@ -2448,7 +2448,7 @@ export default function Dashboard() {
 
       {(view === "pipeline" || (view === "personal" && role === "estimating")) && (
         <>
-          {/* Estimating's My Dashboard is the pipeline list, so their
+          {/* Estimating's My Projects is the pipeline list, so their
               reminders get their own section on top of it instead. */}
           {view === "personal" && <MyScorecard pipelineEntries={pipelineEntries} projects={customers} uid={uid} />}
 
@@ -2824,12 +2824,12 @@ export default function Dashboard() {
           <div className="modal-card">
             <h3 className="modal-title">Mark Completed</h3>
             <p className="modal-subtitle" style={{ marginBottom: 12 }}>
-              {completedOutcome === "Won" && "The project stays on My Dashboard as an Ongoing Project, due on the date below."}
+              {completedOutcome === "Won" && "The project stays on My Projects as an Ongoing Project, due on the date below."}
               {completedOutcome === CLOSED_OUTCOME && "The project moves to Past Projects. You'll get a check-in reminder in 1 year to follow up with the customer."}
               {completedOutcome !== "Won" && completedOutcome !== CLOSED_OUTCOME && "This closes the project out and moves it to Past Projects. "}
               {completedOutcome === "Lost" && "No further alerts -- it stays in Past Projects until someone moves it back."}
               {completedOutcome === "Not Pursuing" && "No further alerts -- it stays in Past Projects until someone moves it back."}
-              {completedOutcome === "Prospecting Only" && "You'll be alerted and it'll move back to My Dashboard on the date below to reach out to the contractor."}
+              {completedOutcome === "Prospecting Only" && "You'll be alerted and it'll move back to My Projects on the date below to reach out to the contractor."}
             </p>
 
             <label className="field-label">Outcome</label>

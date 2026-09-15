@@ -5,7 +5,7 @@ import { summarize, formatMoney, parseMoney } from "../../lib/analytics";
 
 const pct = (n) => (n === null || n === undefined ? "—" : `${Math.round(n * 100)}%`);
 
-// A person's own numbers at the top of My Dashboard. Pipeline entries are
+// A person's own numbers at the top of My Projects. Pipeline entries are
 // credited the same way as the Analytics page: the assigned salesperson,
 // or whoever created the entry if none was assigned. Project volume is the
 // value of every project they own (ongoing and closed). Only ever shows

@@ -375,7 +375,7 @@ export default function PipelineDetail() {
     await loadPipelineEntry(uid, role);
   };
 
-  // Lets anyone track a pipeline entry on their own My Dashboard without
+  // Lets anyone track a pipeline entry on their own My Projects without
   // needing to be the owner or assigned as salesperson/point person --
   // this just toggles their uid in the shared array on the one document,
   // so it's always mirrored everywhere the entry shows up.
@@ -658,7 +658,7 @@ export default function PipelineDetail() {
             {canEdit && !isEditing && (
               <div className="detail-header-actions">
                 <button className="btn btn-secondary" onClick={toggleTracked}>
-                  {isTracked ? "Remove From My Dashboard" : "Add To My Dashboard"}
+                  {isTracked ? "Remove From My Projects" : "Add To My Projects"}
                 </button>
                 <button className="btn btn-primary" onClick={startEdit}>Edit</button>
                 {canDelete && (

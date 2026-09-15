@@ -293,7 +293,7 @@ export default function ProjectDetail() {
 
     // Closing a project schedules a 1-year "how are things going" check-in
     // automatically, so it resurfaces on the Home calendar even though it's
-    // now hidden from the active My Dashboard list.
+    // now hidden from the active My Projects list.
     if (editData.category === "Project Closed" && customer.category !== "Project Closed") {
       Object.assign(payload, closeProjectPayload(customer.activityLog));
     } else if (editData.category !== "Project Closed" && customer.category === "Project Closed") {
@@ -421,7 +421,7 @@ export default function ProjectDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load this project</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
         </div>
       </div>
     );
@@ -433,7 +433,7 @@ export default function ProjectDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Project not found</h3>
           <p className="modal-subtitle">This project may have been deleted.</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
         </div>
       </div>
     );
@@ -514,7 +514,7 @@ export default function ProjectDetail() {
           <h1 className="dashboard-title">Project Details</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
           <DashboardHeader uid={uid} />
         </div>
       </div>

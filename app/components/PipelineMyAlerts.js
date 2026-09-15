@@ -12,7 +12,7 @@ const fromKey = (key) => {
 
 // A signed-in user's own alert dates for one pipeline entry. They're stored
 // as that user's private reminders (with pipelineId set), so they show up on
-// that person's calendar, My Dashboard, and digest -- and nobody else's.
+// that person's calendar, My Projects, and digest -- and nobody else's.
 export default function PipelineMyAlerts({ pipeline, uid }) {
   const [alerts, setAlerts] = useState([]);
   const [loadError, setLoadError] = useState("");
@@ -80,7 +80,7 @@ export default function PipelineMyAlerts({ pipeline, uid }) {
       <h4 className="field-label">My Alerts</h4>
       <p className="private-note-hint" style={{ marginBottom: 10 }}>
         Add your own alert dates for this entry, before or after the bid date{pipeline.bidDate ? ` (${pipeline.bidDate})` : ""}.
-        Only you see these, on your calendar, My Dashboard, and digest emails. Reminders you attach to this entry from + Add Reminder show here too.
+        Only you see these, on your calendar, My Projects, and digest emails. Reminders you attach to this entry from + Add Reminder show here too.
       </p>
 
       {loadError && <p className="settings-status is-error">⚠ Couldn't load your alerts: {loadError}</p>}

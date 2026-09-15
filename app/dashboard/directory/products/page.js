@@ -209,7 +209,7 @@ export default function ProductsPage() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load product options</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
         </div>
       </div>
     );
@@ -228,7 +228,7 @@ export default function ProductsPage() {
           <h1 className="dashboard-title">Directory — Product Options</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
           <DashboardHeader uid={uid} />
         </div>
       </div>

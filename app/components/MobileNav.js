@@ -70,7 +70,7 @@ export default function MobileNav({ uid, profile: profileProp, currentView, onSe
     {
       items: [
         can(profile, "dashboard") && { label: "Home", active: isView("home"), onClick: () => goView("home") },
-        can(profile, "dashboard") && { label: "My Dashboard", active: isView("personal"), onClick: () => goView("personal") },
+        can(profile, "dashboard") && { label: "My Projects", active: isView("personal"), onClick: () => goView("personal") },
         can(profile, "pipeline") && { label: "Pipeline", active: isView("pipeline"), onClick: () => goView("pipeline") },
         canViewAnalytics(profile) && { label: "Analytics", active: isPath("/dashboard/analytics"), onClick: () => goPath("/dashboard/analytics") },
         can(profile, "team") && { label: "Team", active: isView("team"), onClick: () => goView("team") },
