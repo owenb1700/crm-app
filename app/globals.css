@@ -1544,6 +1544,64 @@ a {
   }
 }
 
+.detail-grid.detail-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Rows of equipment on a project: one line per item. */
+.detail-table {
+  font-size: 13px;
+}
+
+.detail-table-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 1fr 0.6fr;
+  gap: 12px;
+  padding: 7px 0;
+  border-top: 1px solid var(--color-border);
+  overflow-wrap: anywhere;
+}
+
+.detail-table-row:first-child {
+  border-top: none;
+}
+
+.detail-table-head {
+  padding-top: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+@media (max-width: 1100px) {
+  .form-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .form-grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-table-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 12px;
+  }
+
+  .detail-table-head {
+    display: none;
+  }
+}
+
 /* The alert form is narrower inside a grid box, so it stacks. */
 .detail-grid .my-alert-add {
   grid-template-columns: 1fr;
@@ -1560,7 +1618,8 @@ a {
 }
 
 @media (max-width: 700px) {
-  .detail-grid {
+  .detail-grid,
+  .detail-grid.detail-grid-2 {
     grid-template-columns: 1fr;
   }
 

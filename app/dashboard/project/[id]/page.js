@@ -442,6 +442,65 @@ export default function ProjectDetail() {
   const displayEquipment = equipmentRowsFrom(customer);
   const hasDisplayEquipment = displayEquipment.some(r => r.type || r.manufacturer || r.model || r.serial || r.yearInstalled);
 
+  // Drawings sit beside the equipment normally, and in the lower row while editing.
+  const drawingsSection = (
+    <div className="project-section">
+      <h4 className="field-label">Drawings (PDF)</h4>
+
+      {(drawingsData?.files || []).length === 0 && (
+        <p className="private-note-hint">No drawings uploaded yet.</p>
+      )}
+      {(drawingsData?.files || []).map((f, i) => (
+        <div key={i} className="notes-history-item notes-history-row">
+          <div>
+            <a className="link-muted" href={f.url} target="_blank" rel="noopener noreferrer">{f.name}</a>
+            <div className="notes-history-date">
+              {formatBytes(f.size)} · uploaded by {f.uploadedByName} · {f.uploadedAt?.slice(0, 10)}
+            </div>
+          </div>
+          {(isOwner || role === "admin") && (
+            <button className="btn btn-danger" onClick={() => deleteDrawing(f)}>Delete</button>
+          )}
+        </div>
+      ))}
+
+      {(isOwner || role === "admin") && (
+        <div style={{ marginTop: 12 }}>
+          <input
+            type="file"
+            accept="application/pdf"
+            disabled={uploadingDrawing}
+            onChange={e => uploadDrawing(e.target.files)}
+          />
+          {uploadingDrawing && <p className="private-note-hint">Uploading...</p>}
+        </div>
+      )}
+    </div>
+  );
+
+  // A closed project's check-in box; first in the details grid.
+  const closedCheckInSection = isClosedWithCheckIn(customer) && (
+    <div className="project-section">
+      <h4 className="field-label">Closed Project Check-In</h4>
+      <p>
+        <strong>Next check-in:</strong> {customer.nextCheckIn || "—"}
+        {isCheckInDue(customer) && <span className="role-badge" style={{ marginLeft: 8 }}>Due</span>}
+      </p>
+      <p className="private-note-hint" style={{ marginBottom: 10 }}>
+        Check in with the customer, then log it with Update to set the next check-in 2 years out, or snooze it.
+      </p>
+      {(isOwner || role === "admin") ? (
+        <ClosedCheckInActions
+          project={customer}
+          byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
+          onDone={() => loadProject(uid, role)}
+        />
+      ) : (
+        <p className="private-note-hint">Only {ownerLabel(customer.ownerId)} can update this check-in.</p>
+      )}
+    </div>
+  );
+
   return (
     <div className="dashboard-page">
       <div className="dashboard-header">
@@ -458,20 +517,23 @@ export default function ProjectDetail() {
 
       <div className="project-page">
         <div className="project-section">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+          <div className="detail-header">
             <div>
-              <h2 className="modal-title" style={{ marginBottom: 2 }}>{customer.projectName || customer.company}</h2>
-              {customer.company && customer.projectName && customer.projectName !== customer.company && (
-                <p className="modal-subtitle" style={{ marginBottom: 4 }}>{customer.company}</p>
-              )}
-              <p className="modal-subtitle">Owned by {ownerLabel(customer.ownerId)}</p>
-              {customer.category && <span className="role-badge" style={{ marginTop: 6 }}>{customer.category}</span>}
-              <p className="modal-subtitle" style={{ marginTop: 6 }}>Building Sector: {customer.buildingSector || "Not set"}</p>
-              {customer.projectValue && <p className="modal-subtitle" style={{ marginTop: 6 }}>Value: {customer.projectValue}</p>}
+              <div className="detail-title-row">
+                <h2 className="modal-title" style={{ margin: 0 }}>{customer.projectName || customer.company}</h2>
+                {customer.category && <span className="role-badge">{customer.category}</span>}
+              </div>
+              <p className="modal-subtitle detail-facts">
+                {customer.company && customer.projectName && customer.projectName !== customer.company && <span>{customer.company}</span>}
+                <span>Owned by {ownerLabel(customer.ownerId)}</span>
+                <span>{customer.buildingSector || "No building sector"}</span>
+                {customer.projectValue && <span>Value {customer.projectValue}</span>}
+                {customer.nextCheckIn && <span>Next check-in {formatDate(customer.nextCheckIn)}</span>}
+              </p>
             </div>
 
             {!isEditing && (isOwner || role === "admin") && (
-              <div style={{ display: "flex", gap: 8 }}>
+              <div className="detail-header-actions">
                 {isOwner && <button className="btn btn-primary" onClick={startEdit}>Edit</button>}
                 <DeleteRecordButton
                   kind="project"
@@ -482,7 +544,7 @@ export default function ProjectDetail() {
               </div>
             )}
             {isEditing && (
-              <div style={{ display: "flex", gap: 8 }}>
+              <div className="detail-header-actions">
                 <button className="btn btn-primary" onClick={saveEdit}>Save</button>
                 <button className="btn btn-secondary" onClick={cancelEdit}>Cancel</button>
               </div>
@@ -507,69 +569,53 @@ export default function ProjectDetail() {
           />
         ) : (<>
 
-        {isClosedWithCheckIn(customer) && (
-          <div className="project-section">
-            <h4 className="field-label">Closed Project Check-In</h4>
-            <p>
-              <strong>Next check-in:</strong> {customer.nextCheckIn || "—"}
-              {isCheckInDue(customer) && <span className="role-badge" style={{ marginLeft: 8 }}>Due</span>}
-            </p>
-            <p className="private-note-hint" style={{ marginBottom: 10 }}>
-              Check in with the customer, then log it with Update to set the next check-in 2 years out, or snooze it.
-            </p>
-            {(isOwner || role === "admin") ? (
-              <ClosedCheckInActions
-                project={customer}
-                byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
-                onDone={() => loadProject(uid, role)}
-              />
-            ) : (
-              <p className="private-note-hint">Only {ownerLabel(customer.ownerId)} can update this check-in.</p>
-            )}
-          </div>
-        )}
-
         {isEditing ? (
           <div className="project-section">
-            <h4 className="field-label">Project Name</h4>
-            <input className="field" name="detail-projectName" autoComplete="off" value={editData.projectName} onChange={e => setEditData({ ...editData, projectName: e.target.value })} />
+            <label className="field-label" htmlFor="project-detail-name" style={{ marginTop: 0 }}>Project Name</label>
+            <input id="project-detail-name" className="field" name="detail-projectName" autoComplete="off" value={editData.projectName} onChange={e => setEditData({ ...editData, projectName: e.target.value })} />
 
-            <FirmTypeSelect id="project-detail-company-type" value={editData.companyCategory} onChange={v => setEditData({ ...editData, companyCategory: v })} />
-            <CompanyContactFields
-              idPrefix="project-detail"
-              companies={companies}
-              contacts={contacts}
-              companyLabel={editData.companyCategory}
-              companyCategory={editData.companyCategory}
-              companyValue={editData.company}
-              contactValue={editData.contact}
-              emailValue={editData.email}
-              phoneValue={editData.phone}
-              onCompanyChange={v => setEditData({ ...editData, company: v })}
-              onContactChange={v => setEditData({ ...editData, contact: v })}
-              onEmailChange={v => setEditData({ ...editData, email: v })}
-              onPhoneChange={v => setEditData({ ...editData, phone: v })}
-            />
-
-            <BuildingSectorSelect id="project-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
-
-            <h4 className="field-label">Category</h4>
-            <select className="field" value={editData.category} onChange={e => setEditData({ ...editData, category: e.target.value })}>
-              <option value="">Select category...</option>
-              {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-            </select>
-
-            <h4 className="field-label">Project Value</h4>
-            <input className="field" name="detail-projectValue" autoComplete="off" value={editData.projectValue} onChange={e => setEditData({ ...editData, projectValue: e.target.value })} />
-
-            <h4 className="field-label">Project Address (required)</h4>
-            <AddressAutocomplete name="detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
-
-            <h4 className="field-label">Next Check-In</h4>
-            <input className="field" type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
-
-            <h4 className="field-label">Last Contact</h4>
-            <input className="field" type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
+            <div className="form-grid-3">
+              <FirmTypeSelect id="project-detail-company-type" value={editData.companyCategory} onChange={v => setEditData({ ...editData, companyCategory: v })} />
+              <CompanyContactFields
+                idPrefix="project-detail"
+                companies={companies}
+                contacts={contacts}
+                companyLabel={editData.companyCategory}
+                companyCategory={editData.companyCategory}
+                companyValue={editData.company}
+                contactValue={editData.contact}
+                emailValue={editData.email}
+                phoneValue={editData.phone}
+                onCompanyChange={v => setEditData({ ...editData, company: v })}
+                onContactChange={v => setEditData({ ...editData, contact: v })}
+                onEmailChange={v => setEditData({ ...editData, email: v })}
+                onPhoneChange={v => setEditData({ ...editData, phone: v })}
+              />
+              <BuildingSectorSelect id="project-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
+              <div>
+                <label className="field-label" htmlFor="project-detail-category">Category</label>
+                <select id="project-detail-category" className="field" value={editData.category} onChange={e => setEditData({ ...editData, category: e.target.value })}>
+                  <option value="">Select category...</option>
+                  {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="field-label" htmlFor="project-detail-value">Project Value</label>
+                <input id="project-detail-value" className="field" name="detail-projectValue" autoComplete="off" value={editData.projectValue} onChange={e => setEditData({ ...editData, projectValue: e.target.value })} />
+              </div>
+              <div>
+                <label className="field-label">Project Address (required)</label>
+                <AddressAutocomplete name="detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="project-detail-next">Next Check-In</label>
+                <input id="project-detail-next" className="field" type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="project-detail-last">Last Contact</label>
+                <input id="project-detail-last" className="field" type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
+              </div>
+            </div>
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Owners & Building Engineers</h4>
             {ownerRows.map((row, i) => (
@@ -653,13 +699,28 @@ export default function ProjectDetail() {
             <button className="btn btn-secondary" onClick={addEquipmentRow}>+ Add Equipment</button>
           </div>
         ) : (
-          <>
+          <div className="detail-grid">
+            {closedCheckInSection}
+
             <div className="project-section">
               <h4 className="field-label">Contact Info</h4>
-              <p><strong>{firmTypeOf(customer.companyCategory)}:</strong> {customer.company || "—"}</p>
-              <p><strong>Contact:</strong> {customer.contact || "—"}</p>
-              <p><strong>Email:</strong> {customer.email || "—"}</p>
-              <p><strong>Phone:</strong> {formatPhone(customer.phone) || "—"}</p>
+              <dl className="detail-list">
+                <dt>{firmTypeOf(customer.companyCategory)}</dt><dd>{customer.company || "—"}</dd>
+                <dt>Contact</dt><dd>{customer.contact || "—"}</dd>
+                <dt>Email</dt><dd>{customer.email || "—"}</dd>
+                <dt>Phone</dt><dd>{formatPhone(customer.phone) || "—"}</dd>
+              </dl>
+            </div>
+
+            <div className="project-section">
+              <h4 className="field-label">Schedule</h4>
+              <dl className="detail-list">
+                <dt>Address</dt><dd>{customer.projectAddress || "—"}</dd>
+                <dt>Next Check-In</dt><dd>{formatDate(customer.nextCheckIn) || "—"}</dd>
+                <dt>Last Contact</dt><dd>{formatDate(customer.lastContact) || "—"}</dd>
+                <dt>Sector</dt><dd>{customer.buildingSector || "—"}</dd>
+                <dt>Value</dt><dd>{customer.projectValue || "—"}</dd>
+              </dl>
             </div>
 
             <div className="project-section">
@@ -683,67 +744,40 @@ export default function ProjectDetail() {
               })}
             </div>
 
-            <div className="project-section">
-              <h4 className="field-label">Schedule</h4>
-              <p><strong>Project Address:</strong> {customer.projectAddress || "—"}</p>
-              <p><strong>Next Check-In:</strong> {formatDate(customer.nextCheckIn) || "—"}</p>
-              <p><strong>Last Contact:</strong> {formatDate(customer.lastContact) || "—"}</p>
-            </div>
-
-            <div className="project-section">
+            <div className="project-section detail-span-2">
               <h4 className="field-label">Equipment & Site Details</h4>
               {!hasDisplayEquipment ? (
                 <p className="private-note-hint">No equipment on file.</p>
               ) : (
-                displayEquipment.map((row, i) => (
-                  <div key={i} style={{ marginBottom: i < displayEquipment.length - 1 ? 14 : 0 }}>
-                    {displayEquipment.length > 1 && (
-                      <div className="field-label" style={{ marginBottom: 4 }}>Equipment {i + 1}</div>
-                    )}
-                    <p><strong>Type of Equipment:</strong> {row.type || "—"}</p>
-                    <p><strong>Tower Manufacturer:</strong> {row.manufacturer || "—"}</p>
-                    <p><strong>Model Number:</strong> {row.model || "—"}</p>
-                    <p><strong>Serial Number:</strong> {row.serial || "—"}</p>
-                    <p><strong>Year Installed:</strong> {row.yearInstalled || "—"}</p>
+                <div className="detail-table">
+                  <div className="detail-table-row detail-table-head">
+                    <span>Type</span>
+                    <span>Manufacturer</span>
+                    <span>Model</span>
+                    <span>Serial</span>
+                    <span>Installed</span>
                   </div>
-                ))
+                  {displayEquipment.map((row, i) => (
+                    <div key={i} className="detail-table-row">
+                      <span><strong>{row.type || "—"}</strong></span>
+                      <span>{row.manufacturer || "—"}</span>
+                      <span>{row.model || "—"}</span>
+                      <span>{row.serial || "—"}</span>
+                      <span>{row.yearInstalled || "—"}</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-          </>
+
+            {drawingsSection}
+          </div>
         )}
 
-        <div className="project-section">
-          <h4 className="field-label">Drawings (PDF)</h4>
+        <div className={`detail-grid ${isEditing ? "" : "detail-grid-2"}`}>
+          {isEditing && closedCheckInSection}
 
-          {(drawingsData?.files || []).length === 0 && (
-            <p className="private-note-hint">No drawings uploaded yet.</p>
-          )}
-          {(drawingsData?.files || []).map((f, i) => (
-            <div key={i} className="notes-history-item notes-history-row">
-              <div>
-                <a className="link-muted" href={f.url} target="_blank" rel="noopener noreferrer">{f.name}</a>
-                <div className="notes-history-date">
-                  {formatBytes(f.size)} · uploaded by {f.uploadedByName} · {f.uploadedAt?.slice(0, 10)}
-                </div>
-              </div>
-              {(isOwner || role === "admin") && (
-                <button className="btn btn-danger" onClick={() => deleteDrawing(f)}>Delete</button>
-              )}
-            </div>
-          ))}
-
-          {(isOwner || role === "admin") && (
-            <div style={{ marginTop: 12 }}>
-              <input
-                type="file"
-                accept="application/pdf"
-                disabled={uploadingDrawing}
-                onChange={e => uploadDrawing(e.target.files)}
-              />
-              {uploadingDrawing && <p className="private-note-hint">Uploading...</p>}
-            </div>
-          )}
-        </div>
+          {isEditing && drawingsSection}
 
         <div className="project-section">
           <h4 className="field-label">Activity</h4>
@@ -812,6 +846,7 @@ export default function ProjectDetail() {
               ))}
             </>
           )}
+        </div>
         </div>
         </>)}
       </div>
