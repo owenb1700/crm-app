@@ -2343,14 +2343,77 @@ a {
 }
 
 @media (max-width: 860px), (hover: none) and (pointer: coarse) {
-  .mobile-nav {
-    display: block;
+  /* The menu button sits on its own line under the logo and page title;
+     the bell and avatar stay level with the logo. */
+  .dashboard-header {
+    flex-wrap: nowrap;
+    align-items: flex-start;
   }
 
-  /* The menu replaces the tab row; search and + Add Reminder stay. */
+  /* Add Project / Add Pipeline Entry also carry Cancel + Add in the header:
+     logo and title take the top row, and the buttons, bell, and avatar
+     share the second row with the menu button (menu left, actions right). */
+  .dashboard-header.is-sticky .dashboard-brand {
+    flex-basis: 100%;
+  }
+
+  .dashboard-header.is-sticky .dashboard-header-actions {
+    position: absolute;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: 10px;
+    gap: 5px;
+  }
+
+  .dashboard-header.is-sticky .dashboard-header-actions > .btn {
+    padding: 6px 9px;
+    font-size: 13px;
+  }
+
+  /* Mid-form, the bell and avatar aren't needed and would crowd out
+     Cancel / Add; they're back on every other page. */
+  .dashboard-header.is-sticky .alerts-menu,
+  .dashboard-header.is-sticky .avatar-menu {
+    display: none;
+  }
+
+  .dashboard-brand {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  .dashboard-logo {
+    flex-shrink: 0;
+  }
+
+  .dashboard-title {
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dashboard-header-actions {
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+  }
+
+  .mobile-nav {
+    display: block;
+    order: 2;
+    flex-basis: 100%;
+  }
+
+  /* The menu replaces the tab row; search and + Add Reminder stay. The
+     header's "← Back" buttons go too -- on phones and iPads people use the
+     browser's own back control. (Cancel / Add on the Add pages use other
+     button styles, so they stay.) */
   .view-tabs > .tab-btn,
   .view-tabs > .tab-dropdown,
-  .hide-with-mobile-nav {
+  .hide-with-mobile-nav,
+  .dashboard-header-actions > .btn.btn-secondary {
     display: none;
   }
 
