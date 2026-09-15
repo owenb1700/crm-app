@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { exportProjects, exportPipeline, exportPastProjects, exportNotes, exportMyReminders, personName } from "../../lib/personalExport";
+import ExportButtons from "./ExportButtons";
 
 // Export My Data (target = viewer) or, for Estimating and Admin, one
 // person's data (target = someone else). Which files are offered -- and
@@ -9,7 +10,7 @@ import { exportProjects, exportPipeline, exportPastProjects, exportNotes, export
 export default function ExportDataModal({ viewer, target, onClose }) {
   const isSelf = !target || target.id === viewer.id;
   const who = isSelf ? viewer : target;
-  const [busy, setBusy] = useState(null);
+  const [busy, setBusy] = useState(null); // { key, format } while a file is being built
   const [status, setStatus] = useState(null); // { ok, message }
 
   const files = [
@@ -27,12 +28,12 @@ export default function ExportDataModal({ viewer, target, onClose }) {
     ...(isSelf ? [{ key: "reminders", label: "My reminders", desc: "Your reminders and personal pipeline alerts", run: exportMyReminders }] : [])
   ];
 
-  const run = async (file) => {
-    setBusy(file.key);
+  const run = async (file, format) => {
+    setBusy({ key: file.key, format });
     setStatus(null);
     try {
-      const count = await file.run({ target: who, viewer });
-      setStatus({ ok: true, message: `${file.label}: downloaded ${count} ${count === 1 ? "row" : "rows"}.` });
+      const count = await file.run({ target: who, viewer, format });
+      setStatus({ ok: true, message: `${file.label}: downloaded ${count} ${count === 1 ? "row" : "rows"} as ${format === "xlsx" ? "Excel" : "CSV"}.` });
     } catch (err) {
       setStatus({ ok: false, message: `Couldn't export ${file.label.toLowerCase()}: ${err.message}` });
     } finally {
@@ -46,7 +47,7 @@ export default function ExportDataModal({ viewer, target, onClose }) {
         <button className="modal-close" onClick={onClose} aria-label="Close">✕</button>
         <h3 id="export-title" className="modal-title">{isSelf ? "Export My Data" : `Export ${personName(who)}'s Data`}</h3>
         <p className="modal-subtitle" style={{ marginBottom: 12 }}>
-          Each file downloads as a spreadsheet (CSV) that opens in Excel or Google Sheets.
+          Download each file as CSV or Excel. Both open in Excel and Google Sheets; the Excel version has filters and a frozen header row.
         </p>
 
         <div className="export-list">
@@ -56,9 +57,12 @@ export default function ExportDataModal({ viewer, target, onClose }) {
                 <div className="export-row-label">{f.label}</div>
                 <div className="export-row-desc">{f.desc}</div>
               </div>
-              <button className="btn btn-secondary btn-small" disabled={!!busy} onClick={() => run(f)}>
-                {busy === f.key ? "Preparing…" : "⬇ Download"}
-              </button>
+              <ExportButtons
+                label={f.label}
+                disabled={!!busy}
+                busyFormat={busy?.key === f.key ? busy.format : null}
+                onExport={(format) => run(f, format)}
+              />
             </div>
           ))}
         </div>

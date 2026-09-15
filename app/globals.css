@@ -1729,3 +1729,14 @@ a {
   white-space: nowrap;
   border: 0;
 }
+
+.export-buttons {
+  display: inline-flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.export-caption {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}

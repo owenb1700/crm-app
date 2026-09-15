@@ -7,7 +7,8 @@ import { auth, db } from "../../../lib/firebase";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { BUILDING_SECTORS } from "../../../lib/directory";
 import { canViewAnalytics, summarize, breakdown, breakdownMulti, manufacturersOf, bidForecast, outcomesByMonth, formatMoney, parseMoney, statusOf } from "../../../lib/analytics";
-import { downloadCsv, csvDateStamp } from "../../../lib/csv";
+import { downloadTable, csvDateStamp } from "../../../lib/csv";
+import ExportButtons from "../../components/ExportButtons";
 import DashboardHeader from "../../components/DashboardHeader";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../../components/FilterBar";
 import ExportDataModal from "../../components/ExportDataModal";
@@ -28,23 +29,16 @@ const STATUS_LABEL = { won: "Won", lost: "Lost", dnb: "Did Not Bid", open: "Open
 
 // Exports use raw numbers (whole dollars, win rate as a percent) so they
 // sort and sum correctly in a spreadsheet.
-const exportBreakdown = (filename, nameHeader, rows) => downloadCsv(
-  `${filename}-${csvDateStamp()}`,
-  [nameHeader, "Entries", "Won", "Lost", "Did Not Bid", "Open", "Win rate %", "Won volume", "Lost volume", "Open volume", "Total volume"],
-  rows.map(r => [
+const exportBreakdown = (filename, nameHeader, rows, format) => downloadTable({
+  format,
+  filename: `${filename}-${csvDateStamp()}`,
+  headers: [nameHeader, "Entries", "Won", "Lost", "Did Not Bid", "Open", "Win rate %", "Won volume", "Lost volume", "Open volume", "Total volume"],
+  rows: rows.map(r => [
     r.label || r.key, r.total, r.won, r.lost, r.dnb, r.open,
     r.winRate === null ? "" : Math.round(r.winRate * 1000) / 10,
     Math.round(r.volume.won), Math.round(r.volume.lost), Math.round(r.volume.open), Math.round(r.volume.total)
   ])
-);
-
-function ExportButton({ onClick, label = "Download CSV" }) {
-  return (
-    <button type="button" className="btn btn-secondary btn-small" onClick={onClick}>
-      ⬇ {label}
-    </button>
-  );
-}
+});
 
 function StatTile({ label, value, sub }) {
   return (
@@ -145,11 +139,12 @@ function OutcomesChart({ buckets }) {
         <button type="button" className="settings-link" onClick={() => setShowTable(v => !v)}>
           {showTable ? "Hide table" : "Show as table"}
         </button>
-        <ExportButton onClick={() => downloadCsv(
-          `outcomes-by-month-${csvDateStamp()}`,
-          ["Month", "Won", "Lost", "Did Not Bid"],
-          buckets.map(b => [b.key, b.won, b.lost, b.dnb])
-        )} />
+        <ExportButtons label="outcomes by month" onExport={(format) => downloadTable({
+          format,
+          filename: `outcomes-by-month-${csvDateStamp()}`,
+          headers: ["Month", "Won", "Lost", "Did Not Bid"],
+          rows: buckets.map(b => [b.key, b.won, b.lost, b.dnb])
+        })} />
       </div>
       {showTable && (
         <div className="analytics-table-wrap" style={{ marginTop: 8 }}>
@@ -180,7 +175,7 @@ function BreakdownTable({ title, sub, rows, nameHeader, filename }) {
           <h3 className="analytics-card-title">{title}</h3>
           {sub && <p className="analytics-card-sub">{sub}</p>}
         </div>
-        {rows.length > 0 && <ExportButton onClick={() => exportBreakdown(filename, nameHeader, rows)} />}
+        {rows.length > 0 && <ExportButtons label={title} onExport={(format) => exportBreakdown(filename, nameHeader, rows, format)} />}
       </div>
       {rows.length === 0 ? (
         <p className="private-note-hint">No entries match these filters.</p>
@@ -367,11 +362,12 @@ export default function AnalyticsPage() {
 
   const anyFilter = Object.values(filters).some(isFilterActive);
 
-  const exportEntries = () => downloadCsv(
-    `pipeline-entries-${csvDateStamp()}`,
-    ["Title", "Status", "Stage", "Sector", "Salesperson", "Engineering firm", "Bid date", "Estimated value (as entered)", "Estimated value ($)",
+  const exportEntries = (format) => downloadTable({
+    format,
+    filename: `pipeline-entries-${csvDateStamp()}`,
+    headers: ["Title", "Status", "Stage", "Sector", "Salesperson", "Engineering firm", "Bid date", "Estimated value (as entered)", "Estimated value ($)",
       "Manufacturers", "Bidders", "Won by / lost to", "Reason (lost / did not bid)", "Created", "Resolved", "Converted to project"],
-    filtered.map(e => [
+    rows: filtered.map(e => [
       e.title, STATUS_LABEL[statusOf(e)], e.stage, e.buildingSector, personLabel(salespersonOf(e)), e.company, e.bidDate,
       e.value, parseMoney(e.value) ?? "",
       Array.from(new Set(manufacturersOf(e).filter(Boolean))).join("; "),
@@ -381,7 +377,7 @@ export default function AnalyticsPage() {
       String(e.createdAt || "").slice(0, 10), String(e.resolvedAt || "").slice(0, 10),
       e.convertedToProjectId ? "Yes" : "No"
     ])
-  );
+  });
 
   return (
     <div className="dashboard-page">
@@ -406,8 +402,9 @@ export default function AnalyticsPage() {
         resultNoun={filtered.length === 1 ? "pipeline entry" : "pipeline entries"}
       />
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -6, marginBottom: 14 }}>
-        <ExportButton label="Download these entries" onClick={exportEntries} />
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginTop: -6, marginBottom: 14 }}>
+        <span className="export-caption">Download these entries</span>
+        <ExportButtons label="these entries" onExport={exportEntries} />
       </div>
 
       <h2 className="analytics-section-title">Bids</h2>
@@ -457,11 +454,12 @@ export default function AnalyticsPage() {
             <p className="analytics-card-sub">Open entries bidding in the next 90 days</p>
           </div>
           {forecast.upcoming.length > 0 && (
-            <ExportButton onClick={() => downloadCsv(
-              `upcoming-bids-${csvDateStamp()}`,
-              ["Bid date", "Title", "Stage", "Sector", "Salesperson", "Engineering firm", "Estimated value ($)"],
-              forecast.upcoming.map(e => [e.bidDate, e.title, e.stage, e.buildingSector, personLabel(salespersonOf(e)), e.company, parseMoney(e.value) ?? ""])
-            )} />
+            <ExportButtons label="upcoming bids" onExport={(format) => downloadTable({
+              format,
+              filename: `upcoming-bids-${csvDateStamp()}`,
+              headers: ["Bid date", "Title", "Stage", "Sector", "Salesperson", "Engineering firm", "Estimated value ($)"],
+              rows: forecast.upcoming.map(e => [e.bidDate, e.title, e.stage, e.buildingSector, personLabel(salespersonOf(e)), e.company, parseMoney(e.value) ?? ""])
+            })} />
           )}
         </div>
         {forecast.upcoming.length === 0 ? (
