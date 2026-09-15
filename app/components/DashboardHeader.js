@@ -6,6 +6,7 @@ import { signOut } from "firebase/auth";
 import { auth, db } from "../../lib/firebase";
 import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import UserSettingsModal from "./UserSettingsModal";
+import ExportDataModal from "./ExportDataModal";
 
 const ROLE_LABELS = { admin: "Admin", member: "Salesperson", estimating: "Estimating Department" };
 const roleLabel = (role) => ROLE_LABELS[role] || role;
@@ -30,6 +31,7 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
   const [notifications, setNotifications] = useState([]);
   const [notificationsError, setNotificationsError] = useState(null);
   const [showUserSettings, setShowUserSettings] = useState(false);
+  const [showExport, setShowExport] = useState(false);
 
   useEffect(() => {
     if (!uid) return;
@@ -172,12 +174,19 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
             <button className="btn btn-secondary btn-block" onClick={() => setShowUserSettings(true)}>
               User Settings
             </button>
+            <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={() => setShowExport(true)}>
+              Export My Data
+            </button>
             <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={logout}>
               Logout
             </button>
           </div>
         </div>
       </div>
+
+      {showExport && profile && (
+        <ExportDataModal viewer={{ id: uid, ...profile }} onClose={() => setShowExport(false)} />
+      )}
 
       {showUserSettings && profile && (
         <UserSettingsModal

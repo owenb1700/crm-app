@@ -32,6 +32,7 @@ import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../co
 import { canViewAnalytics } from "../../lib/analytics";
 import ClosedCheckInActions from "../components/ClosedCheckInActions";
 import MyScorecard from "../components/MyScorecard";
+import ExportDataModal from "../components/ExportDataModal";
 import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, yearsFrom, localDateKey } from "../../lib/closedProjects";
 import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
@@ -96,6 +97,8 @@ export default function Dashboard() {
   const [nameLast, setNameLast] = useState("");
   const [myProfile, setMyProfile] = useState(null);
   const [showUserSettings, setShowUserSettings] = useState(false);
+  // null = closed; { self: true } or { target: user } for an admin export
+  const [exportFor, setExportFor] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [notificationsError, setNotificationsError] = useState(null);
   const [showAlertsPanel, setShowAlertsPanel] = useState(false);
@@ -1721,6 +1724,9 @@ export default function Dashboard() {
                 <button className="btn btn-secondary btn-block" onClick={() => setShowUserSettings(true)}>
                   User Settings
                 </button>
+                <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={() => setExportFor({ self: true })}>
+                  Export My Data
+                </button>
                 <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={logout}>
                   Logout
                 </button>
@@ -1729,6 +1735,14 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {exportFor && myProfile && (
+        <ExportDataModal
+          viewer={{ id: uid, ...myProfile }}
+          target={exportFor.target}
+          onClose={() => setExportFor(null)}
+        />
+      )}
 
       {showUserSettings && myProfile && (
         <UserSettingsModal
@@ -2717,6 +2731,7 @@ export default function Dashboard() {
                               <option value="admin">Admin</option>
                             </select>
                             <button className="btn btn-secondary" onClick={() => openEditPermissions(u)}>Permissions</button>
+                            <button className="btn btn-secondary" onClick={() => setExportFor({ target: u })}>Export Data</button>
                             {!u.disabled && (
                               <button className="btn btn-secondary" onClick={() => sendResetLink(u)}>Send Reset Link</button>
                             )}

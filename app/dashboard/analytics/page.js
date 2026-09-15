@@ -10,6 +10,7 @@ import { canViewAnalytics, summarize, breakdown, breakdownMulti, manufacturersOf
 import { downloadCsv, csvDateStamp } from "../../../lib/csv";
 import DashboardHeader from "../../components/DashboardHeader";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../../components/FilterBar";
+import ExportDataModal from "../../components/ExportDataModal";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -234,6 +235,9 @@ export default function AnalyticsPage() {
   const router = useRouter();
   const [uid, setUid] = useState(null);
   const [allowed, setAllowed] = useState(null); // null = checking
+  const [myProfile, setMyProfile] = useState(null);
+  const [exportPersonId, setExportPersonId] = useState("");
+  const [exportTarget, setExportTarget] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -277,6 +281,7 @@ export default function AnalyticsPage() {
           return;
         }
         setAllowed(true);
+        setMyProfile(profile);
 
         const [pipelineSnap, usersSnap] = await Promise.all([
           getDocs(collection(db, "pipeline")),
@@ -485,6 +490,36 @@ export default function AnalyticsPage() {
       </div>
 
       <OutcomesChart buckets={months} />
+
+      {(myProfile?.role === "estimating" || myProfile?.role === "admin") && (
+        <div className="analytics-card">
+          <h3 className="analytics-card-title">Export a person's data</h3>
+          <p className="analytics-card-sub">
+            Download one person's projects, pipeline, and past projects. Their private notes are only included for projects you collaborate on.
+          </p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <label className="sr-only" htmlFor="export-person">Person</label>
+            <select id="export-person" className="field" style={{ maxWidth: 280, marginBottom: 0 }} value={exportPersonId} onChange={e => setExportPersonId(e.target.value)}>
+              <option value="">Choose a person...</option>
+              {users
+                .filter(u => !u.disabled && u.id !== uid)
+                .sort((a, b) => personLabel(a.id).localeCompare(personLabel(b.id)))
+                .map(u => <option key={u.id} value={u.id}>{personLabel(u.id)}</option>)}
+            </select>
+            <button
+              className="btn btn-secondary"
+              disabled={!exportPersonId}
+              onClick={() => setExportTarget(users.find(u => u.id === exportPersonId))}
+            >
+              Export…
+            </button>
+          </div>
+        </div>
+      )}
+
+      {exportTarget && myProfile && (
+        <ExportDataModal viewer={{ id: uid, ...myProfile }} target={exportTarget} onClose={() => setExportTarget(null)} />
+      )}
 
       <BreakdownTable title="By sector" nameHeader="Sector" filename="by-sector" sub="Entries missing a sector show as Not set." rows={bySector} />
       <BreakdownTable title="By salesperson" nameHeader="Salesperson" filename="by-salesperson" sub="Credited to the assigned salesperson, or whoever created the entry if none was assigned." rows={byPerson} />
