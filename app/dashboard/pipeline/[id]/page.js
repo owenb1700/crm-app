@@ -520,7 +520,7 @@ export default function PipelineDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load this entry</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#pipeline")}>Back to Pipeline</button>
         </div>
       </div>
     );
@@ -532,7 +532,7 @@ export default function PipelineDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Pipeline entry not found</h3>
           <p className="modal-subtitle">It may have been deleted.</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#pipeline")}>Back to Pipeline</button>
         </div>
       </div>
     );
@@ -551,7 +551,7 @@ export default function PipelineDetail() {
           <h1 className="dashboard-title">Pipeline Entry</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard")}>← Back to Dashboard</button>
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#pipeline")}>← Back to Pipeline</button>
           <DashboardHeader uid={uid} />
         </div>
       </div>
