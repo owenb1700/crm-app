@@ -1027,7 +1027,15 @@ a {
   z-index: 40;
 }
 
-.avatar-menu:hover .avatar-dropdown,
+/* Open on hover only where there's a real mouse; touch screens open these
+   by tapping (TouchMenus adds .is-open). */
+@media (hover: hover) {
+  .avatar-menu:hover .avatar-dropdown {
+    display: block;
+  }
+}
+
+.avatar-menu.is-open .avatar-dropdown,
 .avatar-menu:focus-within .avatar-dropdown {
   display: block;
 }
@@ -1054,7 +1062,13 @@ a {
   z-index: 40;
 }
 
-.alerts-menu:hover .alerts-dropdown,
+@media (hover: hover) {
+  .alerts-menu:hover .alerts-dropdown {
+    display: block;
+  }
+}
+
+.alerts-menu.is-open .alerts-dropdown,
 .alerts-menu:focus-within .alerts-dropdown {
   display: block;
 }
@@ -1149,7 +1163,13 @@ a {
   z-index: 40;
 }
 
-.tab-dropdown:hover .tab-dropdown-menu,
+@media (hover: hover) {
+  .tab-dropdown:hover .tab-dropdown-menu {
+    display: block;
+  }
+}
+
+.tab-dropdown.is-open .tab-dropdown-menu,
 .tab-dropdown:focus-within .tab-dropdown-menu {
   display: block;
 }
@@ -1326,8 +1346,11 @@ a {
 }
 
 @media (max-width: 860px) {
+  /* Stacked, so the calendar and panel each take the full width (the base
+     align-items: flex-start would otherwise shrink them to their content). */
   .home-layout {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .calendar-side-panel {
@@ -1814,4 +1837,417 @@ a {
 .export-menu-item-hint {
   font-size: 12px;
   color: var(--color-text-muted);
+}
+
+/* =====================================================================
+   RESPONSIVE: tablets and phones
+   The layout adapts by screen width and by input type (touch vs mouse),
+   not by device model, so an iPad in split view correctly gets the phone
+   layout and rotating a device re-flows immediately.
+   ===================================================================== */
+
+/* Equipment rows on the Add/Detail forms (5 fields + Remove on desktop). */
+.equipment-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.equipment-row.equipment-row-2 {
+  grid-template-columns: repeat(2, 1fr) auto;
+}
+
+.equipment-row .field {
+  margin-bottom: 0;
+}
+
+/* The phone agenda is only shown on phone widths (see below). */
+.calendar-agenda {
+  display: none;
+}
+
+.agenda-day {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.agenda-day-today {
+  border-color: var(--color-primary);
+}
+
+.agenda-day-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.agenda-day .calendar-panel-item:last-child {
+  margin-bottom: 0;
+}
+
+/* Long popups scroll instead of running off short screens. The export
+   window stays unclipped so its Export dropdown can extend past it. */
+.modal-card {
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
+
+.modal-card.export-modal {
+  max-height: none;
+  overflow: visible;
+}
+
+/* Keep the header clear of the iPhone notch / rounded corners when the CRM
+   is opened from the Home Screen. */
+.dashboard-header {
+  padding-top: max(18px, env(safe-area-inset-top));
+  padding-left: max(32px, env(safe-area-inset-left));
+  padding-right: max(32px, env(safe-area-inset-right));
+}
+
+/* ---- Touch screens (phones and iPads, any size) ---- */
+@media (pointer: coarse) {
+  /* 16px text keeps iOS Safari from zooming in when a field is tapped. */
+  .field,
+  .filter-control.field,
+  .digest-inline .field {
+    font-size: 16px;
+  }
+
+  .btn {
+    min-height: 40px;
+  }
+
+  .btn.btn-small {
+    min-height: 36px;
+  }
+
+  .tab-btn {
+    min-height: 44px;
+  }
+
+  .tab-dropdown-item,
+  .export-menu-item {
+    padding: 12px 14px;
+  }
+
+  .calendar-event-pill {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  /* Hover-only lift effects just flicker on touch. */
+  .calendar-day:hover,
+  .calendar-panel-item:hover {
+    box-shadow: none;
+  }
+}
+
+/* ---- Tablets and small laptops ---- */
+@media (max-width: 1024px) {
+  .dashboard-page {
+    padding: 24px;
+  }
+
+  .dashboard-header {
+    margin: -24px -24px 20px;
+    padding-left: max(24px, env(safe-area-inset-left));
+    padding-right: max(24px, env(safe-area-inset-right));
+  }
+
+  .global-search-input {
+    width: 170px;
+  }
+}
+
+/* ---- iPad portrait and narrower ---- */
+@media (max-width: 860px) {
+  /* Tabs wrap onto a second line; search + Add Reminder get their own row. */
+  .view-tabs {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+
+  .global-search {
+    order: 99;
+    flex: 1 1 100%;
+    margin: 6px 0 10px;
+  }
+
+  .global-search-input {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  .customer-card-left {
+    width: 40%;
+  }
+}
+
+/* ---- Phones ---- */
+@media (max-width: 640px) {
+  .dashboard-page {
+    padding: 16px 12px 24px;
+  }
+
+  .dashboard-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: -16px -12px 16px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-bottom: 10px;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+
+  .dashboard-brand {
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .dashboard-logo {
+    height: 20px;
+  }
+
+  .dashboard-title {
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dashboard-header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-left: auto;
+  }
+
+  .dashboard-header-actions > .btn {
+    padding: 7px 10px;
+    font-size: 13px;
+  }
+
+  .header-divider {
+    display: none;
+  }
+
+  /* The alerts panel spans the screen just below the header (whatever its
+     height on this page) instead of hanging off the bell: the bell's menu
+     stops being the positioning box, so the header becomes it. */
+  .dashboard-header:not(.is-sticky) {
+    position: relative;
+  }
+
+  .alerts-menu {
+    position: static;
+  }
+
+  .alerts-dropdown {
+    top: calc(100% - 4px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    padding-top: 0;
+  }
+
+  .alerts-card {
+    max-height: 70dvh;
+    overflow-y: auto;
+  }
+
+  .view-tabs {
+    gap: 0;
+    margin-bottom: 14px;
+  }
+
+  .tab-btn {
+    padding: 10px 9px;
+    font-size: 13px;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+  }
+
+  /* Cards stack: details, then notes, then actions. */
+  .customer-card {
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .customer-card-left {
+    width: auto;
+  }
+
+  .customer-card-right {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .checkbox-group {
+    flex-direction: row;
+    gap: 16px;
+  }
+
+  .collab-request-row,
+  .notes-history-row {
+    flex-wrap: wrap;
+  }
+
+  .project-section,
+  .admin-card,
+  .analytics-card {
+    padding: 14px;
+  }
+
+  /* Forms go to one or two columns. */
+  .equipment-row,
+  .equipment-row.equipment-row-2 {
+    grid-template-columns: 1fr 1fr;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed var(--color-border);
+  }
+
+  .equipment-row > .btn {
+    grid-column: 1 / -1;
+  }
+
+  /* Home calendar: agenda instead of the grid and side panel. */
+  .calendar-container,
+  .calendar-side-panel {
+    display: none;
+  }
+
+  .calendar-agenda {
+    display: block;
+  }
+
+  /* Wide tables become one labeled card per row. */
+  .stack-on-phone,
+  .stack-on-phone tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .stack-on-phone thead {
+    display: none;
+  }
+
+  .stack-on-phone tr {
+    display: block;
+    margin-bottom: 10px;
+    padding: 6px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: var(--color-surface);
+  }
+
+  .stack-on-phone td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 0;
+    border: none;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .stack-on-phone td + td {
+    border-top: 1px solid #f0f2f5;
+  }
+
+  .stack-on-phone td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-align: left;
+  }
+
+  .stack-on-phone td.admin-table-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .stack-on-phone td.admin-table-actions::before {
+    flex-basis: 100%;
+  }
+
+  /* Analytics */
+  .stat-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .stat-tile {
+    padding: 10px 12px;
+  }
+
+  .stat-tile-value {
+    font-size: 21px;
+  }
+
+  .bar-chart {
+    height: 190px;
+  }
+
+  .bar-chart-columns {
+    gap: 3px;
+  }
+
+  .bar-chart-label {
+    font-size: 10px;
+  }
+
+  .scorecard-tiles {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .scorecard-value {
+    font-size: 17px;
+  }
+
+  .filter-bar-fields {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Popups */
+  .modal-overlay {
+    padding: 12px;
+  }
+
+  .modal-card {
+    padding: 18px;
+  }
+}
+
+/* ---- Very narrow phones ---- */
+@media (max-width: 400px) {
+  .bidding-company-row,
+  .bidding-company-row.with-type,
+  .filter-bar-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .scorecard-tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .filter-field-wide {
+    grid-column: auto;
+  }
 }

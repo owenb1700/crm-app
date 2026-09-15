@@ -91,12 +91,12 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
   return (
     <>
       <div className="alerts-menu">
-        <button className="avatar-circle" style={{ position: "relative" }}>
+        <button className="avatar-circle" style={{ position: "relative" }} aria-label="Alerts">
           🔔
           {alertsCount > 0 && <span className="alerts-badge">{alertsCount}</span>}
         </button>
         <div className="alerts-dropdown">
-            <div className="avatar-dropdown-card" style={{ width: 340 }}>
+            <div className="avatar-dropdown-card alerts-card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <h4 className="field-label" style={{ margin: 0 }}>Alerts</h4>
                 {unreadNotificationCount > 0 && (

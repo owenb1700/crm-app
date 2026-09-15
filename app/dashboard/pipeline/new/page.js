@@ -423,7 +423,7 @@ export default function NewPipelineEntry() {
           {equipmentRows.map((row, i) => (
             <div
               key={i}
-              style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr) auto", gap: 8, alignItems: "center", marginBottom: 8 }}
+              className="equipment-row equipment-row-2"
             >
               <SearchableSelect
                 options={manufacturerOptions}

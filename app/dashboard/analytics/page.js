@@ -148,15 +148,15 @@ function OutcomesChart({ buckets }) {
       </div>
       {showTable && (
         <div className="analytics-table-wrap" style={{ marginTop: 8 }}>
-          <table className="analytics-table">
+          <table className="analytics-table stack-on-phone">
             <thead>
               <tr><th>Month</th><th>Won</th><th>Lost</th><th>Did Not Bid</th></tr>
             </thead>
             <tbody>
               {buckets.map(b => (
                 <tr key={b.key}>
-                  <td>{new Date(b.year, Number(b.key.slice(5)) - 1, 1).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</td>
-                  <td>{b.won}</td><td>{b.lost}</td><td>{b.dnb}</td>
+                  <td data-label="Month">{new Date(b.year, Number(b.key.slice(5)) - 1, 1).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</td>
+                  <td data-label="Won">{b.won}</td><td data-label="Lost">{b.lost}</td><td data-label="Did Not Bid">{b.dnb}</td>
                 </tr>
               ))}
             </tbody>
@@ -181,7 +181,7 @@ function BreakdownTable({ title, sub, rows, nameHeader, filename }) {
         <p className="private-note-hint">No entries match these filters.</p>
       ) : (
         <div className="analytics-table-wrap">
-          <table className="analytics-table">
+          <table className="analytics-table stack-on-phone">
             <thead>
               <tr>
                 <th>{nameHeader}</th>
@@ -198,13 +198,13 @@ function BreakdownTable({ title, sub, rows, nameHeader, filename }) {
             <tbody>
               {rows.map(r => (
                 <tr key={r.key}>
-                  <td className="analytics-table-name">{r.label || r.key}</td>
-                  <td>{r.total}</td>
-                  <td>{r.won}</td>
-                  <td>{r.lost}</td>
-                  <td>{r.dnb}</td>
-                  <td>{r.open}</td>
-                  <td>
+                  <td className="analytics-table-name" data-label={nameHeader}>{r.label || r.key}</td>
+                  <td data-label="Entries">{r.total}</td>
+                  <td data-label="Won">{r.won}</td>
+                  <td data-label="Lost">{r.lost}</td>
+                  <td data-label="Did Not Bid">{r.dnb}</td>
+                  <td data-label="Open">{r.open}</td>
+                  <td data-label="Win rate">
                     <div className="win-rate-cell">
                       <span>{pct(r.winRate)}</span>
                       {r.winRate !== null && (
@@ -214,8 +214,8 @@ function BreakdownTable({ title, sub, rows, nameHeader, filename }) {
                       )}
                     </div>
                   </td>
-                  <td>{formatMoney(r.volume.won)}</td>
-                  <td>{formatMoney(r.volume.total)}</td>
+                  <td data-label="Won volume">{formatMoney(r.volume.won)}</td>
+                  <td data-label="Total volume">{formatMoney(r.volume.total)}</td>
                 </tr>
               ))}
             </tbody>
@@ -465,19 +465,19 @@ export default function AnalyticsPage() {
           <p className="private-note-hint">No open entries bid in the next 90 days.</p>
         ) : (
           <div className="analytics-table-wrap">
-            <table className="analytics-table">
+            <table className="analytics-table stack-on-phone">
               <thead>
                 <tr><th>Opportunity</th><th>Bid date</th><th>Stage</th><th>Sector</th><th>Salesperson</th><th>Value</th></tr>
               </thead>
               <tbody>
                 {forecast.upcoming.map(e => (
                   <tr key={e.id} className="analytics-row-link" onClick={() => router.push(`/dashboard/pipeline/${e.id}`)}>
-                    <td className="analytics-table-name">{e.title}</td>
-                    <td>{e.bidDate}</td>
-                    <td>{e.stage || "—"}</td>
-                    <td>{e.buildingSector || "—"}</td>
-                    <td>{personLabel(salespersonOf(e))}</td>
-                    <td>{parseMoney(e.value) === null ? "—" : formatMoney(parseMoney(e.value))}</td>
+                    <td className="analytics-table-name" data-label="Opportunity">{e.title}</td>
+                    <td data-label="Bid date">{e.bidDate}</td>
+                    <td data-label="Stage">{e.stage || "—"}</td>
+                    <td data-label="Sector">{e.buildingSector || "—"}</td>
+                    <td data-label="Salesperson">{personLabel(salespersonOf(e))}</td>
+                    <td data-label="Value">{parseMoney(e.value) === null ? "—" : formatMoney(parseMoney(e.value))}</td>
                   </tr>
                 ))}
               </tbody>

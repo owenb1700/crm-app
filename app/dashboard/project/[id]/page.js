@@ -587,7 +587,7 @@ export default function ProjectDetail() {
             {equipmentRows.map((row, i) => (
               <div
                 key={i}
-                style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr) auto", gap: 8, alignItems: "center", marginBottom: 8 }}
+                className="equipment-row"
               >
                 <select
                   className="field"

@@ -101,7 +101,6 @@ export default function Dashboard() {
   const [exportFor, setExportFor] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [notificationsError, setNotificationsError] = useState(null);
-  const [showAlertsPanel, setShowAlertsPanel] = useState(false);
 
   const [customers, setCustomers] = useState([]);
   const [notesById, setNotesById] = useState({});
@@ -1544,6 +1543,57 @@ export default function Dashboard() {
   ];
   const anyActive = (values) => Object.values(values).some(isFilterActive);
 
+  // One item in the Home calendar's side panel (and the phone agenda):
+  // name, due date, a badge for what kind of date it is, and whatever quick
+  // actions that kind supports.
+  const renderCalendarItem = (c) => (
+          <div
+            key={`${c._kind}-${c.id}`}
+            className="calendar-panel-item"
+            onClick={() => openCalendarItem(c)}
+          >
+            <div className="customer-name" style={{ fontSize: 14 }}>{c.projectName || c.company}</div>
+            {c.company && c.projectName && c.projectName !== c.company && (
+              <div className="customer-meta">{c.company}</div>
+            )}
+            {c._kind === "reminder" && c.notes && (
+              <div className="customer-meta" style={{ whiteSpace: "pre-wrap" }}>{c.notes}</div>
+            )}
+            <div className="customer-dates">Due: {formatDate(c.nextCheckIn)}</div>
+            {c._kind === "bid" ? (
+              <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>Bid date · {c.stage}</span>
+            ) : c._kind === "pipeline" ? (
+              <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>✅ Won — Check In</span>
+            ) : c._kind === "reminder" ? (
+              <span className="role-badge" style={{ marginTop: 4 }}>{c.pipelineId ? "🔔 My pipeline alert" : "🔔 Reminder"}</span>
+            ) : (
+              c.category && <span className="role-badge" style={{ marginTop: 4 }}>{c.category}</span>
+            )}
+            {c._kind === "reminder" && (
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                <button className="btn btn-secondary" onClick={() => followUpReminder(c)}>Follow Up (2 Weeks)</button>
+                <button className="btn btn-primary" onClick={() => completeReminder(c)}>Complete</button>
+              </div>
+            )}
+            {c._kind === "project" && isClosedWithCheckIn(c) && c.ownerId === uid && (
+              <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                <ClosedCheckInActions
+                  project={c}
+                  compact
+                  byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
+                  onDone={(msg) => { showToast(msg); loadCustomers(uid, role === "admin"); }}
+                />
+              </div>
+            )}
+            {c._kind === "pipeline" && (
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                <button className="btn btn-secondary" onClick={() => snoozePipelineFollowUp(c)}>Snooze 3 Months</button>
+                <button className="btn btn-secondary" onClick={() => pipelineFollowUpAnotherYear(c)}>Follow Up in 1 Year</button>
+              </div>
+            )}
+          </div>
+  );
+
   // One reminder card for My Dashboard -- same card shape and overdue /
   // due-soon edge color as a project, with its own Follow Up and Complete.
   const renderReminderCard = (r) => {
@@ -1640,13 +1690,13 @@ export default function Dashboard() {
           )}
 
           <div className="alerts-menu">
-            <button className="avatar-circle" style={{ position: "relative" }} onClick={() => setShowAlertsPanel(prev => !prev)}>
+            {/* Opens on hover with a mouse, on tap on touch screens (TouchMenus). */}
+            <button className="avatar-circle" style={{ position: "relative" }} aria-label="Alerts">
               🔔
               {alertsCount > 0 && <span className="alerts-badge">{alertsCount}</span>}
             </button>
-            {showAlertsPanel && (
-              <div className="alerts-dropdown">
-                <div className="avatar-dropdown-card" style={{ width: 340 }}>
+            <div className="alerts-dropdown">
+                <div className="avatar-dropdown-card alerts-card">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                     <h4 className="field-label" style={{ margin: 0 }}>Alerts</h4>
                     {unreadNotificationCount > 0 && (
@@ -1693,7 +1743,7 @@ export default function Dashboard() {
                         onClick={() => {
                           markNotificationRead(n);
                           if (n.link) {
-                            setShowAlertsPanel(false);
+                            document.querySelectorAll(".alerts-menu.is-open").forEach(m => m.classList.remove("is-open"));
                             router.push(n.link);
                           }
                         }}
@@ -1703,9 +1753,16 @@ export default function Dashboard() {
                       </div>
                     ))}
                   </div>
+
+                  <button
+                    className="btn btn-secondary btn-block"
+                    style={{ marginTop: 12 }}
+                    onClick={() => router.push("/dashboard/alerts")}
+                  >
+                    See All Alerts
+                  </button>
                 </div>
               </div>
-            )}
           </div>
 
           <div className="avatar-menu">
@@ -1892,6 +1949,29 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Phones get a scrolling day-by-day agenda instead of the grid
+              (CSS switches between them by screen width). */}
+          <div className="calendar-agenda">
+            {calendarDays.every(({ key }) => !(projectsByDay[key] || []).length) && (
+              <p className="private-note-hint">Nothing due in the next 4 weeks.</p>
+            )}
+            {calendarDays.map(({ date, key, isToday }) => {
+              const dayItems = projectsByDay[key] || [];
+              if (!dayItems.length && !isToday) return null;
+              return (
+                <section key={key} className={`agenda-day ${isToday ? "agenda-day-today" : ""}`}>
+                  <h3 className="agenda-day-title">
+                    {date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+                    {isToday && <span className="role-badge role-badge-admin">Today</span>}
+                  </h3>
+                  {dayItems.length === 0 ? (
+                    <p className="private-note-hint" style={{ margin: 0 }}>Nothing due today.</p>
+                  ) : dayItems.map(renderCalendarItem)}
+                </section>
+              );
+            })}
+          </div>
+
           <div className="calendar-side-panel">
             <div className="calendar-panel-header">
               <h3 className="modal-title" style={{ margin: 0 }}>{panelTitle}</h3>
@@ -1910,58 +1990,7 @@ export default function Dashboard() {
               <p className="private-note-hint">Nothing due.</p>
             )}
 
-            {panelProjects.map(c => (
-              <div
-                key={`${c._kind}-${c.id}`}
-                className="calendar-panel-item"
-                onClick={() => openCalendarItem(c)}
-              >
-                <div className="customer-name" style={{ fontSize: 14 }}>{c.projectName || c.company}</div>
-                {c.company && c.projectName && c.projectName !== c.company && (
-                  <div className="customer-meta">{c.company}</div>
-                )}
-                {c._kind === "reminder" && c.notes && (
-                  <div className="customer-meta" style={{ whiteSpace: "pre-wrap" }}>{c.notes}</div>
-                )}
-                <div className="customer-dates">Due: {formatDate(c.nextCheckIn)}</div>
-                {c._kind === "bid" ? (
-                  <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>Bid date · {c.stage}</span>
-                ) : c._kind === "pipeline" ? (
-                  <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>✅ Won — Check In</span>
-                ) : c._kind === "reminder" ? (
-                  <span className="role-badge" style={{ marginTop: 4 }}>{c.pipelineId ? "🔔 My pipeline alert" : "🔔 Reminder"}</span>
-                ) : (
-                  c.category && <span className="role-badge" style={{ marginTop: 4 }}>{c.category}</span>
-                )}
-                {c._kind === "reminder" && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
-                    <button className="btn btn-secondary" onClick={() => followUpReminder(c)}>Follow Up (2 Weeks)</button>
-                    <button className="btn btn-primary" onClick={() => completeReminder(c)}>Complete</button>
-                  </div>
-                )}
-                {/* Won/Prospecting Only closed projects reactivate themselves
-                    automatically once due (see reactivateDueClosedProjects) --
-                    these manual buttons only still apply to legacy closed
-                    projects from before that existed (no closedOutcome on
-                    file), which just get pushed further out by hand. */}
-                {c._kind === "project" && isClosedWithCheckIn(c) && c.ownerId === uid && (
-                  <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
-                    <ClosedCheckInActions
-                      project={c}
-                      compact
-                      byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
-                      onDone={(msg) => { showToast(msg); loadCustomers(uid, role === "admin"); }}
-                    />
-                  </div>
-                )}
-                {c._kind === "pipeline" && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
-                    <button className="btn btn-secondary" onClick={() => snoozePipelineFollowUp(c)}>Snooze 3 Months</button>
-                    <button className="btn btn-secondary" onClick={() => pipelineFollowUpAnotherYear(c)}>Follow Up in 1 Year</button>
-                  </div>
-                )}
-              </div>
-            ))}
+            {panelProjects.map(renderCalendarItem)}
           </div>
         </div>
       )}
@@ -2695,7 +2724,7 @@ export default function Dashboard() {
             <h3 className="modal-title">Team Members</h3>
 
             <div className="admin-table-wrap">
-              <table className="admin-table">
+              <table className="admin-table stack-on-phone">
                 <thead>
                   <tr>
                     <th>Name</th>
@@ -2708,19 +2737,19 @@ export default function Dashboard() {
                 <tbody>
                   {users.map(u => (
                     <tr key={u.id}>
-                      <td>
+                      <td data-label="Name">
                         {u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : (
                           <span className="private-note-hint">Not set yet</span>
                         )}
                       </td>
-                      <td>{u.email}{u.id === uid ? " (You)" : ""}</td>
-                      <td>
+                      <td data-label="Email">{u.email}{u.id === uid ? " (You)" : ""}</td>
+                      <td data-label="Role">
                         <span className={`role-badge ${u.role === "admin" ? "role-badge-admin" : ""}`}>
                           {roleLabel(u.role)}
                         </span>
                       </td>
-                      <td>{u.disabled ? "Disabled" : "Active"}</td>
-                      <td className="admin-table-actions">
+                      <td data-label="Status">{u.disabled ? "Disabled" : "Active"}</td>
+                      <td className="admin-table-actions" data-label="Actions">
                         {u.id === uid ? (
                           <span className="private-note-hint">Manage your own account from another admin's login.</span>
                         ) : (
