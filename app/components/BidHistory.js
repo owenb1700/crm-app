@@ -1,6 +1,7 @@
 "use client";
 
 import { firmTypeOf } from "../../lib/directory";
+import { groupBidders, contactsOf } from "../../lib/bidders";
 
 const formatPhone = (phone) => {
   if (!phone) return "";
@@ -37,7 +38,7 @@ export default function BidHistory({ snapshot, isLive, bidFiles, canSeePrivate, 
   const ef = snapshot.engineeringFirm || {
     company: snapshot.company, contact: snapshot.contact, email: snapshot.email, phone: snapshot.phone
   };
-  const bidders = snapshot.biddingCompanies || [];
+  const bidders = groupBidders(snapshot.biddingCompanies);
   const equipment = snapshot.equipment || [];
 
   return (
@@ -90,12 +91,22 @@ export default function BidHistory({ snapshot, isLive, bidFiles, canSeePrivate, 
           return (
             <div key={i} className="notes-history-item">
               <div>
-                <strong>{b.company || "—"}</strong>{b.contact ? ` — ${b.contact}` : ""}
+                <strong>{b.company || "—"}</strong>
                 {isWinner && <span className="role-badge role-badge-admin" style={{ marginLeft: 8 }}>Won</span>}
               </div>
               <div className="notes-history-date">
-                {[firmTypeOf(b.category), b.salespersonId && `Salesperson: ${personLabel(b.salespersonId)}`, b.email, formatPhone(b.phone)].filter(Boolean).join(" | ")}
+                {[firmTypeOf(b.category), b.salespersonId && `Salesperson: ${personLabel(b.salespersonId)}`].filter(Boolean).join(" | ")}
               </div>
+              {contactsOf(b).length > 0 && (
+                <ul className="bidder-people-list">
+                  {contactsOf(b).map((c, ci) => (
+                    <li key={ci}>
+                      <span>{c.name || "Unnamed contact"}</span>
+                      {(c.email || c.phone) && <span className="notes-history-date"> — {[c.email, formatPhone(c.phone)].filter(Boolean).join(" | ")}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           );
         })}

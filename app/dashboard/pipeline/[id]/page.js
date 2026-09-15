@@ -19,7 +19,8 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { ensureCompanyAndContactBatch, firmTypeOf } from "../../../../lib/directory";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
-import SalespersonSelect from "../../../components/SalespersonSelect";
+import BidderEditor from "../../../components/BidderEditor";
+import { bidderRowsForEditing, biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson, groupBidders, contactsOf } from "../../../../lib/bidders";
 import { buildBidSnapshot } from "../../../../lib/bidHistory";
 import PipelineMyAlerts from "../../../components/PipelineMyAlerts";
 import DeleteRecordButton from "../../../components/DeleteRecordButton";
@@ -218,7 +219,7 @@ export default function PipelineDetail() {
       salespersonId: pipeline.salespersonId || "",
       projectPointPersonId: pipeline.projectPointPersonId || ""
     });
-    setBiddingRows(pipeline.biddingCompanies || []);
+    setBiddingRows(bidderRowsForEditing(pipeline.biddingCompanies));
     setIsEditing(true);
   };
 
@@ -226,18 +227,6 @@ export default function PipelineDetail() {
     setIsEditing(false);
     setEditData({});
     setBiddingRows([]);
-  };
-
-  const addBiddingRow = () => {
-    setBiddingRows(prev => [...prev, { category: "Contractor", company: "", contact: "", email: "", phone: "", salespersonId: "" }]);
-  };
-
-  const updateBiddingRow = (index, field, value) => {
-    setBiddingRows(prev => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
-  };
-
-  const removeBiddingRow = (index) => {
-    setBiddingRows(prev => prev.filter((_, i) => i !== index));
   };
 
   const saveEdit = async () => {
@@ -248,26 +237,23 @@ export default function PipelineDetail() {
       return alert("Please select a building sector");
     }
     // Every bidder needs one of our salespeople assigned to it.
-    const bidderMissingSalesperson = biddingRows
-      .filter(r => r.company || r.contact)
-      .find(r => !r.salespersonId);
-    if (bidderMissingSalesperson) {
-      return alert(`Select a salesperson for bidder "${bidderMissingSalesperson.company || bidderMissingSalesperson.contact}"`);
+    const missingSalesperson = bidderMissingSalesperson(biddingRows);
+    if (missingSalesperson) {
+      return alert(`Select a salesperson for bidder "${missingSalesperson.company || "without a firm name"}"`);
     }
 
     const payload = {};
     EDITABLE_FIELDS.forEach(f => {
       payload[f] = editData[f] || null;
     });
-    payload.biddingCompanies = biddingRows.filter(r => r.company || r.contact);
+    // One row per firm, with all of that firm's people grouped under it.
+    payload.biddingCompanies = biddersForStorage(biddingRows);
 
     await updateDoc(doc(db, "pipeline", pipelineId), payload);
 
     const captureEntries = [
       { companyName: editData.company, category: "Engineering Firm", contactName: editData.contact, email: editData.email, phone: editData.phone },
-      ...biddingRows
-        .filter(r => r.company || r.contact)
-        .map(r => ({ companyName: r.company, category: firmTypeOf(r.category), contactName: r.contact, email: r.email, phone: r.phone }))
+      ...bidderDirectoryEntries(payload.biddingCompanies, firmTypeOf)
     ];
     await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });
     await ensureTowerModel({ towerModels, manufacturer: editData.towerManufacturer, model: editData.modelNumber, uid });
@@ -438,16 +424,17 @@ export default function PipelineDetail() {
   // entry's salesperson (or owner) and the winning firm, matched back to a
   // bidding row so its contact info and firm type carry over.
   const openConvert = () => {
-    const winner = (pipeline.biddingCompanies || []).find(
+    const winner = groupBidders(pipeline.biddingCompanies).find(
       b => (b.company || "").toLowerCase() === (pipeline.wonByContractor || "").toLowerCase()
     );
+    const winnerContact = contactsOf(winner)[0] || {};
     setConvertData({
       salespersonId: pipeline.salespersonId || pipeline.ownerId || "",
       companyCategory: firmTypeOf(winner?.category),
       company: winner?.company || pipeline.wonByContractor || "",
-      contact: winner?.contact || "",
-      email: winner?.email || "",
-      phone: winner?.phone || "",
+      contact: winnerContact.name || "",
+      email: winnerContact.email || "",
+      phone: winnerContact.phone || "",
       buildingSector: pipeline.buildingSector || ""
     });
     setConvertProjectAddress(pipeline.projectAddress || "");
@@ -656,34 +643,14 @@ export default function PipelineDetail() {
             </div>
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Contractors & Owners Bidding</h4>
-            {biddingRows.map((row, i) => (
-              <div key={i} className="bidding-company-row with-type">
-                <FirmTypeSelect id={`pipeline-detail-bidder-type-${i}`} value={firmTypeOf(row.category)} onChange={v => updateBiddingRow(i, "category", v)} />
-                <CompanyContactFields
-                  idPrefix={`pipeline-detail-bidder-${i}`}
-                  companies={companies}
-                  contacts={contacts}
-                  companyLabel={firmTypeOf(row.category)}
-                  companyCategory={firmTypeOf(row.category)}
-                  companyValue={row.company}
-                  contactValue={row.contact}
-                  emailValue={row.email}
-                  phoneValue={row.phone}
-                  onCompanyChange={v => updateBiddingRow(i, "company", v)}
-                  onContactChange={v => updateBiddingRow(i, "contact", v)}
-                  onEmailChange={v => updateBiddingRow(i, "email", v)}
-                  onPhoneChange={v => updateBiddingRow(i, "phone", v)}
-                />
-                <SalespersonSelect
-                  id={`pipeline-detail-bidder-salesperson-${i}`}
-                  users={users}
-                  value={row.salespersonId}
-                  onChange={v => updateBiddingRow(i, "salespersonId", v)}
-                />
-                <button className="btn btn-danger bidder-remove" onClick={() => removeBiddingRow(i)}>Remove</button>
-              </div>
-            ))}
-            <button className="btn btn-secondary" onClick={addBiddingRow}>+ Add Bidder</button>
+            <BidderEditor
+              idPrefix="pipeline-detail-bidder"
+              bidders={biddingRows}
+              onChange={setBiddingRows}
+              companies={companies}
+              contacts={contacts}
+              users={users}
+            />
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Assigned Team</h4>
             <div className="form-grid-2">
@@ -751,13 +718,26 @@ export default function PipelineDetail() {
               {(pipeline.biddingCompanies || []).length === 0 && (
                 <p className="private-note-hint">None added yet.</p>
               )}
-              {(pipeline.biddingCompanies || []).map((row, i) => (
+              {groupBidders(pipeline.biddingCompanies).map((row, i) => (
                 <div key={i} className="notes-history-item">
-                  <div><strong>{row.company}</strong>{row.contact ? ` — ${row.contact}` : ""}</div>
+                  <div><strong>{row.company || "Unnamed firm"}</strong></div>
                   <div className="notes-history-date">
                     {firmTypeOf(row.category)} · Salesperson: {row.salespersonId ? ownerLabel(row.salespersonId) : "Not assigned"}
                   </div>
-                  <div className="notes-history-date">{[row.email, formatPhone(row.phone)].filter(Boolean).join(" | ")}</div>
+                  {contactsOf(row).length === 0 ? (
+                    <div className="notes-history-date">No people added</div>
+                  ) : (
+                    <ul className="bidder-people-list">
+                      {contactsOf(row).map((c, ci) => (
+                        <li key={ci}>
+                          <span>{c.name || "Unnamed contact"}</span>
+                          {(c.email || c.phone) && (
+                            <span className="notes-history-date"> — {[c.email, formatPhone(c.phone)].filter(Boolean).join(" | ")}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               ))}
             </div>

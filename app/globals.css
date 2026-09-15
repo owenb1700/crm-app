@@ -2608,3 +2608,92 @@ a {
 .confirm-actions {
   justify-content: flex-end;
 }
+
+/* Pipeline bidders: one block per firm, with its people listed under it */
+.bidder-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.bidder-block {
+  width: 100%;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #fafbfc;
+}
+
+.bidder-firm-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(0, 1.5fr) minmax(170px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.bidder-firm-row .field,
+.bidder-person-row .field {
+  margin-bottom: 0;
+}
+
+.bidder-duplicate-note {
+  margin: 6px 0 0;
+  color: #92400e;
+}
+
+.bidder-people {
+  margin-top: 10px;
+  padding: 8px 0 0 14px;
+  border-left: 3px solid #e2e8f5;
+}
+
+.bidder-people-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.bidder-person-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 8px;
+}
+
+.bidder-people .settings-link {
+  margin-top: 2px;
+}
+
+.bidder-people-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.bidder-people-list li {
+  margin: 2px 0;
+}
+
+@media (max-width: 760px) {
+  .bidder-firm-row,
+  .bidder-person-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .bidder-firm-row > .bidder-remove,
+  .bidder-person-row > .bidder-person-remove {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 400px) {
+  .bidder-firm-row,
+  .bidder-person-row {
+    grid-template-columns: 1fr;
+  }
+}

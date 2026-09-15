@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../../lib/firebase";
 import { doc, getDoc, getDocs, collection } from "firebase/firestore";
 import { equipmentRowsFrom } from "../../../../../lib/equipment";
+import { contactsOf } from "../../../../../lib/bidders";
 import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
 
@@ -167,7 +168,11 @@ export default function TowerDetail() {
   });
   pipelineJobs.forEach(p => {
     addPerson(p.company, p.contact, "Engineering Firm");
-    (p.biddingCompanies || []).forEach(b => addPerson(b.company, b.contact, b.category || "Contractor"));
+    (p.biddingCompanies || []).forEach(b => {
+      const people = contactsOf(b);
+      if (people.length === 0) addPerson(b.company, "", b.category || "Contractor");
+      people.forEach(c => addPerson(b.company, c.name, b.category || "Contractor"));
+    });
   });
 
   const associated = Array.from(peopleMap.values());

@@ -25,6 +25,7 @@ import {
 } from "firebase/firestore";
 import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf, BUILDING_SECTORS } from "../../lib/directory";
 import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor } from "../../lib/alertRecipients";
+import { bidderDirectoryEntries } from "../../lib/bidders";
 import FirmTypeSelect from "../components/FirmTypeSelect";
 import BuildingSectorSelect from "../components/BuildingSectorSelect";
 import UserSettingsModal from "../components/UserSettingsModal";
@@ -420,12 +421,7 @@ export default function Dashboard() {
           companyName: p.company, category: "Engineering Firm",
           contactName: p.contact, email: p.email, phone: p.phone
         });
-        (p.biddingCompanies || []).forEach(b => {
-          captureEntries.push({
-            companyName: b.company, category: firmTypeOf(b.category),
-            contactName: b.contact, email: b.email, phone: b.phone
-          });
-        });
+        captureEntries.push(...bidderDirectoryEntries(p.biddingCompanies, firmTypeOf));
       });
 
       await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });

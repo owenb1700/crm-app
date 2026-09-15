@@ -7,6 +7,7 @@ import { auth, db } from "../../../lib/firebase";
 import { doc, getDoc, getDocs, collection } from "firebase/firestore";
 import { primaryEmail, primaryPhone, OWNER_CATEGORY } from "../../../lib/directory";
 import { equipmentRowsFrom } from "../../../lib/equipment";
+import { bidderContactNames } from "../../../lib/bidders";
 import DashboardHeader from "../../components/DashboardHeader";
 import MobileNav from "../../components/MobileNav";
 
@@ -142,7 +143,8 @@ function SearchPageContent() {
 
   const pipelineResults = q ? pipelineEntries.filter(p => matches(q, [
     p.title, p.company, p.contact, p.email, p.phone, p.projectAddress, ...equipmentFields(p),
-    ...(p.biddingCompanies || []).flatMap(b => [b.company, b.contact])
+    ...(p.biddingCompanies || []).map(b => b.company),
+    ...bidderContactNames(p.biddingCompanies)
   ])) : [];
 
   const contractorResults = q ? companies.filter(c => c.category === "Contractor" && matches(q, [c.name, c.phone, c.address, c.website, c.notes])) : [];

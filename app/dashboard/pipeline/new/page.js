@@ -6,9 +6,9 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../lib/firebase";
 import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, firmTypeOf } from "../../../../lib/directory";
-import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
-import SalespersonSelect from "../../../components/SalespersonSelect";
+import BidderEditor from "../../../components/BidderEditor";
+import { biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson } from "../../../../lib/bidders";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import SearchableSelect from "../../../components/SearchableSelect";
@@ -17,7 +17,6 @@ import MobileNav from "../../../components/MobileNav";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
-const BLANK_BIDDER_ROW = { category: "Contractor", company: "", contact: "", email: "", phone: "", salespersonId: "" };
 const BLANK_EQUIPMENT_ROW = { manufacturer: "", model: "" };
 
 const clearSession = () => {
@@ -55,7 +54,6 @@ export default function NewPipelineEntry() {
   const [notes, setNotes] = useState("");
 
   const engineeringFirmOptions = companies.filter(c => c.category === "Engineering Firm").map(c => c.name);
-  const firmOptions = (type) => companies.filter(c => c.category === firmTypeOf(type)).map(c => c.name);
   const contactsForCompany = (name) => contacts.filter(
     c => (c.companyName || "").toLowerCase() === (name || "").toLowerCase()
   );
@@ -78,28 +76,6 @@ export default function NewPipelineEntry() {
       setEmail(primaryEmail(match));
       setPhone(primaryPhone(match));
     }
-  };
-
-  const addBiddingCompanyRow = () => {
-    setBiddingCompanies(prev => [...prev, { ...BLANK_BIDDER_ROW }]);
-  };
-
-  const updateBiddingCompanyRow = (index, field, value) => {
-    setBiddingCompanies(prev => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
-  };
-
-  const handleBiddingContactChange = (index, value) => {
-    updateBiddingCompanyRow(index, "contact", value);
-    const row = biddingCompanies[index];
-    const match = contactsForCompany(row.company).find(c => c.name.toLowerCase() === value.toLowerCase());
-    if (match) {
-      updateBiddingCompanyRow(index, "email", primaryEmail(match));
-      updateBiddingCompanyRow(index, "phone", primaryPhone(match));
-    }
-  };
-
-  const removeBiddingCompanyRow = (index) => {
-    setBiddingCompanies(prev => prev.filter((_, i) => i !== index));
   };
 
   const addEquipmentRow = () => {
@@ -213,16 +189,15 @@ export default function NewPipelineEntry() {
       return alert("Please select a building sector");
     }
     // Every bidder needs one of our salespeople assigned to it.
-    const bidderMissingSalesperson = biddingCompanies
-      .filter(r => r.company || r.contact)
-      .find(r => !r.salespersonId);
-    if (bidderMissingSalesperson) {
-      return alert(`Select a salesperson for bidder "${bidderMissingSalesperson.company || bidderMissingSalesperson.contact}"`);
+    const missingSalesperson = bidderMissingSalesperson(biddingCompanies);
+    if (missingSalesperson) {
+      return alert(`Select a salesperson for bidder "${missingSalesperson.company || "without a firm name"}"`);
     }
 
     setSaving(true);
     try {
-      const cleanBidders = biddingCompanies.filter(r => r.company || r.contact);
+      // One row per firm, with all of that firm's people grouped under it.
+      const cleanBidders = biddersForStorage(biddingCompanies);
       const equipment = equipmentRows.filter(r => r.manufacturer || r.model);
       const firstEquipment = equipment[0] || {};
 
@@ -260,7 +235,7 @@ export default function NewPipelineEntry() {
 
       const captureEntries = [
         { companyName: company, category: "Engineering Firm", contactName: contact, email, phone },
-        ...cleanBidders.map(r => ({ companyName: r.company, category: firmTypeOf(r.category), contactName: r.contact, email: r.email, phone: r.phone }))
+        ...bidderDirectoryEntries(cleanBidders, firmTypeOf)
       ];
       await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });
       await Promise.all(
@@ -367,47 +342,14 @@ export default function NewPipelineEntry() {
 
         <div className="project-section">
           <h4 className="field-label" style={{ marginTop: 0 }}>Contractors & Owners Bidding (optional)</h4>
-          {biddingCompanies.map((row, i) => (
-            <div key={i} className="bidding-company-row with-type">
-              <FirmTypeSelect id={`new-pipeline-bidder-type-${i}`} value={firmTypeOf(row.category)} onChange={v => updateBiddingCompanyRow(i, "category", v)} />
-              <div>
-                <label className="field-label">{firmTypeOf(row.category)}</label>
-                <SearchableSelect
-                  options={firmOptions(row.category)}
-                  value={row.company}
-                  onChange={v => updateBiddingCompanyRow(i, "company", v)}
-                  placeholder={`Select or search ${firmTypeOf(row.category).toLowerCase()}...`}
-                  newLabel={firmTypeOf(row.category).toLowerCase()}
-                />
-              </div>
-              <div>
-                <label className="field-label">Contact</label>
-                <SearchableSelect
-                  options={contactsForCompany(row.company).map(c => c.name)}
-                  value={row.contact}
-                  onChange={v => handleBiddingContactChange(i, v)}
-                  placeholder="Select or search contact..."
-                  newLabel="contact"
-                />
-              </div>
-              <div>
-                <label className="field-label">Email</label>
-                <input className="field" autoComplete="off" value={row.email} onChange={e => updateBiddingCompanyRow(i, "email", e.target.value)} />
-              </div>
-              <div>
-                <label className="field-label">Phone</label>
-                <input className="field" autoComplete="off" value={row.phone} onChange={e => updateBiddingCompanyRow(i, "phone", e.target.value)} />
-              </div>
-              <SalespersonSelect
-                id={`new-pipeline-bidder-salesperson-${i}`}
-                users={users}
-                value={row.salespersonId}
-                onChange={v => updateBiddingCompanyRow(i, "salespersonId", v)}
-              />
-              <button className="btn btn-danger bidder-remove" onClick={() => removeBiddingCompanyRow(i)}>Remove</button>
-            </div>
-          ))}
-          <button className="btn btn-secondary" onClick={addBiddingCompanyRow}>+ Add Bidder</button>
+          <BidderEditor
+            idPrefix="new-pipeline-bidder"
+            bidders={biddingCompanies}
+            onChange={setBiddingCompanies}
+            companies={companies}
+            contacts={contacts}
+            users={users}
+          />
         </div>
 
         <div className="project-section">
