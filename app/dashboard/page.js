@@ -28,6 +28,8 @@ import FirmTypeSelect from "../components/FirmTypeSelect";
 import BuildingSectorSelect from "../components/BuildingSectorSelect";
 import UserSettingsModal from "../components/UserSettingsModal";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../components/FilterBar";
+import ClosedCheckInActions from "../components/ClosedCheckInActions";
+import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, yearsFrom, localDateKey } from "../../lib/closedProjects";
 import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
 
@@ -543,51 +545,61 @@ export default function Dashboard() {
   // update is isolated in its own try/catch so one failure (permission or
   // otherwise) can't break loading the rest of the list.
   const reactivateDueClosedProjects = async (list, currentUid, isAdmin) => {
-    const now = new Date();
-    const due = list.filter(c =>
-      c.category === "Project Closed" &&
-      (c.closedOutcome === "Won" || c.closedOutcome === "Prospecting Only") &&
-      c.nextCheckIn && new Date(c.nextCheckIn) <= now &&
-      (isAdmin || c.ownerId === currentUid)
-    );
-    if (due.length === 0) return list;
+    const canTouch = (c) => isAdmin || c.ownerId === currentUid;
+    const updates = new Map(); // customer id -> fields applied locally too
 
-    const reactivated = new Set();
-    await Promise.all(due.map(async (c) => {
-      const targetCategory = c.closedOutcome === "Won" ? "Ongoing Project" : "Prospecting";
+    const reportFailure = (label, c, err) => {
+      // Leave it for now -- it'll be retried next time its owner or an admin
+      // loads the dashboard. Still tell an admin, so a change that keeps
+      // failing (a permissions bug, say) doesn't go unnoticed.
+      fetch("/api/report-issue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ area: "Closed project update", message: `Failed to update "${label}" (customer ${c.id})`, detail: err.message })
+      }).catch(() => {});
+    };
+
+    const apply = async (c, fields, notice) => {
       const label = c.projectName || c.company || "A project";
-      const message = c.closedOutcome === "Won"
-        ? `${label} is starting soon -- moved back to My Dashboard`
-        : `Reminder: reach out to the contractor on ${label} (prospecting follow-up)`;
-
       try {
-        await updateDoc(doc(db, "customers", c.id), {
-          category: targetCategory,
-          closedOutcome: null,
-          nextCheckIn: null
-        });
-        await notifyUser(c.ownerId, { type: "reactivated", message, link: `/dashboard/project/${c.id}` });
-        reactivated.add(c.id);
+        await updateDoc(doc(db, "customers", c.id), fields);
+        if (notice) await notifyUser(c.ownerId, { type: "reactivated", message: notice(label), link: `/dashboard/project/${c.id}` });
+        updates.set(c.id, fields);
       } catch (err) {
-        // Leave it closed for now -- it'll be picked up next time someone
-        // with permission (its owner, or an admin) loads the dashboard.
-        // Still tell an admin, though -- otherwise a reminder that keeps
-        // failing (a permissions bug, say) never surfaces to anyone.
-        fetch("/api/report-issue", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            area: "Reactivation reminder",
-            message: `Failed to reactivate "${label}" (customer ${c.id})`,
-            detail: err.message
-          })
-        }).catch(() => {});
+        reportFailure(label, c, err);
       }
+    };
+
+    const now = new Date();
+    await Promise.all(list.filter(c => c.category === "Project Closed" && canTouch(c)).map(c => {
+      // Won projects no longer close -- anything closed as Won under the old
+      // flow goes back onto My Dashboard, keeping the date it was scheduled for.
+      if (c.closedOutcome === "Won") {
+        return apply(c, {
+          category: "Ongoing Project",
+          closedOutcome: null,
+          closedAt: null,
+          nextCheckIn: c.nextCheckIn || localDateKey(now)
+        });
+      }
+      // Projects closed before outcomes existed (or by changing the category
+      // by hand under the old rules) move onto the Project Closed check-in:
+      // due 1 year after they were closed.
+      if (!c.closedOutcome) {
+        return apply(c, {
+          closedOutcome: CLOSED_OUTCOME,
+          nextCheckIn: yearsFrom(closedDateOf(c).slice(0, 10) || localDateKey(now), 1)
+        });
+      }
+      // Prospecting Only still comes back to My Dashboard on its date.
+      if (c.closedOutcome === "Prospecting Only" && c.nextCheckIn && new Date(c.nextCheckIn) <= now) {
+        return apply(c, { category: "Prospecting", closedOutcome: null, nextCheckIn: null },
+          (label) => `Reminder: reach out to the contractor on ${label} (prospecting follow-up)`);
+      }
+      return null;
     }));
 
-    return list.map(c => (reactivated.has(c.id)
-      ? { ...c, category: c.closedOutcome === "Won" ? "Ongoing Project" : "Prospecting", closedOutcome: null, nextCheckIn: null }
-      : c));
+    return updates.size ? list.map(c => (updates.has(c.id) ? { ...c, ...updates.get(c.id) } : c)) : list;
   };
 
   const markNotificationRead = async (n) => {
@@ -851,10 +863,10 @@ export default function Dashboard() {
     // automatically, so it resurfaces on the Home calendar even though it's
     // now hidden from the active My Dashboard list.
     if (editData.category === "Project Closed" && original?.category !== "Project Closed") {
-      const followUp = new Date();
-      followUp.setMonth(followUp.getMonth() + 6);
-      payload.nextCheckIn = adjustWeekend(followUp.toISOString());
-      payload.closedAt = new Date().toISOString();
+      Object.assign(payload, closeProjectPayload(original?.activityLog));
+    } else if (editData.category !== "Project Closed" && original?.category === "Project Closed") {
+      payload.closedOutcome = null;
+      payload.closedAt = null;
     }
 
     await updateDoc(doc(db, "customers", editingId), payload);
@@ -887,30 +899,6 @@ export default function Dashboard() {
     });
 
     showToast("Follow-up scheduled for 2 weeks");
-    loadCustomers(uid, role === "admin");
-  };
-
-  const snoozeClosedFollowUp = async (c) => {
-    const next = new Date();
-    next.setMonth(next.getMonth() + 3);
-
-    await updateDoc(doc(db, "customers", c.id), {
-      nextCheckIn: adjustWeekend(next.toISOString())
-    });
-
-    showToast("Snoozed for 3 months");
-    loadCustomers(uid, role === "admin");
-  };
-
-  const followUpIn6Months = async (c) => {
-    const next = new Date();
-    next.setMonth(next.getMonth() + 6);
-
-    await updateDoc(doc(db, "customers", c.id), {
-      nextCheckIn: adjustWeekend(next.toISOString())
-    });
-
-    showToast("Follow-up scheduled for 6 months");
     loadCustomers(uid, role === "admin");
   };
 
@@ -953,6 +941,18 @@ export default function Dashboard() {
   };
 
   const confirmCompleted = async () => {
+    if (completedOutcome === CLOSED_OUTCOME) {
+      await updateDoc(doc(db, "customers", completedTarget.id), {
+        ...closeProjectPayload(completedTarget.activityLog),
+        lostReason: null,
+        lostTo: null
+      });
+      setCompletedTarget(null);
+      setCompletedOutcome("Won");
+      showToast("Project closed — moved to Past Projects with a 1-year check-in");
+      loadCustomers(uid, role === "admin");
+      return;
+    }
     if (completedOutcome === "Won" && !wonNextDate) {
       return alert("Please choose the next due date");
     }
@@ -1302,6 +1302,8 @@ export default function Dashboard() {
   const myCalendarProjects = useMemo(() => {
     const projectItems = customers
       .filter(c => c.ownerId === uid || (c.collaboratorIds || []).includes(uid))
+      // A closed project's check-in is the owner's reminder only.
+      .filter(c => !isClosedWithCheckIn(c) || c.ownerId === uid)
       .map(c => ({ ...c, _kind: "project" }));
 
     // Won pipeline entries follow up with whoever's actually responsible
@@ -1910,10 +1912,14 @@ export default function Dashboard() {
                     these manual buttons only still apply to legacy closed
                     projects from before that existed (no closedOutcome on
                     file), which just get pushed further out by hand. */}
-                {c._kind === "project" && c.category === "Project Closed" && !c.closedOutcome && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
-                    <button className="btn btn-secondary" onClick={() => snoozeClosedFollowUp(c)}>Snooze 3 Months</button>
-                    <button className="btn btn-secondary" onClick={() => followUpIn6Months(c)}>Follow Up in 6 Months</button>
+                {c._kind === "project" && isClosedWithCheckIn(c) && c.ownerId === uid && (
+                  <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                    <ClosedCheckInActions
+                      project={c}
+                      compact
+                      byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
+                      onDone={(msg) => { showToast(msg); loadCustomers(uid, role === "admin"); }}
+                    />
                   </div>
                 )}
                 {c._kind === "pipeline" && (
@@ -2119,6 +2125,40 @@ export default function Dashboard() {
               </div>
             ) };
           }),
+            ...customers
+              .filter(c => c.ownerId === uid && isClosedWithCheckIn(c) && isCheckInDue(c))
+              .filter(c => {
+                const q = searchQuery.trim().toLowerCase();
+                return !q || (c.projectName || "").toLowerCase().includes(q) || (c.company || "").toLowerCase().includes(q);
+              })
+              .map(c => ({
+                sortKey: getDateValue(c.nextCheckIn),
+                element: (
+                  <div
+                    key={`closed-checkin-${c.id}`}
+                    className="customer-card badge-bar-overdue"
+                    onClick={() => router.push(`/dashboard/project/${c.id}`)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <div className="customer-card-left">
+                      <div className="customer-name">{c.projectName || c.company}</div>
+                      {c.company && c.projectName && c.projectName !== c.company && <div className="customer-contact">{c.company}</div>}
+                      <span className="role-badge" style={{ marginTop: 6 }}>Closed project check-in</span>
+                      <div className="customer-dates">Due: {formatDate(c.nextCheckIn)}</div>
+                    </div>
+                    <div className="customer-card-middle">
+                      <div className="private-note-hint">Follow up with {c.contact || "the customer"} to see how things are going, then log it with Update.</div>
+                    </div>
+                    <div className="customer-card-right" onClick={e => e.stopPropagation()}>
+                      <ClosedCheckInActions
+                        project={c}
+                        byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
+                        onDone={(msg) => { showToast(msg); loadCustomers(uid, role === "admin"); }}
+                      />
+                    </div>
+                  </div>
+                )
+              })),
             ...reminders
               .filter(r => {
                 const q = searchQuery.trim().toLowerCase();
@@ -2162,9 +2202,9 @@ export default function Dashboard() {
               <div className="modal-card">
                 <h3 className="modal-title">Mark Completed</h3>
                 <p className="modal-subtitle" style={{ marginBottom: 12 }}>
-                  {completedOutcome === "Won"
-                    ? "The project stays on My Dashboard as an Ongoing Project, due on the date below."
-                    : "This closes the project out and moves it to Past Projects. "}
+                  {completedOutcome === "Won" && "The project stays on My Dashboard as an Ongoing Project, due on the date below."}
+                  {completedOutcome === CLOSED_OUTCOME && "The project moves to Past Projects. You'll get a check-in reminder in 1 year to follow up with the customer."}
+                  {completedOutcome !== "Won" && completedOutcome !== CLOSED_OUTCOME && "This closes the project out and moves it to Past Projects. "}
                   {completedOutcome === "Lost" && "No further alerts -- it stays in Past Projects until someone moves it back."}
                   {completedOutcome === "Not Pursuing" && "No further alerts -- it stays in Past Projects until someone moves it back."}
                   {completedOutcome === "Prospecting Only" && "You'll be alerted and it'll move back to My Dashboard on the date below to reach out to the contractor."}
@@ -2173,6 +2213,7 @@ export default function Dashboard() {
                 <label className="field-label">Outcome</label>
                 <select className="field" value={completedOutcome} onChange={e => setCompletedOutcome(e.target.value)}>
                   <option value="Won">Job Won</option>
+                  <option value={CLOSED_OUTCOME}>Project Closed</option>
                   <option value="Lost">Job Lost</option>
                   <option value="Not Pursuing">Not Pursuing Anymore</option>
                   <option value="Prospecting Only">Prospecting Only</option>
@@ -2469,12 +2510,15 @@ export default function Dashboard() {
                   {/* A closed project with a future alert on file (Won awaiting
                       start, or Prospecting Only awaiting its next check-in)
                       isn't done for good -- it's just parked until then. */}
-                  {c.category === "Project Closed" && c.nextCheckIn ? "Temporarily Closed" : c.category}
+                  {c.closedOutcome === "Prospecting Only" && c.nextCheckIn ? "Temporarily Closed" : c.category}
                 </span>
-                {c.closedOutcome && (
+                {c.closedOutcome && c.closedOutcome !== CLOSED_OUTCOME && (
                   <span className={`role-badge ${c.closedOutcome === "Won" ? "role-badge-admin" : ""}`} style={{ marginTop: 4 }}>
                     {c.closedOutcome}
                   </span>
+                )}
+                {isClosedWithCheckIn(c) && c.nextCheckIn && (
+                  <div className="customer-dates">Next check-in: {formatDate(c.nextCheckIn)}</div>
                 )}
               </div>
               <div className="customer-card-middle">

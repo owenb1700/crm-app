@@ -60,9 +60,22 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Whoever owns a pipeline entry (or an admin) converts it into a project
+    // assigned to a chosen salesperson -- so the project can be created
+    // with someone else as its owner, but only from a real pipeline entry
+    // that the person converting actually owns.
+    function isConvertingOwnPipeline(data) {
+      return data.get('sourcePipelineId', null) is string &&
+        exists(/databases/$(database)/documents/pipeline/$(data.sourcePipelineId)) &&
+        (get(/databases/$(database)/documents/pipeline/$(data.sourcePipelineId)).data.ownerId == request.auth.uid || isAdmin());
+    }
+
     match /customers/{customerId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && (
+        request.resource.data.ownerId == request.auth.uid ||
+        isConvertingOwnPipeline(request.resource.data)
+      );
       allow delete: if isSignedIn() &&
         (resource.data.ownerId == request.auth.uid || isAdmin());
 
@@ -87,6 +100,10 @@ service cloud.firestore {
           (isOwner(customerId) || isCollaborator(customerId) || isAdmin());
         allow write: if isSignedIn() &&
           (isOwner(customerId) || isCollaborator(customerId));
+        // The person converting a pipeline entry seeds the new project's
+        // private notes and bid files once, even though the project belongs
+        // to the salesperson they assigned. Create only -- never edit after.
+        allow create: if isSignedIn() && isConvertingOwnPipeline(customerData(customerId));
       }
 
       // A teammate can request to collaborate on an entry they don't own.

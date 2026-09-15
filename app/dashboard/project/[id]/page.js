@@ -10,12 +10,17 @@ import {
   setDoc,
   updateDoc,
   collection,
-  getDocs
+  getDocs,
+  query,
+  where
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { ensureCompanyAndContactBatch, OWNER_CATEGORY, BLANK_OWNER_ROW, cleanOwnerRows, firmTypeOf } from "../../../../lib/directory";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
+import BidHistory from "../../../components/BidHistory";
+import ClosedCheckInActions from "../../../components/ClosedCheckInActions";
+import { closeProjectPayload, isClosedWithCheckIn, isCheckInDue } from "../../../../lib/closedProjects";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import { equipmentRowsFrom as sharedEquipmentRowsFrom } from "../../../../lib/equipment";
@@ -76,6 +81,8 @@ export default function ProjectDetail() {
   const [editData, setEditData] = useState({});
   const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
   const [ownerRows, setOwnerRows] = useState([]);
+  const [activeTab, setActiveTab] = useState("details"); // "details" | "bid"
+  const [legacyBid, setLegacyBid] = useState(null);
 
   const updateOwnerRow = (index, field, value) => {
     setOwnerRows(prev => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
@@ -131,6 +138,17 @@ export default function ProjectDetail() {
 
     const drawingsSnap = await getDoc(doc(db, "customers", projectId, "drawings", "data"));
     setDrawingsData(drawingsSnap.exists() ? drawingsSnap.data() : { files: [] });
+
+    // Projects converted before bid history was saved on the project: show
+    // the pipeline entry they came from instead.
+    if (!data.bidHistory) {
+      try {
+        const legacySnap = await getDocs(query(collection(db, "pipeline"), where("convertedToProjectId", "==", projectId)));
+        setLegacyBid(legacySnap.empty ? null : { id: legacySnap.docs[0].id, pipelineId: legacySnap.docs[0].id, ...legacySnap.docs[0].data() });
+      } catch {
+        setLegacyBid(null);
+      }
+    }
 
     const isOwner = data.ownerId === currentUid;
     const isCollaborator = (data.collaboratorIds || []).includes(currentUid);
@@ -271,10 +289,10 @@ export default function ProjectDetail() {
     // automatically, so it resurfaces on the Home calendar even though it's
     // now hidden from the active My Dashboard list.
     if (editData.category === "Project Closed" && customer.category !== "Project Closed") {
-      const followUp = new Date();
-      followUp.setFullYear(followUp.getFullYear() + 1);
-      payload.nextCheckIn = adjustWeekend(followUp.toISOString());
-      payload.closedAt = new Date().toISOString();
+      Object.assign(payload, closeProjectPayload(customer.activityLog));
+    } else if (editData.category !== "Project Closed" && customer.category === "Project Closed") {
+      payload.closedOutcome = null;
+      payload.closedAt = null;
     }
 
     await updateDoc(doc(db, "customers", projectId), payload);
@@ -459,7 +477,46 @@ export default function ProjectDetail() {
               </div>
             )}
           </div>
+
+          {(customer.bidHistory || legacyBid) && !isEditing && (
+            <div className="view-tabs" style={{ marginTop: 16, marginBottom: 0 }}>
+              <button className={`tab-btn ${activeTab === "details" ? "tab-btn-active" : ""}`} onClick={() => setActiveTab("details")}>Project Details</button>
+              <button className={`tab-btn ${activeTab === "bid" ? "tab-btn-active" : ""}`} onClick={() => setActiveTab("bid")}>Bid History</button>
+            </div>
+          )}
         </div>
+
+        {activeTab === "bid" && (customer.bidHistory || legacyBid) && !isEditing ? (
+          <BidHistory
+            snapshot={customer.bidHistory || legacyBid}
+            isLive={!customer.bidHistory}
+            bidFiles={notesData?.bidFiles}
+            canSeePrivate={canSeeNotes}
+            personLabel={ownerLabel}
+          />
+        ) : (<>
+
+        {isClosedWithCheckIn(customer) && (
+          <div className="project-section">
+            <h4 className="field-label">Closed Project Check-In</h4>
+            <p>
+              <strong>Next check-in:</strong> {customer.nextCheckIn || "—"}
+              {isCheckInDue(customer) && <span className="role-badge" style={{ marginLeft: 8 }}>Due</span>}
+            </p>
+            <p className="private-note-hint" style={{ marginBottom: 10 }}>
+              Check in with the customer, then log it with Update to set the next check-in 2 years out, or snooze it.
+            </p>
+            {(isOwner || role === "admin") ? (
+              <ClosedCheckInActions
+                project={customer}
+                byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
+                onDone={() => loadProject(uid, role)}
+              />
+            ) : (
+              <p className="private-note-hint">Only {ownerLabel(customer.ownerId)} can update this check-in.</p>
+            )}
+          </div>
+        )}
 
         {isEditing ? (
           <div className="project-section">
@@ -685,6 +742,7 @@ export default function ProjectDetail() {
           {(customer.activityLog || []).map((a, i) => (
             <div key={i} className="notes-history-item">
               <div>{a.type} — {a.outcome}</div>
+              {a.by && <div className="private-note-hint">By {a.by}</div>}
               {a.startDate && <div className="private-note-hint">Estimated start: {a.startDate}</div>}
               {a.nextDueDate && <div className="private-note-hint">Next due: {a.nextDueDate}</div>}
               {a.notes && <div className="private-note-hint">{a.outcome === "Lost" ? "Why: " : ""}{a.notes}</div>}
@@ -744,6 +802,7 @@ export default function ProjectDetail() {
             </>
           )}
         </div>
+        </>)}
       </div>
     </div>
   );

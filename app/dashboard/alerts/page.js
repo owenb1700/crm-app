@@ -55,6 +55,8 @@ export default function AllAlerts() {
     const customers = customersSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(c => c.ownerId === currentUid || (c.collaboratorIds || []).includes(currentUid))
+      // A closed project's check-in is the owner's reminder only.
+      .filter(c => !(c.category === "Project Closed" && c.closedOutcome === "Closed") || c.ownerId === currentUid)
       .filter(c => c.nextCheckIn)
       .map(c => ({
         key: `project-${c.id}`,
@@ -62,7 +64,7 @@ export default function AllAlerts() {
         id: c.id,
         name: c.projectName || c.company || "Untitled project",
         company: c.company || "",
-        badge: c.category || "",
+        badge: c.category === "Project Closed" && c.closedOutcome === "Closed" ? "Closed project check-in" : (c.category || ""),
         nextCheckIn: c.nextCheckIn,
         link: `/dashboard/project/${c.id}`,
         // Firestore rules only let the owner (or an admin) change a

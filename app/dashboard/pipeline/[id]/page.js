@@ -20,6 +20,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { ensureCompanyAndContactBatch, firmTypeOf } from "../../../../lib/directory";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
+import { buildBidSnapshot } from "../../../../lib/bidHistory";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
@@ -76,6 +77,8 @@ export default function PipelineDetail() {
   const [lostTo, setLostTo] = useState("");
   const [convertNextDate, setConvertNextDate] = useState("");
   const [convertProjectAddress, setConvertProjectAddress] = useState("");
+  const [convertData, setConvertData] = useState({});
+  const [converting, setConverting] = useState(false);
 
   const formatPhone = (phone) => {
     if (!phone) return "";
@@ -427,46 +430,96 @@ export default function PipelineDetail() {
     await loadPipelineEntry(uid, role);
   };
 
+  // Only offered once an entry is marked Won. Pre-fills from the bid: the
+  // entry's salesperson (or owner) and the winning firm, matched back to a
+  // bidding row so its contact info and firm type carry over.
+  const openConvert = () => {
+    const winner = (pipeline.biddingCompanies || []).find(
+      b => (b.company || "").toLowerCase() === (pipeline.wonByContractor || "").toLowerCase()
+    );
+    setConvertData({
+      salespersonId: pipeline.salespersonId || pipeline.ownerId || "",
+      companyCategory: firmTypeOf(winner?.category),
+      company: winner?.company || pipeline.wonByContractor || "",
+      contact: winner?.contact || "",
+      email: winner?.email || "",
+      phone: winner?.phone || "",
+      buildingSector: pipeline.buildingSector || ""
+    });
+    setConvertProjectAddress(pipeline.projectAddress || "");
+    setConvertNextDate("");
+    setShowConvertModal(true);
+  };
+
   const convertToProject = async () => {
-    if (!convertNextDate) {
-      return alert("Pick a next check-in date for the new project");
+    const missing = [];
+    if (!convertData.salespersonId) missing.push("Salesperson");
+    if (!convertData.company?.trim()) missing.push(convertData.companyCategory || "Contractor");
+    if (!convertData.buildingSector) missing.push("Building Sector");
+    if (!convertNextDate) missing.push("Next Check-In Date");
+    if (!convertProjectAddress) missing.push("Project Address");
+    if (missing.length) {
+      return alert(`Please fill in: ${missing.join(", ")}`);
     }
-    if (!convertProjectAddress) {
-      return alert("A project address is required");
+
+    setConverting(true);
+    try {
+      const now = new Date().toISOString();
+      const myName = myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown");
+      const equipment = (pipeline.equipment || []).map(e => ({
+        type: "", manufacturer: e.manufacturer || "", model: e.model || "", serial: "", yearInstalled: ""
+      }));
+      const first = equipment[0] || {};
+
+      const ref3 = await addDoc(collection(db, "customers"), {
+        projectName: pipeline.title,
+        company: convertData.company.trim(),
+        companyCategory: convertData.companyCategory,
+        contact: convertData.contact || "",
+        email: convertData.email || "",
+        phone: convertData.phone || "",
+        owners: [],
+        category: "Ongoing Project",
+        buildingSector: convertData.buildingSector,
+        projectValue: pipeline.value || null,
+        projectAddress: convertProjectAddress,
+        equipment,
+        towerManufacturer: first.manufacturer || pipeline.towerManufacturer || null,
+        modelNumber: first.model || pipeline.modelNumber || null,
+        serialNumber: pipeline.serialNumber || null,
+        nextCheckIn: adjustWeekend(convertNextDate + "T12:00:00"),
+        lastContact: now.split("T")[0],
+        activityLog: [{ type: "converted", outcome: "From won pipeline entry", notes: `Converted by ${myName}`, timestamp: now }],
+        ownerId: convertData.salespersonId,
+        collaboratorIds: [],
+        sourcePipelineId: pipeline.id,
+        bidHistory: buildBidSnapshot(pipeline),
+        createdAt: now
+      });
+
+      await setDoc(doc(db, "customers", ref3.id, "private", "data"), {
+        notes: privateData?.notes || "",
+        notesHistory: privateData?.notesHistory || [],
+        bidFiles: privateData?.files || []
+      });
+
+      await ensureCompanyAndContactBatch([
+        { companyName: convertData.company, category: convertData.companyCategory, contactName: convertData.contact, email: convertData.email, phone: convertData.phone }
+      ], { companies, contacts, uid });
+
+      // The project now carries the follow-up, so the pipeline entry's own
+      // 1-year Won check-in is cleared to avoid a duplicate reminder.
+      await updateDoc(doc(db, "pipeline", pipelineId), {
+        convertedToProjectId: ref3.id,
+        convertedAt: now,
+        nextCheckIn: null
+      });
+
+      router.push(`/dashboard/project/${ref3.id}`);
+    } catch (err) {
+      alert(`Couldn't create the project: ${err.message}`);
+      setConverting(false);
     }
-
-    const ref3 = await addDoc(collection(db, "customers"), {
-      projectName: pipeline.title,
-      company: pipeline.company || "",
-      contact: pipeline.contact || "",
-      email: pipeline.email || "",
-      phone: pipeline.phone || "",
-      category: "Ongoing Project",
-      buildingSector: pipeline.buildingSector || null,
-      projectValue: pipeline.value || null,
-      projectAddress: convertProjectAddress,
-      towerManufacturer: pipeline.towerManufacturer || null,
-      modelNumber: pipeline.modelNumber || null,
-      serialNumber: pipeline.serialNumber || null,
-      nextCheckIn: adjustWeekend(convertNextDate),
-      lastContact: new Date().toISOString().split("T")[0],
-      activityLog: [],
-      ownerId: pipeline.ownerId,
-      collaboratorIds: [],
-      createdAt: new Date().toISOString()
-    });
-
-    await setDoc(doc(db, "customers", ref3.id, "private", "data"), {
-      notes: privateData?.notes || "",
-      notesHistory: privateData?.notesHistory || []
-    });
-
-    await updateDoc(doc(db, "pipeline", pipelineId), {
-      convertedToProjectId: ref3.id,
-      convertedAt: new Date().toISOString()
-    });
-
-    router.push(`/dashboard/project/${ref3.id}`);
   };
 
   if (loadError) {
@@ -717,7 +770,20 @@ export default function PipelineDetail() {
               {pipeline.nextCheckIn && (
                 <p className="private-note-hint">Follow-up check-in scheduled: {pipeline.nextCheckIn}</p>
               )}
-              {canEdit && <button className="btn btn-secondary" onClick={reopenPipeline}>Reopen</button>}
+              {pipeline.convertedToProjectId ? (
+                <p>
+                  ✅ Converted to a project —{" "}
+                  <a className="link-muted" href={`/dashboard/project/${pipeline.convertedToProjectId}`}>View project</a>
+                </p>
+              ) : (
+                <p className="private-note-hint">Next step: convert this into a project so it's tracked on a salesperson's dashboard.</p>
+              )}
+              <div style={{ display: "flex", gap: 8 }}>
+                {!pipeline.convertedToProjectId && (isOwner || role === "admin") && (
+                  <button className="btn btn-primary" onClick={openConvert}>Convert to Project</button>
+                )}
+                {canEdit && !pipeline.convertedToProjectId && <button className="btn btn-secondary" onClick={reopenPipeline}>Reopen</button>}
+              </div>
             </>
           )}
           {(pipeline.outcome === "Lost" || pipeline.outcome === "Did Not Bid") && (
@@ -733,14 +799,6 @@ export default function PipelineDetail() {
             </>
           )}
         </div>
-
-        {isOwner && !pipeline.convertedToProjectId && (
-          <div className="project-section">
-            <h4 className="field-label">Convert to Project</h4>
-            <p className="private-note-hint">Won the project? Turn this pipeline entry into a real project.</p>
-            <button className="btn btn-primary" onClick={() => { setConvertProjectAddress(pipeline.projectAddress || ""); setShowConvertModal(true); }}>Convert to Project</button>
-          </div>
-        )}
 
         <div className="project-section">
           <h4 className="field-label">Notes</h4>
@@ -892,21 +950,56 @@ export default function PipelineDetail() {
 
       {showConvertModal && (
         <div className="modal-overlay">
-          <div className="modal-card">
+          <div className="modal-card modal-wide">
             <button className="modal-close" onClick={() => setShowConvertModal(false)}>✕</button>
             <h3 className="modal-title">Convert to Project</h3>
-            <p className="modal-subtitle">
-              This creates a new project from "{pipeline.title}" and marks this pipeline entry as converted.
+            <p className="modal-subtitle" style={{ marginBottom: 12 }}>
+              Creates an Ongoing Project from "{pipeline.title}" on the salesperson's dashboard. All of the bid
+              details, bidders, notes, and files are kept on the project's Bid History tab.
             </p>
 
-            <label className="field-label">Next Check-In Date</label>
-            <input className="field" type="date" value={convertNextDate} onChange={e => setConvertNextDate(e.target.value)} />
+            <div className="form-grid-2">
+              <div>
+                <label className="field-label" htmlFor="convert-salesperson">Salesperson (project owner)</label>
+                <select id="convert-salesperson" className="field" value={convertData.salespersonId} onChange={e => setConvertData({ ...convertData, salespersonId: e.target.value })}>
+                  <option value="">Select salesperson...</option>
+                  {users.filter(u => !u.disabled).map(u => (
+                    <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
+                  ))}
+                </select>
+              </div>
+              <BuildingSectorSelect id="convert-sector" value={convertData.buildingSector} onChange={v => setConvertData({ ...convertData, buildingSector: v })} />
 
-            <label className="field-label">Project Address (required)</label>
-            <AddressAutocomplete name="convert-projectAddress" value={convertProjectAddress} onChange={setConvertProjectAddress} />
+              <FirmTypeSelect id="convert-firm-type" value={convertData.companyCategory || "Contractor"} onChange={v => setConvertData({ ...convertData, companyCategory: v })} />
+              <div />
+              <CompanyContactFields
+                idPrefix="convert"
+                companies={companies}
+                contacts={contacts}
+                companyLabel={convertData.companyCategory || "Contractor"}
+                companyCategory={convertData.companyCategory || "Contractor"}
+                companyValue={convertData.company || ""}
+                contactValue={convertData.contact || ""}
+                emailValue={convertData.email || ""}
+                phoneValue={convertData.phone || ""}
+                onCompanyChange={v => setConvertData(prev => ({ ...prev, company: v }))}
+                onContactChange={v => setConvertData(prev => ({ ...prev, contact: v }))}
+                onEmailChange={v => setConvertData(prev => ({ ...prev, email: v }))}
+                onPhoneChange={v => setConvertData(prev => ({ ...prev, phone: v }))}
+              />
+
+              <div>
+                <label className="field-label" htmlFor="convert-next-date">Next Check-In Date</label>
+                <input id="convert-next-date" className="field" type="date" value={convertNextDate} onChange={e => setConvertNextDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="convert-address">Project Address</label>
+                <AddressAutocomplete id="convert-address" name="convert-projectAddress" value={convertProjectAddress} onChange={setConvertProjectAddress} />
+              </div>
+            </div>
 
             <div className="modal-actions">
-              <button className="btn btn-primary" onClick={convertToProject}>Create Project</button>
+              <button className="btn btn-primary" disabled={converting} onClick={convertToProject}>{converting ? "Creating…" : "Create Project"}</button>
               <button className="btn btn-secondary" onClick={() => setShowConvertModal(false)}>Cancel</button>
             </div>
           </div>
