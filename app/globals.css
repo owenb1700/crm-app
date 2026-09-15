@@ -2476,3 +2476,14 @@ a {
 .export-notes-toggle strong {
   display: block;
 }
+
+/* Irreversible action confirm (Delete permanently) */
+.btn.btn-danger-solid {
+  background: var(--color-danger);
+  color: #fff;
+  border-color: var(--color-danger);
+}
+
+.btn.btn-danger-solid:hover {
+  background: #c7362e;
+}

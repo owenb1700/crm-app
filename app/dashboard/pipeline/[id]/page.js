@@ -9,7 +9,6 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  deleteDoc,
   addDoc,
   collection,
   getDocs,
@@ -22,6 +21,7 @@ import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import { buildBidSnapshot } from "../../../../lib/bidHistory";
 import PipelineMyAlerts from "../../../components/PipelineMyAlerts";
+import DeleteRecordButton from "../../../components/DeleteRecordButton";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
@@ -362,12 +362,6 @@ export default function PipelineDetail() {
     await loadPipelineEntry(uid, role);
   };
 
-  const deletePipeline = async () => {
-    if (!window.confirm("Delete this pipeline entry? This can't be undone.")) return;
-    await deleteDoc(doc(db, "pipeline", pipelineId));
-    router.push("/dashboard");
-  };
-
   // Lets anyone track a pipeline entry on their own My Dashboard without
   // needing to be the owner or assigned as salesperson/point person --
   // this just toggles their uid in the shared array on the one document,
@@ -592,7 +586,14 @@ export default function PipelineDetail() {
                   {isTracked ? "Remove From My Dashboard" : "Add To My Dashboard"}
                 </button>
                 <button className="btn btn-primary" onClick={startEdit}>Edit</button>
-                {canDelete && <button className="btn btn-danger" onClick={deletePipeline}>Delete</button>}
+                {canDelete && (
+                  <DeleteRecordButton
+                    kind="pipeline"
+                    id={pipelineId}
+                    name={pipeline.title || "Untitled pipeline entry"}
+                    onDeleted={() => router.push("/dashboard#pipeline")}
+                  />
+                )}
               </div>
             )}
             {isEditing && (

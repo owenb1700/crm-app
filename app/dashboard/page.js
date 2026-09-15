@@ -33,6 +33,7 @@ import { canViewAnalytics } from "../../lib/analytics";
 import ClosedCheckInActions from "../components/ClosedCheckInActions";
 import MyScorecard from "../components/MyScorecard";
 import ExportDataModal from "../components/ExportDataModal";
+import DeleteRecordButton from "../components/DeleteRecordButton";
 import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, yearsFrom, localDateKey } from "../../lib/closedProjects";
 import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
@@ -891,14 +892,6 @@ export default function Dashboard() {
     setEditingId(null);
     setEditData({});
     showToast("Changes saved");
-    loadCustomers(uid, role === "admin");
-  };
-
-  const deleteCustomer = async (id) => {
-    if (!window.confirm("Delete this contact?")) return;
-    await deleteDoc(doc(db, "customers", id));
-    setSelected(null);
-    showToast("Deleted");
     loadCustomers(uid, role === "admin");
   };
 
@@ -2199,9 +2192,17 @@ export default function Dashboard() {
                         <>
                           <button className="btn btn-secondary" onClick={saveEdit}>Save</button>
                           <button className="btn btn-secondary" onClick={() => setEditingId(null)}>Cancel</button>
-                          <button className="btn btn-danger" onClick={() => deleteCustomer(c.id)}>
-                            Delete
-                          </button>
+                          <DeleteRecordButton
+                            kind="project"
+                            id={c.id}
+                            name={c.projectName || c.company || "Untitled project"}
+                            onDeleted={() => {
+                              setEditingId(null);
+                              setSelected(null);
+                              showToast("Project deleted");
+                              loadCustomers(uid, role === "admin");
+                            }}
+                          />
                         </>
                       ) : (
                         <button className="btn btn-secondary" onClick={() => startEdit(c)}>Edit</button>

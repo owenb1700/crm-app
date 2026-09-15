@@ -45,7 +45,11 @@ export default function BidHistory({ snapshot, isLive, bidFiles, canSeePrivate, 
       <div className="project-section">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
           <h4 className="field-label" style={{ margin: 0 }}>Bid Summary</h4>
-          <a className="link-muted" href={`/dashboard/pipeline/${snapshot.pipelineId || snapshot.id}`}>Open original pipeline entry →</a>
+          {snapshot.pipelineDeleted ? (
+            <span className="private-note-hint" style={{ margin: 0 }}>The original pipeline entry was deleted</span>
+          ) : (
+            <a className="link-muted" href={`/dashboard/pipeline/${snapshot.pipelineId || snapshot.id}`}>Open original pipeline entry →</a>
+          )}
         </div>
         <p className="private-note-hint" style={{ marginTop: 4 }}>
           {isLive

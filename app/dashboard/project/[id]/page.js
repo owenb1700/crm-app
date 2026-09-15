@@ -19,6 +19,7 @@ import { ensureCompanyAndContactBatch, OWNER_CATEGORY, BLANK_OWNER_ROW, cleanOwn
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import BidHistory from "../../../components/BidHistory";
+import DeleteRecordButton from "../../../components/DeleteRecordButton";
 import ClosedCheckInActions from "../../../components/ClosedCheckInActions";
 import { closeProjectPayload, isClosedWithCheckIn, isCheckInDue } from "../../../../lib/closedProjects";
 import { ensureTowerModel } from "../../../../lib/towerModels";
@@ -469,8 +470,16 @@ export default function ProjectDetail() {
               {customer.projectValue && <p className="modal-subtitle" style={{ marginTop: 6 }}>Value: {customer.projectValue}</p>}
             </div>
 
-            {isOwner && !isEditing && (
-              <button className="btn btn-primary" onClick={startEdit}>Edit</button>
+            {!isEditing && (isOwner || role === "admin") && (
+              <div style={{ display: "flex", gap: 8 }}>
+                {isOwner && <button className="btn btn-primary" onClick={startEdit}>Edit</button>}
+                <DeleteRecordButton
+                  kind="project"
+                  id={projectId}
+                  name={customer.projectName || customer.company || "Untitled project"}
+                  onDeleted={() => router.push("/dashboard")}
+                />
+              </div>
             )}
             {isEditing && (
               <div style={{ display: "flex", gap: 8 }}>
