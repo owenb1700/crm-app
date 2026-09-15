@@ -20,8 +20,9 @@ const authedFetch = async (url, options = {}) => {
 };
 
 // The Trash, opened from User Settings: deleted projects and pipeline
-// entries (your own, or everyone's for an admin), each restorable until its
-// 30 days run out.
+// entries (your own, or everyone's for an admin). Each row has Revive (puts
+// it back exactly where it was) and Delete (gone for good); both ask for
+// confirmation first.
 export default function TrashModal({ onClose }) {
   const [items, setItems] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -29,7 +30,7 @@ export default function TrashModal({ onClose }) {
   const [busyId, setBusyId] = useState(null);
   const [notice, setNotice] = useState(null); // { text, link }
   const [error, setError] = useState("");
-  const [confirmPurge, setConfirmPurge] = useState(null);
+  const [confirming, setConfirming] = useState(null); // { item, action: "restore" | "purge" }
 
   const load = async () => {
     try {
@@ -53,10 +54,10 @@ export default function TrashModal({ onClose }) {
     try {
       await authedFetch("/api/delete-record", { method: "POST", body: JSON.stringify({ kind: item.kind, id: item.id, action }) });
       setItems(prev => prev.filter(i => i.id !== item.id));
-      setConfirmPurge(null);
+      setConfirming(null);
       if (action === "restore") {
         setNotice({
-          text: `Restored "${item.name}"`,
+          text: `Revived "${item.name}"`,
           link: item.kind === "project" ? `/dashboard/project/${item.id}` : `/dashboard/pipeline/${item.id}`
         });
         window.dispatchEvent(new Event(RECORDS_CHANGED_EVENT));
@@ -117,8 +118,8 @@ export default function TrashModal({ onClose }) {
                   </div>
                 </div>
                 <div className="trash-row-actions">
-                  <button className="btn btn-primary" disabled={busyId === item.id} onClick={() => act(item, "restore")}>Restore</button>
-                  <button className="btn btn-danger" disabled={busyId === item.id} onClick={() => setConfirmPurge(item)}>Delete forever</button>
+                  <button className="btn btn-primary" disabled={busyId === item.id} onClick={() => setConfirming({ item, action: "restore" })}>Revive</button>
+                  <button className="btn btn-danger" disabled={busyId === item.id} onClick={() => setConfirming({ item, action: "purge" })}>Delete</button>
                 </div>
               </div>
             );
@@ -126,18 +127,34 @@ export default function TrashModal({ onClose }) {
         </div>
       </div>
 
-      {confirmPurge && (
+      {confirming && (
         <div onClick={e => e.stopPropagation()}>
-        <ConfirmDialog
-          title={`Delete "${confirmPurge.name}" forever?`}
-          confirmLabel="Delete forever"
-          danger
-          busy={busyId === confirmPurge.id}
-          onCancel={() => setConfirmPurge(null)}
-          onConfirm={() => act(confirmPurge, "purge")}
-        >
-          <p>This removes it and everything attached to it (notes, files, reminders) right now. It can&apos;t be undone.</p>
-        </ConfirmDialog>
+          {confirming.action === "restore" ? (
+            <ConfirmDialog
+              title={`Revive "${confirming.item.name}"?`}
+              confirmLabel="Revive"
+              busy={busyId === confirming.item.id}
+              onCancel={() => setConfirming(null)}
+              onConfirm={() => act(confirming.item, "restore")}
+            >
+              <p>
+                It goes back exactly where it was
+                {confirming.item.kind === "project" ? " (My Projects, Team, or Past Projects)" : " (Pipeline or Past Projects)"},
+                with its notes, files, and reminders.
+              </p>
+            </ConfirmDialog>
+          ) : (
+            <ConfirmDialog
+              title={`Delete "${confirming.item.name}" forever?`}
+              confirmLabel="Delete forever"
+              danger
+              busy={busyId === confirming.item.id}
+              onCancel={() => setConfirming(null)}
+              onConfirm={() => act(confirming.item, "purge")}
+            >
+              <p>This removes it and everything attached to it (notes, files, reminders) right now. It can&apos;t be undone.</p>
+            </ConfirmDialog>
+          )}
         </div>
       )}
     </div>

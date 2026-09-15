@@ -45,7 +45,7 @@ export default function DeleteRecordButton({ kind, id, name, onDeleted, classNam
             <p style={{ margin: "6px 0 10px", fontWeight: 600 }}>{name}</p>
             <p className="modal-subtitle" style={{ fontSize: 13, lineHeight: 1.5 }}>
               The {noun} moves to the Trash (User Settings → Trash) with everything attached to it. It can be
-              restored from there for 30 days, then it&apos;s deleted forever.
+              revived from there for 30 days, then it&apos;s deleted forever.
             </p>
             {error && <p className="settings-status is-error">{error}</p>}
             <div className="modal-actions" style={{ justifyContent: "flex-end" }}>
