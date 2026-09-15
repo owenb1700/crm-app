@@ -152,6 +152,21 @@ export default function Dashboard() {
     setTimeout(() => setToast(""), 5000);
   };
 
+  // A message left by another page right before sending someone here (e.g.
+  // Add Pipeline Entry after saving), shown once.
+  useEffect(() => {
+    try {
+      const pending = sessionStorage.getItem("dashboardToast");
+      if (pending) {
+        sessionStorage.removeItem("dashboardToast");
+        showToast(pending);
+      }
+    } catch {
+      // Storage unavailable -- nothing to show.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const formatPhone = (phone) => {
     if (!phone) return "";
     const digits = phone.replace(/\D/g, "");

@@ -242,7 +242,14 @@ export default function NewPipelineEntry() {
         equipment.map(row => ensureTowerModel({ towerModels, manufacturer: row.manufacturer, model: row.model, uid }))
       );
 
-      router.push(`/dashboard/pipeline/${ref.id}`);
+      // Straight back to the Pipeline list (no stop on the new entry's own
+      // page); the dashboard shows a short "added" message.
+      try {
+        sessionStorage.setItem("dashboardToast", `Pipeline entry "${title}" added`);
+      } catch {
+        // Storage unavailable -- the entry is still saved, just no message.
+      }
+      router.replace("/dashboard#pipeline");
     } finally {
       setSaving(false);
     }
