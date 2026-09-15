@@ -34,6 +34,8 @@ import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
 import { isTrashed } from "../../../../lib/trash";
 import PhotoGallery from "../../../components/PhotoGallery";
+import { FirmSelect } from "../../../components/DirectoryPickers";
+import { sameCompany } from "../../../../lib/companyMatch";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
@@ -579,6 +581,15 @@ export default function PipelineDetail() {
     return <div className="dashboard-page">Loading...</div>;
   }
 
+  // Firms for "who won it": everything in the Directory plus any bidder on
+  // this entry that isn't in it yet.
+  const firmsWithBidders = [
+    ...companies,
+    ...(pipeline.biddingCompanies || [])
+      .filter(b => b.company && !companies.some(c => sameCompany(c.name, b.company)))
+      .map(b => ({ id: `bidder-${b.company}`, name: b.company, category: b.category || "Contractor" }))
+  ];
+
   // Shown with the details normally, and in the lower row while editing.
   const outcomeSection = (
     <div className="project-section">
@@ -977,13 +988,8 @@ export default function PipelineDetail() {
             <h3 className="modal-title">Mark as Won</h3>
             <p className="modal-subtitle">Which contractor or owner won the job?</p>
 
-            <label className="field-label">Winning Firm</label>
-            <input className="field" list="won-contractor-options" autoComplete="off" value={wonContractor} onChange={e => setWonContractor(e.target.value)} />
-            <datalist id="won-contractor-options">
-              {Array.from(new Set((pipeline.biddingCompanies || []).map(b => b.company).filter(Boolean))).map(name => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
+            <label className="field-label" htmlFor="won-contractor">Winning Firm</label>
+            <FirmSelect id="won-contractor" companies={firmsWithBidders} category="Contractor" value={wonContractor} onChange={setWonContractor} placeholder="Select or search firm..." newLabel="firm" />
 
             <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={confirmMarkWon}>Confirm</button>
           </div>
@@ -1007,13 +1013,7 @@ export default function PipelineDetail() {
             <textarea id="pipeline-lost-reason" className="field" style={{ width: "100%", height: 80 }} value={lostReason} onChange={e => setLostReason(e.target.value)} />
 
             <label className="field-label" htmlFor="pipeline-lost-to">Who won it? (optional)</label>
-            <input id="pipeline-lost-to" className="field" list="pipeline-lost-to-options" autoComplete="off" value={lostTo} onChange={e => setLostTo(e.target.value)} />
-            <datalist id="pipeline-lost-to-options">
-              {Array.from(new Set([
-                ...(pipeline.biddingCompanies || []).map(b => b.company),
-                ...companies.map(c => c.name)
-              ].filter(Boolean))).map(name => <option key={name} value={name} />)}
-            </datalist>
+            <FirmSelect id="pipeline-lost-to" companies={firmsWithBidders} category="Contractor" value={lostTo} onChange={setLostTo} placeholder="Select or search firm..." newLabel="firm" />
 
             <div className="modal-actions">
               <button className="btn btn-danger" onClick={confirmMarkLost}>

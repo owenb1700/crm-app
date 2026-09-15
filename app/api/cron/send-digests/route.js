@@ -4,6 +4,7 @@ import { renderEmail } from "../../../../lib/emailTemplate";
 import { buildDigestHtml, schedulesFor } from "../../../../lib/digest";
 import { generateIncidentCode, alertAdmins } from "../../../../lib/adminAlert";
 import { purgeExpiredTrash } from "../../../../lib/deleteRecord";
+import { syncCompanyKeys } from "../../../../lib/directoryRecords";
 
 // Runs daily (see vercel.json) at 4:00 AM Central. Every user's
 // digestSchedules is a list of {dayOfWeek, daysAhead, includeOverdue}
@@ -22,6 +23,15 @@ export async function GET(req) {
       purged = await purgeExpiredTrash();
     } catch (err) {
       await alertAdmins({ area: "Trash cleanup", message: "Failed to delete expired items from the trash", detail: err.message }).catch(() => {});
+    }
+  }
+
+  // Every Directory company gets its duplicate-guard key (see lib/companyMatch.js).
+  if (!new URL(req.url).searchParams.get("testEmail")) {
+    try {
+      await syncCompanyKeys();
+    } catch (err) {
+      await alertAdmins({ area: "Directory", message: "Failed to register companies with the duplicate guard", detail: err.message }).catch(() => {});
     }
   }
 

@@ -45,6 +45,7 @@ import CompanyContactFields from "../components/CompanyContactFields";
 import MobileNav from "../components/MobileNav";
 import EditUserModal from "../components/EditUserModal";
 import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, roleLabel, accessSummary } from "../../lib/permissions";
+import { FirmSelect } from "../components/DirectoryPickers";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -2874,10 +2875,7 @@ export default function Dashboard() {
                 <label className="field-label" htmlFor="lost-reason">Why was it lost?</label>
                 <textarea id="lost-reason" className="field" style={{ width: "100%", height: 70 }} value={lostNotes} onChange={e => setLostNotes(e.target.value)} />
                 <label className="field-label" htmlFor="lost-to">Who won it? (optional)</label>
-                <input id="lost-to" className="field" list="lost-to-options" autoComplete="off" value={lostTo} onChange={e => setLostTo(e.target.value)} />
-                <datalist id="lost-to-options">
-                  {companies.map(co => <option key={co.id} value={co.name} />)}
-                </datalist>
+                <FirmSelect id="lost-to" companies={companies} category="Contractor" value={lostTo} onChange={setLostTo} placeholder="Select or search firm..." newLabel="firm" />
               </div>
             )}
 
