@@ -41,6 +41,7 @@ export async function POST(req) {
     pipelineEntries: pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() })),
     reminders: remindersSnap.docs.map(d => ({ id: d.id, ...d.data() })),
     uid,
+    role: user.role,
     daysAhead: 7,
     includeOverdue: true,
     intro: "Test send -- this is what your digest looks like with your data right now."

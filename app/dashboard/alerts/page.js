@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import DashboardHeader from "../../components/DashboardHeader";
+import { isPipelineBidAlertFor } from "../../../lib/directory";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -46,7 +47,7 @@ export default function AllAlerts() {
   const [timeFilter, setTimeFilter] = useState("all"); // 'all' | 'upcoming' | 'past'
   const [editedDates, setEditedDates] = useState({});
 
-  const loadAlerts = async (currentUid) => {
+  const loadAlerts = async (currentUid, currentRole) => {
     const [customersSnap, pipelineSnap] = await Promise.all([
       getDocs(collection(db, "customers")),
       getDocs(collection(db, "pipeline"))
@@ -67,6 +68,7 @@ export default function AllAlerts() {
         badge: c.category === "Project Closed" && c.closedOutcome === "Closed" ? "Closed project check-in" : (c.category || ""),
         nextCheckIn: c.nextCheckIn,
         link: `/dashboard/project/${c.id}`,
+        field: "nextCheckIn",
         // Firestore rules only let the owner (or an admin) change a
         // project's date -- a collaborator can see it here but not edit it.
         canEditDate: c.ownerId === currentUid
@@ -89,12 +91,30 @@ export default function AllAlerts() {
         badge: "Pipeline",
         nextCheckIn: p.nextCheckIn,
         link: `/dashboard/pipeline/${p.id}`,
+        field: "nextCheckIn",
         // Pipeline entries are editable by any signed-in user, so anyone
         // who sees this (already scoped to responsibility above) can edit it.
         canEditDate: true
       }));
 
-    const combined = [...customers, ...pipeline]
+    // Open entries' bid dates -- same recipients as the Home calendar.
+    const bidDates = pipelineSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(p => isPipelineBidAlertFor(p, currentUid, currentRole))
+      .map(p => ({
+        key: `bid-${p.id}`,
+        kind: "pipeline",
+        id: p.id,
+        name: p.title || "Untitled pipeline entry",
+        company: p.company || "",
+        badge: `Bid date · ${p.stage || "Pipeline"}`,
+        nextCheckIn: p.bidDate,
+        link: `/dashboard/pipeline/${p.id}`,
+        field: "bidDate",
+        canEditDate: true
+      }));
+
+    const combined = [...customers, ...pipeline, ...bidDates]
       .sort((a, b) => new Date(a.nextCheckIn) - new Date(b.nextCheckIn));
 
     setAlerts(combined);
@@ -135,7 +155,7 @@ export default function AllAlerts() {
           return;
         }
 
-        await loadAlerts(user.uid);
+        await loadAlerts(user.uid, profileSnap.data().role);
         setLoaded(true);
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading alerts.");
@@ -156,8 +176,10 @@ export default function AllAlerts() {
     setSavingId(alert.key);
     try {
       const collectionName = alert.kind === "project" ? "customers" : "pipeline";
-      const adjusted = adjustWeekend(newDate);
-      await updateDoc(doc(db, collectionName, alert.id), { nextCheckIn: adjusted });
+      // Bid dates are the real bid day, so they're saved exactly as picked;
+      // check-ins move off weekends like everywhere else.
+      const adjusted = alert.field === "bidDate" ? newDate : adjustWeekend(newDate + "T12:00:00");
+      await updateDoc(doc(db, collectionName, alert.id), { [alert.field || "nextCheckIn"]: adjusted });
 
       setAlerts(prev => prev
         .map(a => (a.key === alert.key ? { ...a, nextCheckIn: adjusted } : a))

@@ -422,6 +422,25 @@ a {
   }
 }
 
+/* Pipeline entry "My Alerts": date, note, and Add on one row. */
+.my-alert-add {
+  display: grid;
+  grid-template-columns: minmax(150px, 180px) 1fr auto;
+  gap: 10px;
+  align-items: end;
+  margin-top: 12px;
+}
+
+.my-alert-add .field {
+  margin-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .my-alert-add {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- user settings window ---------- */
 
 .modal-card.settings-modal {

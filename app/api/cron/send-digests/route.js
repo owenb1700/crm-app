@@ -56,6 +56,7 @@ export async function GET(req) {
           pipelineEntries,
           reminders,
           uid: user.id,
+          role: user.role,
           daysAhead: schedule.daysAhead || 7,
           includeOverdue: schedule.includeOverdue !== false
         });

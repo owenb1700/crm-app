@@ -21,6 +21,7 @@ import { ensureCompanyAndContactBatch, firmTypeOf } from "../../../../lib/direct
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import { buildBidSnapshot } from "../../../../lib/bidHistory";
+import PipelineMyAlerts from "../../../components/PipelineMyAlerts";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
@@ -799,6 +800,10 @@ export default function PipelineDetail() {
             </>
           )}
         </div>
+
+        {!pipeline.outcome && !pipeline.convertedToProjectId && uid && (
+          <PipelineMyAlerts pipeline={pipeline} uid={uid} />
+        )}
 
         <div className="project-section">
           <h4 className="field-label">Notes</h4>

@@ -23,7 +23,7 @@ import {
   query,
   where
 } from "firebase/firestore";
-import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf, BUILDING_SECTORS } from "../../lib/directory";
+import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf, BUILDING_SECTORS, isPipelineBidAlertFor } from "../../lib/directory";
 import FirmTypeSelect from "../components/FirmTypeSelect";
 import BuildingSectorSelect from "../components/BuildingSectorSelect";
 import UserSettingsModal from "../components/UserSettingsModal";
@@ -1315,16 +1315,24 @@ export default function Dashboard() {
       .filter(p => (p.projectPointPersonId || p.salespersonId || p.ownerId) === uid)
       .map(p => ({ ...p, _kind: "pipeline", projectName: p.title }));
 
+    // Open pipeline entries' bid dates, for everyone on the hook for them
+    // (see isPipelineBidAlertFor).
+    const bidDates = pipelineEntries
+      .filter(p => isPipelineBidAlertFor(p, uid, role))
+      .map(p => ({ ...p, _kind: "bid", projectName: p.title, nextCheckIn: p.bidDate }));
+
     const reminderItems = reminders.map(r => ({ ...r, _kind: "reminder", projectName: r.subject, nextCheckIn: r.date }));
 
-    return [...projectItems, ...pipelineFollowUps, ...reminderItems];
-  }, [customers, pipelineEntries, reminders, uid]);
+    return [...projectItems, ...pipelineFollowUps, ...bidDates, ...reminderItems];
+  }, [customers, pipelineEntries, reminders, uid, role]);
 
   const openCalendarItem = (c) => {
-    if (c._kind === "reminder") {
+    if (c._kind === "reminder" && c.pipelineId) {
+      router.push(`/dashboard/pipeline/${c.pipelineId}`);
+    } else if (c._kind === "reminder") {
       openEditReminder(c);
     } else {
-      router.push(c._kind === "pipeline" ? `/dashboard/pipeline/${c.id}` : `/dashboard/project/${c.id}`);
+      router.push(c._kind === "pipeline" || c._kind === "bid" ? `/dashboard/pipeline/${c.id}` : `/dashboard/project/${c.id}`);
     }
   };
 
@@ -1543,12 +1551,12 @@ export default function Dashboard() {
       <div
         key={`reminder-${r.id}`}
         className={`customer-card ${barClass}`}
-        onClick={() => openEditReminder(r)}
+        onClick={() => (r.pipelineId ? router.push(`/dashboard/pipeline/${r.pipelineId}`) : openEditReminder(r))}
         style={{ cursor: "pointer" }}
       >
         <div className="customer-card-left">
           <div className="customer-name">{r.subject}</div>
-          <span className="role-badge" style={{ marginTop: 6 }}>🔔 Reminder</span>
+          <span className="role-badge" style={{ marginTop: 6 }}>{r.pipelineId ? "🔔 My pipeline alert" : "🔔 Reminder"}</span>
           <div className="customer-dates">Due: {r.date}</div>
         </div>
         <div className="customer-card-middle customer-notes-preview">
@@ -1894,10 +1902,12 @@ export default function Dashboard() {
                   <div className="customer-meta" style={{ whiteSpace: "pre-wrap" }}>{c.notes}</div>
                 )}
                 <div className="customer-dates">Due: {formatDate(c.nextCheckIn)}</div>
-                {c._kind === "pipeline" ? (
+                {c._kind === "bid" ? (
+                  <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>Bid date · {c.stage}</span>
+                ) : c._kind === "pipeline" ? (
                   <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>✅ Won — Check In</span>
                 ) : c._kind === "reminder" ? (
-                  <span className="role-badge" style={{ marginTop: 4 }}>🔔 Reminder</span>
+                  <span className="role-badge" style={{ marginTop: 4 }}>{c.pipelineId ? "🔔 My pipeline alert" : "🔔 Reminder"}</span>
                 ) : (
                   c.category && <span className="role-badge" style={{ marginTop: 4 }}>{c.category}</span>
                 )}
