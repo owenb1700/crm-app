@@ -55,6 +55,9 @@ const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
 };
 
+// Tabs that can be opened directly with a #hash (e.g. /dashboard#pipeline).
+const HASH_VIEWS = ["personal", "pipeline", "team", "pastProjects", "admin"];
+
 export default function Dashboard() {
   const router = useRouter();
 
@@ -67,8 +70,24 @@ export default function Dashboard() {
   // tab instead of always defaulting to Home.
   const [view, setView] = useState(() => {
     const hash = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
-    return ["personal", "pipeline", "team", "pastProjects", "admin"].includes(hash) ? hash : "home";
+    return HASH_VIEWS.includes(hash) ? hash : "home";
   }); // 'home' | 'personal' | 'team' | 'admin'
+  // Arriving from another page (e.g. Back to Pipeline), Next.js only puts
+  // the #hash on the URL after this page first renders, so check again once
+  // it's on screen and whenever the hash changes.
+  useEffect(() => {
+    const openHashView = () => {
+      const hash = window.location.hash.slice(1);
+      if (HASH_VIEWS.includes(hash)) setView(hash);
+    };
+    openHashView();
+    const soon = setTimeout(openHashView, 0);
+    window.addEventListener("hashchange", openHashView);
+    return () => {
+      clearTimeout(soon);
+      window.removeEventListener("hashchange", openHashView);
+    };
+  }, []);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(null); // null = "this week" panel
 
   // NAME COLLECTION (first login without a name on file)
