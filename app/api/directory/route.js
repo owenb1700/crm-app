@@ -1,12 +1,13 @@
 import { getAdminDb, getAdminAuth } from "../../../lib/firebaseAdmin";
-import { mergeCompanies, mergePeople, renameCompany, syncCompanyKeys } from "../../../lib/directoryRecords";
+import { mergeCompanies, mergePeople, renameCompany, syncCompanyKeys, importDirectoryFirms } from "../../../lib/directoryRecords";
 import { alertAdmins } from "../../../lib/adminAlert";
 
 // Directory maintenance that has to touch many records at once:
 // - renameCompany (anyone): renames a firm and every project / pipeline
 //   entry that names it.
 // - mergeCompanies, mergePeople, syncKeys, dismissGroup (admins only): the
-//   Find Duplicates screen.
+//   Find Duplicates screen; importFirms (admins only): a chunk of a
+//   spreadsheet import.
 export async function POST(req) {
   const idToken = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   if (!idToken) {
@@ -29,7 +30,7 @@ export async function POST(req) {
 
   const body = await req.json();
   const { action } = body;
-  const adminOnly = ["mergeCompanies", "mergePeople", "syncKeys", "dismissGroup"];
+  const adminOnly = ["mergeCompanies", "mergePeople", "syncKeys", "dismissGroup", "importFirms"];
   if (![...adminOnly, "renameCompany"].includes(action)) {
     return Response.json({ error: "Unknown action" }, { status: 400 });
   }
@@ -49,6 +50,11 @@ export async function POST(req) {
       result = action === "mergeCompanies"
         ? await mergeCompanies({ keepId: body.keepId, mergeIds })
         : await mergePeople({ keepId: body.keepId, mergeIds });
+    } else if (action === "importFirms") {
+      if (!Array.isArray(body.firms) || body.firms.length > 250 || !body.importId) {
+        return Response.json({ error: "Send up to 250 firms at a time with an import id" }, { status: 400 });
+      }
+      result = await importDirectoryFirms({ firms: body.firms, importId: body.importId, uid: callerUid });
     } else if (action === "syncKeys") {
       result = await syncCompanyKeys();
     } else {
