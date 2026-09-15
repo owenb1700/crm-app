@@ -23,11 +23,12 @@ import {
   query,
   where
 } from "firebase/firestore";
-import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf, BUILDING_SECTORS } from "../../lib/directory";
+import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf, BUILDING_SECTORS, WORK_TYPES } from "../../lib/directory";
 import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor } from "../../lib/alertRecipients";
 import { bidderDirectoryEntries } from "../../lib/bidders";
 import FirmTypeSelect from "../components/FirmTypeSelect";
 import BuildingSectorSelect from "../components/BuildingSectorSelect";
+import WorkTypeSelect from "../components/WorkTypeSelect";
 import UserSettingsModal from "../components/UserSettingsModal";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../components/FilterBar";
 import { canViewAnalytics } from "../../lib/analytics";
@@ -866,6 +867,7 @@ export default function Dashboard() {
       phone: c.phone || "",
       category: c.category || "",
       buildingSector: c.buildingSector || "",
+      workType: c.workType || "",
       nextCheckIn: formatDate(c.nextCheckIn),
       lastContact: formatDate(c.lastContact)
     });
@@ -874,6 +876,9 @@ export default function Dashboard() {
   const saveEdit = async () => {
     if (!editData.buildingSector) {
       return alert("Please select a building sector");
+    }
+    if (!editData.workType) {
+      return alert("Please select new installation or repair");
     }
     const original = customers.find(c => c.id === editingId);
     const payload = { ...editData };
@@ -1171,6 +1176,7 @@ export default function Dashboard() {
     const f = pastFilters;
     if (f.show === "pipeline") list = [];
     if (f.sector) list = list.filter(c => c.buildingSector === f.sector);
+    if (f.workType) list = list.filter(c => c.workType === f.workType);
     if (f.person) list = list.filter(c => c.ownerId === f.person);
     if (f.firm) list = list.filter(c =>
       c.company === f.firm ||
@@ -1200,6 +1206,7 @@ export default function Dashboard() {
     const f = pastFilters;
     if (f.show === "projects") list = [];
     if (f.sector) list = list.filter(p => p.buildingSector === f.sector);
+    if (f.workType) list = list.filter(p => p.workType === f.workType);
     if (f.person) list = list.filter(p => p.ownerId === f.person || p.salespersonId === f.person);
     if (f.firm) list = list.filter(p =>
       p.company === f.firm ||
@@ -1229,6 +1236,7 @@ export default function Dashboard() {
 
     const f = teamFilters;
     if (f.sector) list = list.filter(c => c.buildingSector === f.sector);
+    if (f.workType) list = list.filter(c => c.workType === f.workType);
     if (f.person) list = list.filter(c => c.ownerId === f.person);
     if (f.firm) list = list.filter(c => c.company === f.firm || (c.owners || []).some(o => o.company === f.firm));
     if (f.status) list = list.filter(c => c.category === f.status);
@@ -1267,6 +1275,7 @@ export default function Dashboard() {
 
     const f = pipelineFilters;
     if (f.sector) list = list.filter(p => p.buildingSector === f.sector);
+    if (f.workType) list = list.filter(p => p.workType === f.workType);
     if (f.person) list = list.filter(p => p.salespersonId === f.person);
     if (f.owner) list = list.filter(p => p.ownerId === f.owner);
     if (f.engineeringFirm) list = list.filter(p => p.company === f.engineeringFirm);
@@ -1464,10 +1473,12 @@ export default function Dashboard() {
   // page, so a dropdown never offers a value that matches nothing.
   const personOption = (id) => ({ value: id, label: ownerLabel(id) });
   const sectorFilter = { key: "sector", label: "Sector", type: "select", options: BUILDING_SECTORS.map(v => ({ value: v, label: v })) };
+  const workTypeFilter = { key: "workType", label: "Work type", type: "select", options: WORK_TYPES.map(v => ({ value: v, label: v })) };
   const setFilter = (setter) => (key, value) => setter(prev => ({ ...prev, [key]: value }));
 
   const teamFilterDefs = [
     sectorFilter,
+    workTypeFilter,
     { key: "person", label: "Salesperson", type: "select", options: optionsFrom(customers.map(c => c.ownerId), ownerLabel).map(o => personOption(o.value)) },
     { key: "firm", label: "Contractor / Owner", type: "select", options: optionsFrom(customers.flatMap(c => [c.company, ...(c.owners || []).map(o => o.company)])) },
     { key: "status", label: "Status", type: "select", options: optionsFrom(customers.map(c => c.category)) },
@@ -1478,6 +1489,7 @@ export default function Dashboard() {
   const openPipeline = pipelineEntries.filter(p => !p.outcome);
   const pipelineFilterDefs = [
     sectorFilter,
+    workTypeFilter,
     { key: "person", label: "Salesperson", type: "select", options: optionsFrom(openPipeline.map(p => p.salespersonId), ownerLabel).map(o => personOption(o.value)) },
     { key: "owner", label: "Owner", type: "select", options: optionsFrom(openPipeline.map(p => p.ownerId), ownerLabel).map(o => personOption(o.value)) },
     { key: "engineeringFirm", label: "Engineering firm", type: "select", options: optionsFrom(openPipeline.map(p => p.company)) },
@@ -1491,6 +1503,7 @@ export default function Dashboard() {
   const pastFilterDefs = [
     { key: "show", label: "Show", type: "select", anyLabel: "Projects & pipeline", options: [{ value: "projects", label: "Closed projects only" }, { value: "pipeline", label: "Pipeline entries only" }] },
     sectorFilter,
+    workTypeFilter,
     { key: "person", label: "Salesperson", type: "select", options: optionsFrom([...closedProjects.map(c => c.ownerId), ...resolvedPipeline.flatMap(p => [p.ownerId, p.salespersonId])], ownerLabel).map(o => personOption(o.value)) },
     { key: "firm", label: "Contractor / Firm", type: "select", options: optionsFrom([
       ...closedProjects.flatMap(c => [c.company, ...(c.owners || []).map(o => o.company), lostInfoOf(c).winner]),
@@ -1959,7 +1972,7 @@ export default function Dashboard() {
 
       {view === "personal" && role !== "estimating" && (
         <>
-          <MyScorecard pipelineEntries={pipelineEntries} uid={uid} />
+          <MyScorecard pipelineEntries={pipelineEntries} projects={customers} uid={uid} />
 
           {/* ADD PROJECT BUTTON */}
           <div style={{ marginBottom: 20 }}>
@@ -2027,6 +2040,7 @@ export default function Dashboard() {
                       />
 
                       <BuildingSectorSelect id={`edit-project-sector-${c.id}`} value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
+                      <WorkTypeSelect id={`edit-project-work-type-${c.id}`} value={editData.workType} onChange={v => setEditData({ ...editData, workType: v })} />
 
                       <div className="field-label">Category</div>
                       <select className="field" value={editData.category} onChange={e => setEditData({ ...editData, category: e.target.value })}>
@@ -2068,6 +2082,7 @@ export default function Dashboard() {
                       {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
                   {c.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {c.buildingSector}</div>}
                       {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {c.projectValue}</div>}
+                  {c.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{c.workType}</div>}
 
                       <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
                       <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>
@@ -2211,6 +2226,8 @@ export default function Dashboard() {
                     <div className="customer-name">{p.title}</div>
                     <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>Pipeline · {p.stage}</span>
                     {p.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {p.buildingSector}</div>}
+                    {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {p.value}</div>}
+                    {p.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{p.workType}</div>}
                   </div>
                   <div className="customer-card-middle">
                     {p.company && <div className="private-note-hint">{p.company}</div>}
@@ -2393,6 +2410,7 @@ export default function Dashboard() {
                   {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
                   {c.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {c.buildingSector}</div>}
                   {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {c.projectValue}</div>}
+                  {c.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{c.workType}</div>}
                   <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
                   <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>
                 </div>
@@ -2430,7 +2448,7 @@ export default function Dashboard() {
         <>
           {/* Estimating's My Dashboard is the pipeline list, so their
               reminders get their own section on top of it instead. */}
-          {view === "personal" && <MyScorecard pipelineEntries={pipelineEntries} uid={uid} />}
+          {view === "personal" && <MyScorecard pipelineEntries={pipelineEntries} projects={customers} uid={uid} />}
 
           {view === "personal" && (
             <div style={{ marginBottom: 24 }}>
@@ -2475,6 +2493,7 @@ export default function Dashboard() {
                 <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>{p.stage}</span>
                 {p.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {p.buildingSector}</div>}
                 {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {p.value}</div>}
+                {p.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{p.workType}</div>}
               </div>
 
               <div className="customer-card-middle">

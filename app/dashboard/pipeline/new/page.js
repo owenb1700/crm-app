@@ -7,6 +7,7 @@ import { auth, db } from "../../../../lib/firebase";
 import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, firmTypeOf } from "../../../../lib/directory";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
+import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import BidderEditor from "../../../components/BidderEditor";
 import { biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson } from "../../../../lib/bidders";
 import { ensureTowerModel } from "../../../../lib/towerModels";
@@ -41,6 +42,7 @@ export default function NewPipelineEntry() {
   const [title, setTitle] = useState("");
   const [stage, setStage] = useState("Pre-Bid");
   const [buildingSector, setBuildingSector] = useState("");
+  const [workType, setWorkType] = useState("");
   const [bidDate, setBidDate] = useState("");
   const [value, setValue] = useState("");
   const [company, setCompany] = useState("");
@@ -166,6 +168,9 @@ export default function NewPipelineEntry() {
     if (!buildingSector) {
       return alert("Please select a building sector");
     }
+    if (!workType) {
+      return alert("Please select new installation or repair");
+    }
     // Every bidder needs one of our salespeople assigned to it.
     const missingSalesperson = bidderMissingSalesperson(biddingCompanies);
     if (missingSalesperson) {
@@ -183,6 +188,7 @@ export default function NewPipelineEntry() {
         title,
         stage,
         buildingSector,
+        workType,
         bidDate: bidDate || null,
         value: value || null,
         company: company || null,
@@ -288,6 +294,7 @@ export default function NewPipelineEntry() {
               <label className="field-label">Estimated Value</label>
               <input className="field" autoComplete="off" value={value} onChange={e => setValue(e.target.value)} />
             </div>
+            <WorkTypeSelect id="new-pipeline-work-type" value={workType} onChange={setWorkType} />
 
             <div>
               <label className="field-label">Engineering Firm</label>

@@ -62,6 +62,7 @@ export default function BidHistory({ snapshot, isLive, bidFiles, canSeePrivate, 
         <Row label="Building sector" value={snapshot.buildingSector} />
         <Row label="Bid date" value={snapshot.bidDate} />
         <Row label="Estimated value" value={snapshot.value} />
+        <Row label="Work type" value={snapshot.workType} />
         <Row label="Project address" value={snapshot.projectAddress} />
         <Row label="Outcome" value={snapshot.outcome ? `${snapshot.outcome}${snapshot.wonByContractor ? ` — awarded to ${snapshot.wonByContractor}` : ""}` : null} />
         <Row label="Resolved" value={String(snapshot.resolvedAt || "").slice(0, 10)} />

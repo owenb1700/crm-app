@@ -8,6 +8,7 @@ import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/fires
 import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, OWNER_CATEGORY, BLANK_OWNER_ROW, cleanOwnerRows } from "../../../../lib/directory";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
+import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
@@ -50,6 +51,7 @@ export default function NewProject() {
   const [category, setCategory] = useState("");
   const [buildingSector, setBuildingSector] = useState("");
   const [projectValue, setProjectValue] = useState("");
+  const [workType, setWorkType] = useState("");
   const [nextDate, setNextDate] = useState("");
   const [projectAddress, setProjectAddress] = useState("");
   const [notes, setNotes] = useState("");
@@ -199,6 +201,7 @@ export default function NewProject() {
     const missing = [];
     if (!projectName) missing.push("Project Name");
     if (!buildingSector) missing.push("Building Sector");
+    if (!workType) missing.push("Work Type");
     if (!contact) missing.push("Contact");
     if (!nextDate) missing.push("Next Date");
     if (!projectAddress) missing.push("Project Address");
@@ -223,6 +226,7 @@ export default function NewProject() {
         category: category || null,
         buildingSector,
         projectValue: projectValue || null,
+        workType,
         equipment,
         equipmentType: first.type || null,
         towerManufacturer: first.manufacturer || null,
@@ -339,6 +343,7 @@ export default function NewProject() {
           </select>
 
           <input className="field" autoComplete="off" placeholder="Project Value" value={projectValue} onChange={e => setProjectValue(e.target.value)} />
+          <WorkTypeSelect id="new-project-work-type" value={workType} onChange={setWorkType} />
 
           <div>
             <label className="field-label">Next Date</label>

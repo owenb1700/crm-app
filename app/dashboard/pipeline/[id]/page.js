@@ -19,6 +19,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { ensureCompanyAndContactBatch, firmTypeOf } from "../../../../lib/directory";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
+import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import BidderEditor from "../../../components/BidderEditor";
 import { bidderRowsForEditing, biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson, groupBidders, contactsOf } from "../../../../lib/bidders";
 import { buildBidSnapshot } from "../../../../lib/bidHistory";
@@ -39,7 +40,7 @@ const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
 };
 
-const EDITABLE_FIELDS = ["title", "buildingSector", "stage", "bidDate", "value", "company", "contact", "email", "phone", "projectAddress", "salespersonId", "projectPointPersonId"];
+const EDITABLE_FIELDS = ["title", "buildingSector", "stage", "bidDate", "value", "workType", "company", "contact", "email", "phone", "projectAddress", "salespersonId", "projectPointPersonId"];
 
 const formatBytes = (bytes) => {
   if (!bytes) return "";
@@ -212,6 +213,7 @@ export default function PipelineDetail() {
       title: pipeline.title || "",
       stage: pipeline.stage || "Pre-Bid",
       buildingSector: pipeline.buildingSector || "",
+      workType: pipeline.workType || "",
       bidDate: pipeline.bidDate || "",
       value: pipeline.value || "",
       company: pipeline.company || "",
@@ -241,6 +243,9 @@ export default function PipelineDetail() {
     }
     if (!editData.buildingSector) {
       return alert("Please select a building sector");
+    }
+    if (!editData.workType) {
+      return alert("Please select new installation or repair");
     }
     // Every bidder needs one of our salespeople assigned to it.
     const missingSalesperson = bidderMissingSalesperson(biddingRows);
@@ -449,7 +454,8 @@ export default function PipelineDetail() {
       contact: winnerContact.name || "",
       email: winnerContact.email || "",
       phone: winnerContact.phone || "",
-      buildingSector: pipeline.buildingSector || ""
+      buildingSector: pipeline.buildingSector || "",
+      workType: pipeline.workType || ""
     });
     setConvertProjectAddress(pipeline.projectAddress || "");
     setConvertNextDate("");
@@ -461,6 +467,7 @@ export default function PipelineDetail() {
     if (!convertData.salespersonId) missing.push("Salesperson");
     if (!convertData.company?.trim()) missing.push(convertData.companyCategory || "Contractor");
     if (!convertData.buildingSector) missing.push("Building Sector");
+    if (!convertData.workType) missing.push("Work Type");
     if (!convertNextDate) missing.push("Next Check-In Date");
     if (!convertProjectAddress) missing.push("Project Address");
     if (missing.length) {
@@ -487,6 +494,7 @@ export default function PipelineDetail() {
         category: "Ongoing Project",
         buildingSector: convertData.buildingSector,
         projectValue: pipeline.value || null,
+        workType: convertData.workType,
         projectAddress: convertProjectAddress,
         equipment,
         towerManufacturer: first.manufacturer || pipeline.towerManufacturer || null,
@@ -637,6 +645,7 @@ export default function PipelineDetail() {
                 <span>{pipeline.projectAddress || "No address"}</span>
                 {pipeline.bidDate && <span>Bid {pipeline.bidDate}</span>}
                 {pipeline.value && <span>Value {pipeline.value}</span>}
+                <span>{pipeline.workType || "No work type"}</span>
                 {pipeline.convertedToProjectId && (
                   <span>
                     ✅ Converted —{" "}
@@ -693,6 +702,7 @@ export default function PipelineDetail() {
                 <h4 className="field-label">Estimated Value</h4>
                 <input className="field" name="pd-value" autoComplete="off" value={editData.value} onChange={e => setEditData({ ...editData, value: e.target.value })} />
               </div>
+              <WorkTypeSelect id="pipeline-detail-work-type" value={editData.workType} onChange={v => setEditData({ ...editData, workType: v })} />
               <CompanyContactFields
                 idPrefix="pipeline-detail"
                 companies={companies}
@@ -709,8 +719,10 @@ export default function PipelineDetail() {
                 onPhoneChange={v => setEditData({ ...editData, phone: v })}
               />
 
-              <h4 className="field-label" style={{ marginTop: 12 }}>Project Address</h4>
-              <AddressAutocomplete name="pipeline-detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
+              <div>
+                <label className="field-label">Project Address</label>
+                <AddressAutocomplete name="pipeline-detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
+              </div>
             </div>
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Contractors & Owners Bidding</h4>
@@ -756,6 +768,7 @@ export default function PipelineDetail() {
                 <dl className="detail-list">
                   <dt>Bid Date</dt><dd>{pipeline.bidDate || "—"}</dd>
                   <dt>Est. Value</dt><dd>{pipeline.value || "—"}</dd>
+                  <dt>Work Type</dt><dd>{pipeline.workType || "—"}</dd>
                   <dt>Sector</dt><dd>{pipeline.buildingSector || "—"}</dd>
                   <dt>Salesperson</dt><dd>{pipeline.salespersonId ? ownerLabel(pipeline.salespersonId) : "Unassigned"}</dd>
                   <dt>Point Person</dt><dd>{pipeline.projectPointPersonId ? ownerLabel(pipeline.projectPointPersonId) : "Unassigned"}</dd>
@@ -1006,6 +1019,7 @@ export default function PipelineDetail() {
                 </select>
               </div>
               <BuildingSectorSelect id="convert-sector" value={convertData.buildingSector} onChange={v => setConvertData({ ...convertData, buildingSector: v })} />
+              <WorkTypeSelect id="convert-work-type" value={convertData.workType} onChange={v => setConvertData({ ...convertData, workType: v })} />
 
               <FirmTypeSelect id="convert-firm-type" value={convertData.companyCategory || "Contractor"} onChange={v => setConvertData({ ...convertData, companyCategory: v })} />
               <div />

@@ -18,6 +18,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { ensureCompanyAndContactBatch, OWNER_CATEGORY, BLANK_OWNER_ROW, cleanOwnerRows, firmTypeOf } from "../../../../lib/directory";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
+import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import BidHistory from "../../../components/BidHistory";
 import DeleteRecordButton from "../../../components/DeleteRecordButton";
 import ClosedCheckInActions from "../../../components/ClosedCheckInActions";
@@ -54,7 +55,7 @@ const formatBytes = (bytes) => {
 };
 
 const EDITABLE_FIELDS = [
-  "projectName", "buildingSector", "company", "companyCategory", "contact", "email", "phone", "category", "projectValue",
+  "projectName", "buildingSector", "company", "companyCategory", "contact", "email", "phone", "category", "projectValue", "workType",
   "nextCheckIn", "lastContact", "projectAddress"
 ];
 
@@ -234,6 +235,7 @@ export default function ProjectDetail() {
       phone: customer.phone || "",
       category: customer.category || "",
       projectValue: customer.projectValue || "",
+      workType: customer.workType || "",
       buildingSector: customer.buildingSector || "",
       nextCheckIn: formatDate(customer.nextCheckIn),
       lastContact: formatDate(customer.lastContact),
@@ -265,6 +267,7 @@ export default function ProjectDetail() {
     const missing = [];
     if (!editData.projectName) missing.push("Project Name");
     if (!editData.buildingSector) missing.push("Building Sector");
+    if (!editData.workType) missing.push("Work Type");
     if (!editData.contact) missing.push("Contact");
     if (!editData.projectAddress) missing.push("Project Address");
     if (missing.length) {
@@ -529,6 +532,7 @@ export default function ProjectDetail() {
                 <span>{customer.buildingSector || "No building sector"}</span>
                 <span>{customer.projectAddress || "No address"}</span>
                 {customer.projectValue && <span>Value {customer.projectValue}</span>}
+                <span>{customer.workType || "No work type"}</span>
                 {customer.nextCheckIn && <span>Next check-in {formatDate(customer.nextCheckIn)}</span>}
               </p>
             </div>
@@ -604,6 +608,7 @@ export default function ProjectDetail() {
                 <label className="field-label" htmlFor="project-detail-value">Project Value</label>
                 <input id="project-detail-value" className="field" name="detail-projectValue" autoComplete="off" value={editData.projectValue} onChange={e => setEditData({ ...editData, projectValue: e.target.value })} />
               </div>
+              <WorkTypeSelect id="project-detail-work-type" value={editData.workType} onChange={v => setEditData({ ...editData, workType: v })} />
               <div>
                 <label className="field-label">Project Address (required)</label>
                 <AddressAutocomplete name="detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
@@ -720,6 +725,7 @@ export default function ProjectDetail() {
                 <dt>Last Contact</dt><dd>{formatDate(customer.lastContact) || "—"}</dd>
                 <dt>Sector</dt><dd>{customer.buildingSector || "—"}</dd>
                 <dt>Value</dt><dd>{customer.projectValue || "—"}</dd>
+                <dt>Work Type</dt><dd>{customer.workType || "—"}</dd>
               </dl>
             </div>
 

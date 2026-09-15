@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
-import { BUILDING_SECTORS } from "../../../lib/directory";
+import { BUILDING_SECTORS, WORK_TYPES } from "../../../lib/directory";
 import { canViewAnalytics, summarize, breakdown, breakdownMulti, manufacturersOf, bidForecast, outcomesByMonth, formatMoney, parseMoney, statusOf } from "../../../lib/analytics";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
 import ExportButtons from "../../components/ExportButtons";
@@ -308,6 +308,7 @@ export default function AnalyticsPage() {
 
   const filtered = useMemo(() => entries
     .filter(e => !filters.sector || e.buildingSector === filters.sector)
+    .filter(e => !filters.workType || e.workType === filters.workType)
     .filter(e => !filters.person || salespersonOf(e) === filters.person)
     .filter(e => !filters.stage || e.stage === filters.stage)
     .filter(e => matchesDateFilter(e.createdAt, filters.created)),
@@ -329,6 +330,7 @@ export default function AnalyticsPage() {
   const filterDefs = [
     { key: "created", label: "Entry created", type: "date", presets: ["last30", "last90", "thisYear", "lastYear"] },
     { key: "sector", label: "Sector", type: "select", options: BUILDING_SECTORS.map(v => ({ value: v, label: v })) },
+    { key: "workType", label: "Work type", type: "select", options: WORK_TYPES.map(v => ({ value: v, label: v })) },
     { key: "person", label: "Salesperson", type: "select", options: optionsFrom(entries.map(salespersonOf), personLabel) },
     { key: "stage", label: "Stage", type: "select", options: optionsFrom(entries.map(e => e.stage)) }
   ];
@@ -366,11 +368,11 @@ export default function AnalyticsPage() {
   const exportEntries = (format) => downloadTable({
     format,
     filename: `pipeline-entries-${csvDateStamp()}`,
-    headers: ["Title", "Status", "Stage", "Sector", "Salesperson", "Engineering firm", "Bid date", "Estimated value (as entered)", "Estimated value ($)",
+    headers: ["Title", "Status", "Stage", "Sector", "Salesperson", "Engineering firm", "Bid date", "Estimated value (as entered)", "Estimated value ($)", "Work type",
       "Manufacturers", "Bidders", "Won by / lost to", "Reason (lost / did not bid)", "Created", "Resolved", "Converted to project"],
     rows: filtered.map(e => [
       e.title, STATUS_LABEL[statusOf(e)], e.stage, e.buildingSector, personLabel(salespersonOf(e)), e.company, e.bidDate,
-      e.value, parseMoney(e.value) ?? "",
+      e.value, parseMoney(e.value) ?? "", e.workType || "",
       Array.from(new Set(manufacturersOf(e).filter(Boolean))).join("; "),
       (e.biddingCompanies || []).filter(b => b.company).map(b => `${b.company}${b.salespersonId ? ` - ${personLabel(b.salespersonId)}` : ""}`).join("; "),
       e.wonByContractor || e.lostTo || "",
@@ -458,8 +460,8 @@ export default function AnalyticsPage() {
             <ExportButtons label="upcoming bids" onExport={(format) => downloadTable({
               format,
               filename: `upcoming-bids-${csvDateStamp()}`,
-              headers: ["Bid date", "Title", "Stage", "Sector", "Salesperson", "Engineering firm", "Estimated value ($)"],
-              rows: forecast.upcoming.map(e => [e.bidDate, e.title, e.stage, e.buildingSector, personLabel(salespersonOf(e)), e.company, parseMoney(e.value) ?? ""])
+              headers: ["Bid date", "Title", "Stage", "Sector", "Salesperson", "Engineering firm", "Estimated value ($)", "Work type"],
+              rows: forecast.upcoming.map(e => [e.bidDate, e.title, e.stage, e.buildingSector, personLabel(salespersonOf(e)), e.company, parseMoney(e.value) ?? "", e.workType || ""])
             })} />
           )}
         </div>
@@ -469,7 +471,7 @@ export default function AnalyticsPage() {
           <div className="analytics-table-wrap">
             <table className="analytics-table stack-on-phone">
               <thead>
-                <tr><th>Opportunity</th><th>Bid date</th><th>Stage</th><th>Sector</th><th>Salesperson</th><th>Value</th></tr>
+                <tr><th>Opportunity</th><th>Bid date</th><th>Stage</th><th>Sector</th><th>Salesperson</th><th>Value</th><th>Work type</th></tr>
               </thead>
               <tbody>
                 {forecast.upcoming.map(e => (
@@ -480,6 +482,7 @@ export default function AnalyticsPage() {
                     <td data-label="Sector">{e.buildingSector || "—"}</td>
                     <td data-label="Salesperson">{personLabel(salespersonOf(e))}</td>
                     <td data-label="Value">{parseMoney(e.value) === null ? "—" : formatMoney(parseMoney(e.value))}</td>
+                    <td data-label="Work type">{e.workType || "—"}</td>
                   </tr>
                 ))}
               </tbody>
