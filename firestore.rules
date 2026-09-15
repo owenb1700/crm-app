@@ -190,6 +190,21 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // One record per normalized company name ("abc-mechanical"), pointing at
+    // the company that owns it. Creating a company claims its key in the
+    // same transaction, so the same firm can't be created twice even by two
+    // people at once. Team-maintained, like companies themselves.
+    match /companyKeys/{key} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Groups an admin marked "not duplicates" on Find Duplicates (written by
+    // the server).
+    match /duplicateDismissals/{groupId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     match /contacts/{contactId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn();

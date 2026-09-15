@@ -10,6 +10,9 @@ import DashboardHeader from "../../components/DashboardHeader";
 import AddressAutocomplete from "../../components/AddressAutocomplete";
 import MobileNav from "../../components/MobileNav";
 import { withoutTrashed } from "../../../lib/trash";
+import { claimCompany } from "../../../lib/directory";
+import { sameCompany, findSimilarCompanies, groupSimilarCompanies, groupSimilarPeople, groupIdOf } from "../../../lib/companyMatch";
+import { companyConflicts, personConflicts } from "../../../lib/directoryConflicts";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -38,14 +41,19 @@ function DirectoryPageContent() {
   const [newAddress, setNewAddress] = useState("");
   // Adding a company from a filtered view defaults to that view's category.
   const [newCategory, setNewCategory] = useState(COMPANY_CATEGORIES.includes(categoryFilter) ? categoryFilter : "Contractor");
+  const [addState, setAddState] = useState(null); // null | { same } | { similar: [...] } | { saving: true }
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [dismissals, setDismissals] = useState([]);
 
   const loadAll = async () => {
-    const [companiesSnap, contactsSnap, customersSnap, pipelineSnap] = await Promise.all([
+    const [companiesSnap, contactsSnap, customersSnap, pipelineSnap, dismissalsSnap] = await Promise.all([
       getDocs(collection(db, "companies")),
       getDocs(collection(db, "contacts")),
       getDocs(collection(db, "customers")),
-      getDocs(collection(db, "pipeline"))
+      getDocs(collection(db, "pipeline")),
+      getDocs(collection(db, "duplicateDismissals")).catch(() => ({ docs: [] }))
     ]);
+    setDismissals(dismissalsSnap.docs.map(d => d.data().groupId));
     setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setCustomers(withoutTrashed(customersSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -88,6 +96,7 @@ function DirectoryPageContent() {
           return;
         }
 
+        setIsAdmin(profileSnap.data().role === "admin");
         await loadAll();
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading the directory.");
@@ -102,42 +111,59 @@ function DirectoryPageContent() {
   }, []);
 
   const jobCounts = (companyName) => {
-    const name = (companyName || "").toLowerCase();
     const projectCount = customers.filter(c =>
-      (c.company || "").toLowerCase() === name ||
-      (c.owners || []).some(o => (o.company || "").toLowerCase() === name)
+      sameCompany(c.company, companyName) ||
+      (c.owners || []).some(o => sameCompany(o.company, companyName))
     ).length;
     const pipelineCount = pipelineEntries.filter(p =>
-      (p.company || "").toLowerCase() === name ||
-      (p.biddingCompanies || []).some(b => (b.company || "").toLowerCase() === name)
+      sameCompany(p.company, companyName) ||
+      (p.biddingCompanies || []).some(b => sameCompany(b.company, companyName))
     ).length;
     return { projectCount, pipelineCount };
   };
 
-  const addCompany = async () => {
-    if (!newName.trim()) return alert("Enter a company name");
-    if (companies.some(c => c.name.toLowerCase() === newName.trim().toLowerCase())) {
-      return alert("A company with this name already exists");
-    }
-
-    await addDoc(collection(db, "companies"), {
-      name: newName.trim(),
-      category: newCategory,
-      phone: newPhone.trim() || null,
-      address: newAddress.trim() || null,
-      website: null,
-      notes: null,
-      createdAt: new Date().toISOString(),
-      createdBy: uid
-    });
-
+  const resetAdd = () => {
     setNewName("");
     setNewPhone("");
     setNewAddress("");
     setNewCategory(COMPANY_CATEGORIES.includes(categoryFilter) ? categoryFilter : "Contractor");
+    setAddState(null);
     setShowAddModal(false);
-    loadAll();
   };
+
+  // Adding a firm that's already on file (even spelled a bit differently)
+  // points to the existing one; a merely similar name asks first.
+  const addCompany = async (force = false) => {
+    const name = newName.trim();
+    if (!name) return alert("Enter a company name");
+    const same = companies.find(c => sameCompany(c.name, name));
+    if (same) return setAddState({ same });
+    const similar = findSimilarCompanies(companies, name);
+    if (similar.length && !force) return setAddState({ similar });
+
+    setAddState({ saving: true });
+    try {
+      const created = await claimCompany({ name, category: newCategory, phone: newPhone.trim(), address: newAddress.trim(), uid });
+      if (created.alreadyExisted) {
+        await loadAll();
+        return setAddState({ same: created });
+      }
+      resetAdd();
+      loadAll();
+    } catch (err) {
+      setAddState(null);
+      alert(`Couldn't add the company: ${err.message}`);
+    }
+  };
+
+  // Likely duplicates still waiting for an admin to merge or dismiss.
+  const duplicateCount = isAdmin
+    ? groupSimilarCompanies(companies).filter(g => !dismissals.includes(groupIdOf(g))).length +
+      groupSimilarPeople(contacts).filter(g => !dismissals.includes(groupIdOf(g))).length
+    : 0;
+
+  const needsReview = (company) =>
+    companyConflicts(company).length > 0 || contacts.some(p => p.companyId === company.id && personConflicts(p).length > 0);
 
   // No search: plain alphabetical. Searching: rank by closeness of match --
   // name starts-with beats name contains beats a matching person at that
@@ -209,6 +235,11 @@ function DirectoryPageContent() {
           onChange={e => setSearchQuery(e.target.value)}
           style={{ flex: 1, marginBottom: 0 }}
         />
+        {isAdmin && (
+          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/duplicates")}>
+            Find Duplicates{duplicateCount ? ` (${duplicateCount})` : ""}
+          </button>
+        )}
         <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>+ Add Company</button>
       </div>
 
@@ -228,6 +259,7 @@ function DirectoryPageContent() {
             <div className="customer-card-left">
               <div className="customer-name">{c.name}</div>
               <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>{c.category}</span>
+              {needsReview(c) && <span className="review-flag" title="Different information is on file -- confirm which is correct">⚠ Needs review</span>}
             </div>
             <div className="customer-card-middle">
               {matchedPerson && (
@@ -248,11 +280,35 @@ function DirectoryPageContent() {
       {showAddModal && (
         <div className="modal-overlay">
           <div className="modal-card">
-            <button className="modal-close" onClick={() => setShowAddModal(false)}>✕</button>
+            <button className="modal-close" onClick={resetAdd}>✕</button>
             <h3 className="modal-title">Add Company</h3>
 
-            <label className="field-label">Name</label>
-            <input className="field" autoComplete="off" value={newName} onChange={e => setNewName(e.target.value)} />
+            <label className="field-label" htmlFor="add-company-name">Name</label>
+            <input id="add-company-name" className="field" autoComplete="off" value={newName} onChange={e => { setNewName(e.target.value); setAddState(null); }} />
+            {addState?.same && (
+              <div className="duplicate-warning">
+                <strong>{addState.same.name}</strong> is already in the Directory{addState.same.category ? ` as ${addState.same.category}` : ""}.
+                <div className="duplicate-warning-actions">
+                  <button type="button" className="btn btn-primary" onClick={() => router.push(`/dashboard/directory/company/${addState.same.id}`)}>Open it</button>
+                </div>
+              </div>
+            )}
+            {addState?.similar && (
+              <div className="duplicate-warning">
+                Did you mean one of these? They&apos;re already in the Directory:
+                <ul>
+                  {addState.similar.map(c => (
+                    <li key={c.id}>
+                      <button type="button" className="link-muted matching-select-link" onClick={() => router.push(`/dashboard/directory/company/${c.id}`)}>{c.name}</button>
+                      <span className="matching-select-tag">{c.category}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="duplicate-warning-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => addCompany(true)}>No, add &quot;{newName.trim()}&quot; as a new company</button>
+                </div>
+              </div>
+            )}
 
             <label className="field-label">Category</label>
             <select className="field" value={newCategory} onChange={e => setNewCategory(e.target.value)}>
@@ -265,7 +321,9 @@ function DirectoryPageContent() {
             <label className="field-label" htmlFor="add-company-address">Address (optional)</label>
             <AddressAutocomplete id="add-company-address" name="add-company-address" placeholder="Company Address" value={newAddress} onChange={setNewAddress} />
 
-            <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={addCompany}>Add</button>
+            <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} disabled={!!addState?.saving} onClick={() => addCompany(false)}>
+              {addState?.saving ? "Adding…" : "Add"}
+            </button>
           </div>
         </div>
       )}

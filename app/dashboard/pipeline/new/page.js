@@ -12,11 +12,11 @@ import BidderEditor from "../../../components/BidderEditor";
 import { biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson } from "../../../../lib/bidders";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
-import SearchableSelect from "../../../components/SearchableSelect";
 import ProductOptionsEditor from "../../../components/ProductOptionsEditor";
 import { blankProductRow, productRowsForStorage, isTowerRow } from "../../../../lib/equipment";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
+import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "../../../components/DirectoryPickers";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
@@ -56,14 +56,11 @@ export default function NewPipelineEntry() {
   const [equipmentRows, setEquipmentRows] = useState([blankProductRow()]);
   const [notes, setNotes] = useState("");
 
-  const engineeringFirmOptions = companies.filter(c => c.category === "Engineering Firm").map(c => c.name);
-  const contactsForCompany = (name) => contacts.filter(
-    c => (c.companyName || "").toLowerCase() === (name || "").toLowerCase()
-  );
+  const contactsForCompany = (name) => peopleAtFirm(contacts, name);
 
   const handleContactChange = (value) => {
     setContact(value);
-    const match = contactsForCompany(company).find(c => c.name.toLowerCase() === value.toLowerCase());
+    const match = findPerson(contactsForCompany(company), value);
     if (match) {
       setEmail(primaryEmail(match));
       setPhone(primaryPhone(match));
@@ -298,23 +295,11 @@ export default function NewPipelineEntry() {
 
             <div>
               <label className="field-label">Engineering Firm</label>
-              <SearchableSelect
-                options={engineeringFirmOptions}
-                value={company}
-                onChange={setCompany}
-                placeholder="Select or search engineering firm..."
-                newLabel="engineering firm"
-              />
+              <FirmSelect id="new-pipeline-firm" companies={companies} category="Engineering Firm" value={company} onChange={setCompany} />
             </div>
             <div>
               <label className="field-label">Contact</label>
-              <SearchableSelect
-                options={contactsForCompany(company).map(c => c.name)}
-                value={contact}
-                onChange={handleContactChange}
-                placeholder="Select or search contact..."
-                newLabel="contact"
-              />
+              <PersonSelect id="new-pipeline-contact" people={contactsForCompany(company)} value={contact} onChange={handleContactChange} />
             </div>
             <div>
               <label className="field-label">Email</label>

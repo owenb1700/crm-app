@@ -3,15 +3,15 @@
 import { firmTypeOf, primaryEmail, primaryPhone } from "../../lib/directory";
 import { blankBidder, blankContact } from "../../lib/bidders";
 import FirmTypeSelect from "./FirmTypeSelect";
-import SearchableSelect from "./SearchableSelect";
+import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "./DirectoryPickers";
+import { sameCompany } from "../../lib/companyMatch";
 import SalespersonSelect from "./SalespersonSelect";
 
 // The Contractors & Owners Bidding editor used by Add Pipeline Entry and
 // Pipeline Detail. One block per bidding firm (type, firm, salesperson),
 // holding as many people from that firm as needed.
 export default function BidderEditor({ idPrefix, bidders, onChange, companies, contacts, users }) {
-  const firmOptions = (type) => companies.filter(c => c.category === firmTypeOf(type)).map(c => c.name);
-  const peopleAt = (firm) => contacts.filter(c => (c.companyName || "").toLowerCase() === (firm || "").toLowerCase());
+  const peopleAt = (firm) => peopleAtFirm(contacts, firm);
 
   const updateBidder = (bi, patch) => onChange(bidders.map((b, i) => (i === bi ? { ...b, ...patch } : b)));
   const updateContact = (bi, ci, patch) => updateBidder(bi, {
@@ -20,7 +20,7 @@ export default function BidderEditor({ idPrefix, bidders, onChange, companies, c
 
   // Picking a known person fills in their email and phone.
   const chooseContact = (bi, ci, name) => {
-    const match = peopleAt(bidders[bi].company).find(p => p.name.toLowerCase() === name.toLowerCase());
+    const match = findPerson(peopleAt(bidders[bi].company), name);
     updateContact(bi, ci, match ? { name, email: primaryEmail(match), phone: primaryPhone(match) } : { name });
   };
 
@@ -33,22 +33,19 @@ export default function BidderEditor({ idPrefix, bidders, onChange, companies, c
     <div className="bidder-editor">
       {bidders.map((b, bi) => {
         const type = firmTypeOf(b.category);
-        const chosenElsewhere = new Set(
-          bidders.filter((_, i) => i !== bi).map(x => (x.company || "").trim().toLowerCase()).filter(Boolean)
-        );
-        const duplicate = chosenElsewhere.has((b.company || "").trim().toLowerCase());
+        const duplicate = !!(b.company || "").trim() && bidders.some((x, i) => i !== bi && sameCompany(x.company, b.company));
         return (
           <div key={bi} className="bidder-block">
             <div className="bidder-firm-row">
               <FirmTypeSelect id={`${idPrefix}-type-${bi}`} value={type} onChange={v => updateBidder(bi, { category: v })} />
               <div>
                 <label className="field-label">{type}</label>
-                <SearchableSelect
-                  options={firmOptions(b.category)}
+                <FirmSelect
+                  id={`${idPrefix}-firm-${bi}`}
+                  companies={companies}
+                  category={type}
                   value={b.company}
                   onChange={v => updateBidder(bi, { company: v })}
-                  placeholder={`Select or search ${type.toLowerCase()}...`}
-                  newLabel={type.toLowerCase()}
                 />
               </div>
               <SalespersonSelect
@@ -74,13 +71,7 @@ export default function BidderEditor({ idPrefix, bidders, onChange, companies, c
                 <div key={ci} className="bidder-person-row">
                   <div>
                     <label className="field-label">Contact</label>
-                    <SearchableSelect
-                      options={peopleAt(b.company).map(p => p.name)}
-                      value={c.name}
-                      onChange={v => chooseContact(bi, ci, v)}
-                      placeholder="Select or search contact..."
-                      newLabel="contact"
-                    />
+                    <PersonSelect id={`${idPrefix}-person-${bi}-${ci}`} people={peopleAt(b.company)} value={c.name} onChange={v => chooseContact(bi, ci, v)} />
                   </div>
                   <div>
                     <label className="field-label" htmlFor={`${idPrefix}-email-${bi}-${ci}`}>Email</label>

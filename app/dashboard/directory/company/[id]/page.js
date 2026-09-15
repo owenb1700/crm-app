@@ -15,11 +15,14 @@ import {
   updateDoc,
   deleteDoc
 } from "firebase/firestore";
-import { COMPANY_CATEGORIES, propagateContactUpdate } from "../../../../../lib/directory";
+import { COMPANY_CATEGORIES, propagateContactUpdate, directoryAction } from "../../../../../lib/directory";
 import DashboardHeader from "../../../../components/DashboardHeader";
 import AddressAutocomplete from "../../../../components/AddressAutocomplete";
 import MobileNav from "../../../../components/MobileNav";
 import { isTrashed } from "../../../../../lib/trash";
+import { companyKeyOf, sameCompany, samePerson, findSimilarPeople, findSimilarCompanies } from "../../../../../lib/companyMatch";
+import { companyConflicts, personConflicts, describeConflicts, reviewSignature, emailsOf, phonesOf, companyValues, FIELD_LABELS } from "../../../../../lib/directoryConflicts";
+import ConfirmDialog from "../../../../components/ConfirmDialog";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -102,6 +105,13 @@ export default function CompanyDetail() {
   const [editingPersonId, setEditingPersonId] = useState(null);
   const [personEditData, setPersonEditData] = useState({});
 
+  // A name check waiting on the user: { kind: "company" | "person", message, onContinue }
+  const [nameCheck, setNameCheck] = useState(null);
+  // Needs-review window: { target: "company" | person, choices: { field: value | "__all" } }
+  const [review, setReview] = useState(null);
+  const [savingReview, setSavingReview] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const formatPhone = (phone) => {
     if (!phone) return "";
     const digits = phone.replace(/\D/g, "");
@@ -126,14 +136,13 @@ export default function CompanyDetail() {
 
     setPeople(peopleSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
-    const name = (data.name || "").toLowerCase();
     setProjects(
       customersSnap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(r => !isTrashed(r))
         .filter(c =>
-          (c.company || "").toLowerCase() === name ||
-          (c.owners || []).some(o => (o.company || "").toLowerCase() === name)
+          sameCompany(c.company, data.name) ||
+          (c.owners || []).some(o => sameCompany(o.company, data.name))
         )
     );
     setPipelineJobs(
@@ -141,8 +150,8 @@ export default function CompanyDetail() {
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(r => !isTrashed(r))
         .filter(p =>
-          (p.company || "").toLowerCase() === name ||
-          (p.biddingCompanies || []).some(b => (b.company || "").toLowerCase() === name)
+          sameCompany(p.company, data.name) ||
+          (p.biddingCompanies || []).some(b => sameCompany(b.company, data.name))
         )
     );
   };
@@ -209,20 +218,49 @@ export default function CompanyDetail() {
     setIsEditing(true);
   };
 
-  const saveEdit = async () => {
-    if (!editData.name) return alert("Company name is required");
+  // Renaming goes through the server so every project and pipeline entry
+  // naming this firm is renamed too; a name already used by another firm is
+  // refused (merge them instead) and a similar one asks first.
+  const saveEdit = async (force = false) => {
+    const name = (editData.name || "").trim();
+    if (!name) return alert("Company name is required");
+    const renamed = name !== company.name;
 
-    await updateDoc(doc(db, "companies", companyId), {
-      name: editData.name,
-      category: editData.category,
-      phone: editData.phone || null,
-      address: editData.address || null,
-      website: editData.website || null,
-      notes: editData.notes || null
-    });
+    if (renamed && !force) {
+      const others = (await getDocs(collection(db, "companies"))).docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(c => c.id !== companyId);
+      const same = others.find(c => sameCompany(c.name, name));
+      if (same) {
+        return alert(`"${same.name}" is already in the Directory. ${isAdmin ? "Use Find Duplicates to merge the two." : "Ask an admin to merge the two."}`);
+      }
+      const similar = findSimilarCompanies(others, name);
+      if (similar.length) {
+        return setNameCheck({
+          message: `${similar.map(c => `"${c.name}"`).join(" and ")} ${similar.length === 1 ? "is" : "are"} already in the Directory. Rename this company to "${name}" anyway?`,
+          confirmLabel: "Rename anyway",
+          onContinue: () => { setNameCheck(null); saveEdit(true); }
+        });
+      }
+    }
 
-    setIsEditing(false);
-    await loadCompany();
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, "companies", companyId), {
+        category: editData.category,
+        phone: editData.phone || null,
+        address: editData.address || null,
+        website: editData.website || null,
+        notes: editData.notes || null
+      });
+      if (renamed) await directoryAction("renameCompany", { companyId, name });
+      setIsEditing(false);
+      await loadCompany();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const deleteCompany = async () => {
@@ -232,12 +270,29 @@ export default function CompanyDetail() {
 
     await Promise.all(people.map(p => deleteDoc(doc(db, "contacts", p.id))));
     await deleteDoc(doc(db, "companies", companyId));
+    try {
+      const keyRef = doc(db, "companyKeys", companyKeyOf(company.name));
+      const keySnap = await getDoc(keyRef);
+      if (keySnap.exists() && keySnap.data().companyId === companyId) await deleteDoc(keyRef);
+    } catch {
+      // The key is only a guard against duplicates; a stale one is repaired automatically.
+    }
 
     router.push("/dashboard/directory");
   };
 
-  const addPerson = async () => {
+  const addPerson = async (force = false) => {
     if (!personName.trim()) return alert("Enter a name");
+    const same = people.find(p => samePerson(p.name, personName));
+    if (same) return alert(`${same.name} is already listed at ${company.name}. Edit their entry to add details.`);
+    const similar = findSimilarPeople(people, personName);
+    if (similar.length && !force) {
+      return setNameCheck({
+        message: `${similar.map(p => p.name).join(" and ")} ${similar.length === 1 ? "is" : "are"} already listed at ${company.name}. Is "${personName.trim()}" someone else?`,
+        confirmLabel: "Yes, add them",
+        onContinue: () => { setNameCheck(null); addPerson(true); }
+      });
+    }
 
     await addDoc(collection(db, "contacts"), {
       name: personName.trim(),
@@ -271,8 +326,19 @@ export default function CompanyDetail() {
     });
   };
 
-  const savePerson = async () => {
+  const savePerson = async (force = false) => {
     if (!personEditData.name.trim()) return alert("Enter a name");
+    const others = people.filter(p => p.id !== editingPersonId);
+    const same = others.find(p => samePerson(p.name, personEditData.name));
+    if (same) return alert(`${same.name} is already listed at ${company.name}.`);
+    const similar = findSimilarPeople(others, personEditData.name);
+    if (similar.length && !force) {
+      return setNameCheck({
+        message: `${similar.map(p => p.name).join(" and ")} ${similar.length === 1 ? "is" : "are"} already listed at ${company.name}. Save "${personEditData.name.trim()}" as a different person?`,
+        confirmLabel: "Save anyway",
+        onContinue: () => { setNameCheck(null); savePerson(true); }
+      });
+    }
 
     const before = people.find(p => p.id === editingPersonId);
     const oldName = before?.name || "";
@@ -304,6 +370,62 @@ export default function CompanyDetail() {
     setPersonEditData({});
     await loadCompany();
   };
+
+  const openReview = (target) => {
+    const conflicts = target === "company" ? companyConflicts(company) : personConflicts(target);
+    setReview({ target, conflicts, choices: Object.fromEntries(conflicts.map(c => [c.field, c.values[0]])) });
+  };
+
+  // Picking one value keeps just that one; "all correct" keeps every value
+  // and remembers that this exact set was confirmed.
+  const saveReview = async () => {
+    setSavingReview(true);
+    try {
+      if (review.target === "company") {
+        const patch = { alternates: { ...(company.alternates || {}) }, reviewed: { ...(company.reviewed || {}) } };
+        review.conflicts.forEach(({ field, values }) => {
+          const choice = review.choices[field];
+          if (choice === "__all") {
+            patch.reviewed[field] = reviewSignature(field, values);
+          } else {
+            patch[field] = choice;
+            patch.alternates[field] = [];
+          }
+        });
+        await updateDoc(doc(db, "companies", companyId), patch);
+      } else {
+        const person = review.target;
+        const patch = { reviewed: { ...(person.reviewed || {}) } };
+        review.conflicts.forEach(({ field, values }) => {
+          const choice = review.choices[field];
+          const key = field === "phone" ? "phones" : "emails";
+          if (choice === "__all") {
+            patch.reviewed[field] = reviewSignature(field, values);
+          } else {
+            patch[key] = [choice];
+          }
+        });
+        await updateDoc(doc(db, "contacts", person.id), patch);
+        const emails = patch.emails || emailsOf(person);
+        const phones = patch.phones || phonesOf(person);
+        await propagateContactUpdate({
+          companyName: company.name,
+          oldContactName: person.name,
+          newContactName: person.name,
+          email: emails[0] || null,
+          phone: phones[0] || null
+        });
+      }
+      setReview(null);
+      await loadCompany();
+    } catch (err) {
+      alert(`Couldn't save: ${err.message}`);
+    } finally {
+      setSavingReview(false);
+    }
+  };
+
+  const companyReviewNeeded = company ? companyConflicts(company) : [];
 
   const deletePerson = async (personId) => {
     if (!window.confirm("Delete this person from the directory?")) return;
@@ -369,7 +491,7 @@ export default function CompanyDetail() {
             )}
             {isEditing && (
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-primary" onClick={saveEdit}>Save</button>
+                <button className="btn btn-primary" disabled={saving} onClick={() => saveEdit(false)}>{saving ? "Saving…" : "Save"}</button>
                 <button className="btn btn-secondary" onClick={() => setIsEditing(false)}>Cancel</button>
               </div>
             )}
@@ -400,6 +522,12 @@ export default function CompanyDetail() {
           </div>
         ) : (
           <div className="project-section">
+            {companyReviewNeeded.length > 0 && (
+              <div className="review-banner">
+                <span>⚠ Needs review: {describeConflicts(companyReviewNeeded)} on file.</span>
+                <button type="button" className="btn btn-secondary" onClick={() => openReview("company")}>Review</button>
+              </div>
+            )}
             <p><strong>Phone:</strong> {formatPhone(company.phone) || "—"}</p>
             <p><strong>Address:</strong> {company.address || "—"}</p>
             <p><strong>Website:</strong> {company.website || "—"}</p>
@@ -425,14 +553,21 @@ export default function CompanyDetail() {
                   <MultiField label="Phone" type="tel" values={personEditData.phones || [""]} onChange={phones => setPersonEditData({ ...personEditData, phones })} />
                   <textarea className="field" placeholder="Notes" style={{ width: "100%", height: 60 }} value={personEditData.notes} onChange={e => setPersonEditData({ ...personEditData, notes: e.target.value })} />
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button className="btn btn-primary" onClick={savePerson}>Save</button>
+                    <button className="btn btn-primary" onClick={() => savePerson(false)}>Save</button>
                     <button className="btn btn-secondary" onClick={() => setEditingPersonId(null)}>Cancel</button>
                   </div>
                 </div>
               ) : (
                 <>
                   <div>
-                    <div><strong>{p.name}</strong>{p.title ? ` — ${p.title}` : ""}</div>
+                    <div>
+                      <strong>{p.name}</strong>{p.title ? ` — ${p.title}` : ""}
+                      {personConflicts(p).length > 0 && (
+                        <button type="button" className="review-flag review-flag-button" title="Different information is on file -- confirm which is correct" onClick={() => openReview(p)}>
+                          ⚠ {describeConflicts(personConflicts(p))} — review
+                        </button>
+                      )}
+                    </div>
                     {(() => {
                       const emails = p.emails?.length ? p.emails : (p.email ? [p.email] : []);
                       const phones = p.phones?.length ? p.phones : (p.phone ? [p.phone] : []);
@@ -465,7 +600,7 @@ export default function CompanyDetail() {
               <MultiField label="Phone" type="tel" values={personPhones} onChange={setPersonPhones} />
               <textarea className="field" placeholder="Notes" style={{ width: "100%", height: 60 }} value={personNotes} onChange={e => setPersonNotes(e.target.value)} />
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-primary" onClick={addPerson}>Add</button>
+                <button className="btn btn-primary" onClick={() => addPerson(false)}>Add</button>
                 <button className="btn btn-secondary" onClick={() => setShowAddPerson(false)}>Cancel</button>
               </div>
             </div>
@@ -494,6 +629,60 @@ export default function CompanyDetail() {
           ))}
         </div>
       </div>
+
+      {nameCheck && (
+        <ConfirmDialog
+          title="Possible duplicate"
+          confirmLabel={nameCheck.confirmLabel}
+          onCancel={() => setNameCheck(null)}
+          onConfirm={nameCheck.onContinue}
+        >
+          <p>{nameCheck.message}</p>
+        </ConfirmDialog>
+      )}
+
+      {review && (
+        <div className="modal-overlay">
+          <div className="modal-card review-modal" role="dialog" aria-modal="true" aria-labelledby="review-title">
+            <h3 id="review-title" className="modal-title">
+              Review {review.target === "company" ? company.name : review.target.name}
+            </h3>
+            <p className="modal-subtitle">Different information is on file. Pick the correct one, or confirm they&apos;re all correct.</p>
+            {review.conflicts.map(({ field, values }) => (
+              <fieldset key={field} className="review-field">
+                <legend className="field-label">{FIELD_LABELS[field][0].toUpperCase() + FIELD_LABELS[field].slice(1)}</legend>
+                {values.map(v => (
+                  <label key={v} className="settings-check" htmlFor={`review-${field}-${v}`}>
+                    <input
+                      id={`review-${field}-${v}`}
+                      type="radio"
+                      name={`review-${field}`}
+                      checked={review.choices[field] === v}
+                      onChange={() => setReview({ ...review, choices: { ...review.choices, [field]: v } })}
+                    />
+                    <span>{field === "phone" ? formatPhone(v) : v}</span>
+                  </label>
+                ))}
+                <label className="settings-check" htmlFor={`review-${field}-all`}>
+                  <input
+                    id={`review-${field}-all`}
+                    type="radio"
+                    name={`review-${field}`}
+                    checked={review.choices[field] === "__all"}
+                    onChange={() => setReview({ ...review, choices: { ...review.choices, [field]: "__all" } })}
+                  />
+                  <span>All of these are correct — keep them all</span>
+                </label>
+              </fieldset>
+            ))}
+            <p className="private-note-hint">Picking one removes the others{review.target === "company" ? "" : " and updates projects and pipeline entries that list this person"}.</p>
+            <div className="modal-actions" style={{ justifyContent: "flex-end" }}>
+              <button type="button" className="btn btn-secondary" disabled={savingReview} onClick={() => setReview(null)}>Cancel</button>
+              <button type="button" className="btn btn-primary" disabled={savingReview} onClick={saveReview}>{savingReview ? "Saving…" : "Save"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

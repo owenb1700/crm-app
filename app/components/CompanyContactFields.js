@@ -1,6 +1,7 @@
 "use client";
 
 import { primaryEmail, primaryPhone } from "../../lib/directory";
+import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "./DirectoryPickers";
 
 // Reusable company + contact input pair with directory-backed autocomplete.
 // Typing a company shows suggestions from the shared directory; the contact
@@ -22,17 +23,13 @@ export default function CompanyContactFields({
   onPhoneChange,
   showEmailPhone = true
 }) {
-  // Scoped to the matching Directory category (e.g. only Engineering
-  // Firms suggested in an Engineering Firm field) so a Contractor never
-  // shows up as a suggestion for a Customer or vice versa.
-  const companyOptions = (companies || []).filter(c => !companyCategory || c.category === companyCategory);
-  const matchingContacts = (contacts || []).filter(
-    c => (c.companyName || "").toLowerCase() === (companyValue || "").toLowerCase()
-  );
+  // Every firm is searchable (firms of companyCategory listed first), and
+  // near-duplicate names are caught -- see MatchingSelect.
+  const matchingContacts = peopleAtFirm(contacts, companyValue);
 
   const handleContactChange = (value) => {
     onContactChange(value);
-    const match = matchingContacts.find(c => c.name.toLowerCase() === value.toLowerCase());
+    const match = findPerson(matchingContacts, value);
     if (match) {
       if (onEmailChange) onEmailChange(primaryEmail(match));
       if (onPhoneChange) onPhoneChange(primaryPhone(match));
@@ -43,30 +40,12 @@ export default function CompanyContactFields({
     <>
       <div>
         <label className="field-label">{companyLabel}</label>
-        <input
-          className="field"
-          list={`${idPrefix}-companies`}
-          autoComplete="off"
-          value={companyValue}
-          onChange={e => onCompanyChange(e.target.value)}
-        />
-        <datalist id={`${idPrefix}-companies`}>
-          {companyOptions.map(c => <option key={c.id} value={c.name} />)}
-        </datalist>
+        <FirmSelect id={`${idPrefix}-company`} companies={companies} category={companyCategory} value={companyValue} onChange={onCompanyChange} />
       </div>
 
       <div>
         <label className="field-label">Contact</label>
-        <input
-          className="field"
-          list={`${idPrefix}-contacts`}
-          autoComplete="off"
-          value={contactValue}
-          onChange={e => handleContactChange(e.target.value)}
-        />
-        <datalist id={`${idPrefix}-contacts`}>
-          {matchingContacts.map(c => <option key={c.id} value={c.name} />)}
-        </datalist>
+        <PersonSelect id={`${idPrefix}-contact`} people={matchingContacts} value={contactValue} onChange={handleContactChange} />
       </div>
 
       {showEmailPhone && (

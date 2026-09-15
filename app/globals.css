@@ -1343,6 +1343,187 @@ a {
   font-size: 14px;
 }
 
+/* Directory name pickers that catch near-duplicates. */
+.matching-select {
+  position: relative;
+}
+
+.matching-select-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+  z-index: 20;
+}
+
+.matching-select-heading {
+  padding: 6px 12px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.matching-select-same {
+  background: rgba(47, 91, 234, 0.08);
+}
+
+.matching-select-new {
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.matching-select-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+}
+
+.matching-select-suggest {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  color: #92400e;
+}
+
+.matching-select-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.matching-select-dismiss {
+  margin-left: 4px;
+  color: var(--color-text-muted);
+}
+
+.duplicate-warning {
+  margin: -4px 0 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  font-size: 13px;
+  color: #78350f;
+}
+
+.duplicate-warning ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+.duplicate-warning-actions {
+  margin-top: 8px;
+}
+
+/* "Needs review" flags for conflicting Directory info. */
+.review-flag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  vertical-align: middle;
+}
+
+.review-flag-button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.review-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  font-size: 13px;
+  color: #78350f;
+}
+
+.modal-card.review-modal {
+  max-width: 520px;
+}
+
+.review-field {
+  border: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+/* Find Duplicates */
+.duplicate-group {
+  padding: 12px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.duplicate-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.duplicate-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.duplicate-row.is-keep {
+  border-color: var(--color-primary);
+  background: rgba(47, 91, 234, 0.05);
+}
+
+.duplicate-row-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.duplicate-row-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.duplicate-group-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* Photos on projects and pipeline entries. */
 .photo-section {
   transition: box-shadow 0.15s ease, border-color 0.15s ease;

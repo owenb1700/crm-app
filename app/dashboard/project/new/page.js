@@ -12,9 +12,9 @@ import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
-import SearchableSelect from "../../../components/SearchableSelect";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
+import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "../../../components/DirectoryPickers";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
@@ -58,11 +58,7 @@ export default function NewProject() {
   const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
   const [ownerRows, setOwnerRows] = useState([]);
 
-  const contractorOptions = companies.filter(c => c.category === companyCategory).map(c => c.name);
-  const ownerOptions = companies.filter(c => c.category === OWNER_CATEGORY).map(c => c.name);
-  const contactsForCompany = (name) => contacts.filter(
-    c => (c.companyName || "").toLowerCase() === (name || "").toLowerCase()
-  );
+  const contactsForCompany = (name) => peopleAtFirm(contacts, name);
   const matchingContacts = contactsForCompany(company);
 
   const updateOwnerRow = (index, field, value) => {
@@ -70,7 +66,7 @@ export default function NewProject() {
   };
 
   const handleOwnerContactChange = (index, value) => {
-    const match = contactsForCompany(ownerRows[index].company).find(c => c.name.toLowerCase() === value.toLowerCase());
+    const match = findPerson(contactsForCompany(ownerRows[index].company), value);
     setOwnerRows(prev => prev.map((row, i) => (i === index
       ? { ...row, contact: value, ...(match && { email: primaryEmail(match), phone: primaryPhone(match) }) }
       : row)));
@@ -78,7 +74,7 @@ export default function NewProject() {
 
   const handleContactChange = (value) => {
     setContact(value);
-    const match = matchingContacts.find(c => c.name.toLowerCase() === value.toLowerCase());
+    const match = findPerson(matchingContacts, value);
     if (match) {
       setEmail(primaryEmail(match));
       setPhone(primaryPhone(match));
@@ -306,24 +302,12 @@ export default function NewProject() {
 
           <div>
             <label className="field-label">{companyCategory}</label>
-            <SearchableSelect
-              options={contractorOptions}
-              value={company}
-              onChange={setCompany}
-              placeholder={`Select or search ${companyCategory.toLowerCase()}...`}
-              newLabel={companyCategory.toLowerCase()}
-            />
+            <FirmSelect id="new-project-company" companies={companies} category={companyCategory} value={company} onChange={setCompany} />
           </div>
 
           <div>
             <label className="field-label">Contact</label>
-            <SearchableSelect
-              options={matchingContacts.map(c => c.name)}
-              value={contact}
-              onChange={handleContactChange}
-              placeholder="Select or search contact..."
-              newLabel="contact"
-            />
+            <PersonSelect id="new-project-contact" people={matchingContacts} value={contact} onChange={handleContactChange} />
           </div>
 
           <div>
@@ -364,23 +348,18 @@ export default function NewProject() {
             <div key={i} className="bidding-company-row">
               <div>
                 <label className="field-label">Owner / Building Engineer</label>
-                <SearchableSelect
-                  options={ownerOptions}
+                <FirmSelect
+                  id={`new-project-owner-${i}`}
+                  companies={companies}
+                  category={OWNER_CATEGORY}
                   value={row.company}
                   onChange={v => updateOwnerRow(i, "company", v)}
                   placeholder="Select or search firm..."
-                  newLabel="owner / building engineer"
                 />
               </div>
               <div>
                 <label className="field-label">Contact</label>
-                <SearchableSelect
-                  options={contactsForCompany(row.company).map(c => c.name)}
-                  value={row.contact}
-                  onChange={v => handleOwnerContactChange(i, v)}
-                  placeholder="Select or search contact..."
-                  newLabel="contact"
-                />
+                <PersonSelect id={`new-project-owner-contact-${i}`} people={contactsForCompany(row.company)} value={row.contact} onChange={v => handleOwnerContactChange(i, v)} />
               </div>
               <div>
                 <label className="field-label">Email</label>
