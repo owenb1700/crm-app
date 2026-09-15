@@ -29,6 +29,7 @@ import { bidderDirectoryEntries } from "../../lib/bidders";
 import FirmTypeSelect from "../components/FirmTypeSelect";
 import BuildingSectorSelect from "../components/BuildingSectorSelect";
 import WorkTypeSelect from "../components/WorkTypeSelect";
+import JobPicker from "../components/JobPicker";
 import UserSettingsModal from "../components/UserSettingsModal";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../components/FilterBar";
 import { canViewAnalytics } from "../../lib/analytics";
@@ -350,11 +351,14 @@ export default function Dashboard() {
   };
 
   const openNewReminder = () => {
-    setReminderForm({ subject: "", date: toLocalDateKey(new Date()), notes: "" });
+    setReminderForm({ subject: "", date: toLocalDateKey(new Date()), notes: "", job: "" });
   };
 
+  // A reminder's attached job as a JobPicker key ("project:<id>" / "pipeline:<id>").
+  const jobKeyOf = (r) => (r.projectId ? `project:${r.projectId}` : r.pipelineId ? `pipeline:${r.pipelineId}` : "");
+
   const openEditReminder = (r) => {
-    setReminderForm({ id: r.id, subject: r.subject || "", date: r.date || toLocalDateKey(new Date()), notes: r.notes || "" });
+    setReminderForm({ id: r.id, subject: r.subject || "", date: r.date || toLocalDateKey(new Date()), notes: r.notes || "", job: jobKeyOf(r) });
   };
 
   const saveReminder = async () => {
@@ -366,17 +370,23 @@ export default function Dashboard() {
     // appear on it.
     const date = toLocalDateKey(skipWeekend(fromLocalDateKey(reminderForm.date)));
     const notes = reminderForm.notes.trim() || null;
+    const [jobKind, jobId] = (reminderForm.job || "").split(":");
+    const job = {
+      projectId: jobKind === "project" ? jobId : null,
+      pipelineId: jobKind === "pipeline" ? jobId : null
+    };
 
     setSavingReminder(true);
     try {
       if (reminderForm.id) {
-        await updateDoc(doc(db, "reminders", reminderForm.id), { subject, date, notes });
+        await updateDoc(doc(db, "reminders", reminderForm.id), { subject, date, notes, ...job });
       } else {
         await addDoc(collection(db, "reminders"), {
           userId: uid,
           subject,
           date,
           notes,
+          ...job,
           createdAt: new Date().toISOString()
         });
       }
@@ -1343,12 +1353,49 @@ export default function Dashboard() {
     return [...projectItems, ...pipelineFollowUps, ...bidDates, ...reminderItems];
   }, [customers, pipelineEntries, reminders, uid, role]);
 
+  // Jobs a reminder can be attached to: active projects you own or
+  // collaborate on (every active project for admins) and open pipeline
+  // entries, which the whole team can see.
+  const reminderJobOptions = useMemo(() => {
+    const projects = customers
+      .filter(c => c.category !== "Project Closed")
+      .filter(c => role === "admin" || c.ownerId === uid || (c.collaboratorIds || []).includes(uid))
+      .map(c => ({
+        key: `project:${c.id}`, kind: "project", id: c.id,
+        label: c.projectName || c.company || "Untitled project",
+        sub: [c.projectName && c.company !== c.projectName ? c.company : "", c.projectAddress].filter(Boolean).join(" · ")
+      }));
+    const pipeline = pipelineEntries
+      .filter(p => !p.outcome && !p.convertedToProjectId)
+      .map(p => ({
+        key: `pipeline:${p.id}`, kind: "pipeline", id: p.id,
+        label: p.title || "Untitled pipeline entry",
+        sub: [p.stage, p.bidDate && `Bid ${p.bidDate}`, p.company].filter(Boolean).join(" · ")
+      }));
+    return [...projects, ...pipeline].sort((a, b) => a.label.localeCompare(b.label));
+  }, [customers, pipelineEntries, role, uid]);
+
+  const jobTitleOf = (r) => {
+    if (r.projectId) {
+      const c = customers.find(x => x.id === r.projectId);
+      return c ? (c.projectName || c.company || "Untitled project") : "a project";
+    }
+    if (r.pipelineId) {
+      const p = pipelineEntries.find(x => x.id === r.pipelineId);
+      return p ? (p.title || "Untitled pipeline entry") : "a pipeline entry";
+    }
+    return "";
+  };
+
   // Everything on the Home calendar opens a quick-view popup first; the
   // popup has the item's own actions plus a button to its full page.
   const openCalendarItem = (c) => setCalendarPopup(c);
 
   const calendarItemLink = (c) => {
-    if (c._kind === "reminder") return c.pipelineId ? `/dashboard/pipeline/${c.pipelineId}` : null;
+    if (c._kind === "reminder") {
+      if (c.projectId) return `/dashboard/project/${c.projectId}`;
+      return c.pipelineId ? `/dashboard/pipeline/${c.pipelineId}` : null;
+    }
     return c._kind === "pipeline" || c._kind === "bid" ? `/dashboard/pipeline/${c.id}` : `/dashboard/project/${c.id}`;
   };
 
@@ -1547,7 +1594,10 @@ export default function Dashboard() {
             ) : c._kind === "pipeline" ? (
               <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>✅ Won — Check In</span>
             ) : c._kind === "reminder" ? (
-              <span className="role-badge" style={{ marginTop: 4 }}>{c.pipelineId ? "🔔 My pipeline alert" : "🔔 Reminder"}</span>
+              <>
+                <span className="role-badge" style={{ marginTop: 4 }}>🔔 Reminder</span>
+                {(c.projectId || c.pipelineId) && <div className="customer-meta" style={{ marginTop: 4 }}>For {jobTitleOf(c)}</div>}
+              </>
             ) : (
               c.category && <span className="role-badge" style={{ marginTop: 4 }}>{c.category}</span>
             )}
@@ -1588,12 +1638,13 @@ export default function Dashboard() {
       <div
         key={`reminder-${r.id}`}
         className={`customer-card ${barClass}`}
-        onClick={() => (r.pipelineId ? router.push(`/dashboard/pipeline/${r.pipelineId}`) : openEditReminder(r))}
+        onClick={() => setCalendarPopup({ ...r, _kind: "reminder", projectName: r.subject, nextCheckIn: r.date })}
         style={{ cursor: "pointer" }}
       >
         <div className="customer-card-left">
           <div className="customer-name">{r.subject}</div>
-          <span className="role-badge" style={{ marginTop: 6 }}>{r.pipelineId ? "🔔 My pipeline alert" : "🔔 Reminder"}</span>
+          <span className="role-badge" style={{ marginTop: 6 }}>🔔 Reminder</span>
+          {(r.projectId || r.pipelineId) && <div className="customer-meta" style={{ marginTop: 4 }}>For {jobTitleOf(r)}</div>}
           <div className="customer-dates">Due: {r.date}</div>
         </div>
         <div className="customer-card-middle customer-notes-preview">
@@ -2831,7 +2882,7 @@ export default function Dashboard() {
         const due = String(formatDate(c.nextCheckIn) || "").slice(0, 10);
         const isOwnerOfProject = c._kind === "project" && c.ownerId === uid;
         const kindLabel = c._kind === "reminder"
-          ? (c.pipelineId ? "My pipeline alert" : "Reminder")
+          ? "Reminder"
           : c._kind === "bid" ? `Bid date · ${c.stage || "Pipeline"}`
           : c._kind === "pipeline" ? "Won — check in"
           : isClosedWithCheckIn(c) ? "Closed project check-in"
@@ -2862,15 +2913,21 @@ export default function Dashboard() {
               {c._kind === "reminder" && c.notes && (
                 <p className="calendar-popup-notes">{c.notes}</p>
               )}
+              {c._kind === "reminder" && link && (
+                <p className="calendar-popup-job">
+                  For{" "}
+                  <a className="link-muted" href={link} onClick={e => { e.preventDefault(); setCalendarPopup(null); router.push(link); }}>
+                    {jobTitleOf(c)}
+                  </a>
+                </p>
+              )}
 
               <div className="calendar-popup-actions">
                 {c._kind === "reminder" && (
                   <>
                     <button className="btn btn-secondary" onClick={fromPopup(followUpReminder)}>Follow Up (2 Weeks)</button>
                     <button className="btn btn-primary" onClick={fromPopup(completeReminder)}>Complete</button>
-                    {!c.pipelineId && (
-                      <button className="btn btn-secondary" onClick={fromPopup(openEditReminder)}>Edit</button>
-                    )}
+                    <button className="btn btn-secondary" onClick={fromPopup(openEditReminder)}>Edit</button>
                   </>
                 )}
                 {c._kind === "project" && !isClosedWithCheckIn(c) && isOwnerOfProject && (
@@ -2901,7 +2958,7 @@ export default function Dashboard() {
               {link && (
                 <div className="calendar-popup-footer">
                   <button className="btn btn-secondary" onClick={() => { setCalendarPopup(null); router.push(link); }}>
-                    {c._kind === "project" ? "Open project page →" : "Open pipeline entry →"}
+                    {(c._kind === "project" || c.projectId) ? "Open project page →" : "Open pipeline entry →"}
                   </button>
                 </div>
               )}
@@ -2936,6 +2993,15 @@ export default function Dashboard() {
               value={reminderForm.date}
               onChange={e => setReminderForm({ ...reminderForm, date: e.target.value })}
             />
+
+            <label className="field-label" htmlFor="reminder-job">Attach to a job (optional)</label>
+            <JobPicker id="reminder-job" options={reminderJobOptions} value={reminderForm.job || ""} onChange={v => setReminderForm({ ...reminderForm, job: v })} />
+            {reminderForm.job && !reminderJobOptions.some(o => o.key === reminderForm.job) && (
+              <p className="private-note-hint" style={{ margin: "4px 0 0" }}>
+                Attached to {jobTitleOf({ projectId: reminderForm.job.startsWith("project:") ? reminderForm.job.slice(8) : null, pipelineId: reminderForm.job.startsWith("pipeline:") ? reminderForm.job.slice(9) : null })} (no longer active).{" "}
+                <button type="button" className="link-muted" style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }} onClick={() => setReminderForm({ ...reminderForm, job: "" })}>Remove</button>
+              </p>
+            )}
 
             <label className="field-label" htmlFor="reminder-notes">Notes (optional)</label>
             <textarea

@@ -1338,6 +1338,91 @@ a {
   border-top: 1px solid var(--color-border);
 }
 
+.calendar-popup-job {
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+
+/* Attach-to-a-job picker in Add Reminder. */
+.job-picker {
+  position: relative;
+}
+
+.job-picker-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% - 6px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.job-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.job-picker-option:hover {
+  background: var(--color-bg);
+}
+
+.job-picker-option-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.job-picker-option-sub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.job-picker-empty {
+  padding: 10px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.job-picker-chosen {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.job-picker-chosen-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.job-picker-clear {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.job-reminder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 /* Past-due alerts are carried onto today so they're never off the calendar. */
 .calendar-event-pill.calendar-event-pill-overdue {
   box-shadow: inset 3px 0 0 var(--color-danger);

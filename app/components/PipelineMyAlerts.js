@@ -80,7 +80,7 @@ export default function PipelineMyAlerts({ pipeline, uid }) {
       <h4 className="field-label">My Alerts</h4>
       <p className="private-note-hint" style={{ marginBottom: 10 }}>
         Add your own alert dates for this entry, before or after the bid date{pipeline.bidDate ? ` (${pipeline.bidDate})` : ""}.
-        Only you see these, on your calendar, My Dashboard, and digest emails.
+        Only you see these, on your calendar, My Dashboard, and digest emails. Reminders you attach to this entry from + Add Reminder show here too.
       </p>
 
       {loadError && <p className="settings-status is-error">⚠ Couldn't load your alerts: {loadError}</p>}
@@ -93,6 +93,7 @@ export default function PipelineMyAlerts({ pipeline, uid }) {
               <strong>{a.date}</strong>
               {a.date < today && <span className="role-badge" style={{ marginLeft: 8 }}>Past</span>}
             </div>
+            {a.subject && a.subject !== `Pipeline: ${pipeline.title}` && <div>{a.subject}</div>}
             {a.notes && <div className="notes-history-date" style={{ whiteSpace: "pre-wrap" }}>{a.notes}</div>}
           </div>
           <button className="btn btn-secondary" onClick={() => remove(a.id)}>Remove</button>

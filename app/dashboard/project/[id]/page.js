@@ -30,6 +30,7 @@ import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
+import ProjectMyReminders from "../../../components/ProjectMyReminders";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
@@ -780,7 +781,7 @@ export default function ProjectDetail() {
           </div>
         )}
 
-        <div className={`detail-grid ${isEditing ? "" : "detail-grid-2"}`}>
+        <div className="detail-grid">
           {isEditing && closedCheckInSection}
 
           {isEditing && drawingsSection}
@@ -853,6 +854,8 @@ export default function ProjectDetail() {
             </>
           )}
         </div>
+
+        {uid && <ProjectMyReminders projectId={projectId} uid={uid} />}
         </div>
         </>)}
       </div>
