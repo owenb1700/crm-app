@@ -1301,6 +1301,21 @@ a {
   color: #78350f;
 }
 
+/* Past-due alerts are carried onto today so they're never off the calendar. */
+.calendar-event-pill.calendar-event-pill-overdue {
+  box-shadow: inset 3px 0 0 var(--color-danger);
+}
+
+.calendar-overdue-tag {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+
 .calendar-event-pill:hover {
   background: rgba(47, 91, 234, 0.15);
 }

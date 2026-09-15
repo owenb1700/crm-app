@@ -1342,10 +1342,24 @@ export default function Dashboard() {
     }
   };
 
+  // Which calendar day an alert sits on. The calendar only has weekdays
+  // from this week on, so nothing is left off it: anything overdue shows on
+  // today, and a Saturday/Sunday date shows on the Monday after.
+  const calendarKeyFor = (c) => {
+    const due = String(formatDate(c.nextCheckIn) || "").slice(0, 10);
+    if (!due) return "";
+    const todayKey = toLocalDateKey(new Date());
+    return toLocalDateKey(skipWeekend(fromLocalDateKey(due < todayKey ? todayKey : due)));
+  };
+  const isOverdueItem = (c) => {
+    const due = String(formatDate(c.nextCheckIn) || "").slice(0, 10);
+    return !!due && due < toLocalDateKey(new Date());
+  };
+
   const projectsByDay = useMemo(() => {
     const map = {};
     myCalendarProjects.forEach(c => {
-      const key = formatDate(c.nextCheckIn);
+      const key = calendarKeyFor(c);
       if (!key) return;
       if (!map[key]) map[key] = [];
       map[key].push(c);
@@ -1361,7 +1375,7 @@ export default function Dashboard() {
     }
     const weekSet = new Set(weekKeys);
     return myCalendarProjects
-      .filter(c => weekSet.has(formatDate(c.nextCheckIn)))
+      .filter(c => weekSet.has(calendarKeyFor(c)))
       .sort((a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn));
   }, [selectedCalendarDay, projectsByDay, weekKeys, myCalendarProjects]);
 
@@ -1503,7 +1517,10 @@ export default function Dashboard() {
             {c._kind === "reminder" && c.notes && (
               <div className="customer-meta" style={{ whiteSpace: "pre-wrap" }}>{c.notes}</div>
             )}
-            <div className="customer-dates">Due: {formatDate(c.nextCheckIn)}</div>
+            <div className="customer-dates">
+              Due: {String(formatDate(c.nextCheckIn)).slice(0, 10)}
+              {isOverdueItem(c) && <span className="calendar-overdue-tag">Overdue</span>}
+            </div>
             {c._kind === "bid" ? (
               <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>Bid date · {c.stage}</span>
             ) : c._kind === "pipeline" ? (
@@ -1878,7 +1895,7 @@ export default function Dashboard() {
                       {dayProjects.slice(0, 3).map(c => (
                         <div
                           key={`${c._kind}-${c.id}`}
-                          className={`calendar-event-pill ${c._kind === "reminder" ? "calendar-event-pill-reminder" : ""}`}
+                          className={`calendar-event-pill ${c._kind === "reminder" ? "calendar-event-pill-reminder" : ""} ${isOverdueItem(c) ? "calendar-event-pill-overdue" : ""}`}
                           onClick={(e) => { e.stopPropagation(); openCalendarItem(c); }}
                         >
                           {c.projectName || c.company}
