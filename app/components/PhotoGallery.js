@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "../../lib/firebase";
@@ -12,7 +13,12 @@ import ConfirmDialog from "./ConfirmDialog";
 // or deleted by whoever uploaded it or by `canManageAll` (owner / admin).
 // Each photo is its own document in the entry's `photos` subcollection with
 // a date (defaults to when the photo was taken) and an optional caption.
-export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canManageAll }) {
+//
+// On a record's own page only the newest `limit` photos are shown, with a
+// button through to the full gallery; the gallery passes limit={0} to show
+// everything. The viewer always pages through every photo.
+export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canManageAll, limit = 4, showGalleryLink = true }) {
+  const router = useRouter();
   const collectionName = kind === "project" ? "customers" : "pipeline";
   const photosCol = () => collection(db, collectionName, recordId, "photos");
 
@@ -115,6 +121,10 @@ export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canM
     }
   };
 
+  // The page shows the newest few; the gallery (limit 0) shows them all.
+  const shown = limit ? photos.slice(0, limit) : photos;
+  const hidden = photos.length - shown.length;
+
   const viewIndex = viewId ? photos.findIndex(p => p.id === viewId) : -1;
   const viewing = viewIndex >= 0 ? photos[viewIndex] : null;
   const showAt = (i) => {
@@ -166,13 +176,22 @@ export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canM
 
   return (
     <div
-      className={`project-section detail-span-full photo-section ${dragOver ? "is-drag-over" : ""}`}
+      className={`project-section detail-span-full photo-section ${limit ? "" : "is-gallery"} ${dragOver ? "is-drag-over" : ""}`}
       onDragOver={canAdd ? (e) => { e.preventDefault(); setDragOver(true); } : undefined}
       onDragLeave={canAdd ? () => setDragOver(false) : undefined}
       onDrop={canAdd ? (e) => { e.preventDefault(); setDragOver(false); choose(e.dataTransfer.files); } : undefined}
     >
       <div className="photo-section-head">
         <h4 className="field-label" style={{ margin: 0 }}>Photos{photos.length ? ` (${photos.length})` : ""}</h4>
+        {showGalleryLink && photos.length > 0 && (
+          <button
+            type="button"
+            className="btn btn-secondary photo-gallery-link"
+            onClick={() => router.push(`/dashboard/photos?kind=${kind}&id=${recordId}`)}
+          >
+            Full gallery
+          </button>
+        )}
         {canAdd && (
           <>
             <input
@@ -199,7 +218,7 @@ export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canM
 
       {photos.length > 0 && (
         <div className="photo-grid">
-          {photos.map((p, i) => (
+          {shown.map(p => (
             <button key={p.id} type="button" className="photo-tile" onClick={() => setViewId(p.id)}>
               <img src={p.url} alt={p.caption || `Photo from ${p.date}`} loading="lazy" />
               <span className="photo-tile-meta">
@@ -209,6 +228,19 @@ export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canM
             </button>
           ))}
         </div>
+      )}
+
+      {hidden > 0 && (
+        <p className="private-note-hint" style={{ marginTop: 10 }}>
+          Showing the {shown.length} most recent.{" "}
+          <button
+            type="button"
+            className="matching-select-link"
+            onClick={() => router.push(`/dashboard/photos?kind=${kind}&id=${recordId}`)}
+          >
+            See all {photos.length} in the full gallery
+          </button>
+        </p>
       )}
 
       {/* Date + caption for each photo before uploading */}
