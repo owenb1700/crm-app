@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/send-digests",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/backup",
+      "schedule": "0 8 * * *"
     }
   ]
 }
