@@ -893,6 +893,7 @@ export default function ProjectDetail() {
             myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
             canAdd={isOwner || isCollaborator || role === "admin"}
             canManageAll={isOwner || role === "admin"}
+            limit={5}
           />
         )}
 
