@@ -17,6 +17,8 @@ import { blankProductRow, productRowsForStorage, isTowerRow } from "../../../../
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
 import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "../../../components/DirectoryPickers";
+import CreditSplitEditor from "../../../components/CreditSplitEditor";
+import { normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
@@ -53,6 +55,7 @@ export default function NewPipelineEntry() {
   const [biddingCompanies, setBiddingCompanies] = useState([]);
   const [salespersonId, setSalespersonId] = useState("");
   const [projectPointPersonId, setProjectPointPersonId] = useState("");
+  const [splits, setSplits] = useState([]);
   const [equipmentRows, setEquipmentRows] = useState([blankProductRow()]);
   const [notes, setNotes] = useState("");
 
@@ -168,6 +171,10 @@ export default function NewPipelineEntry() {
     if (!workType) {
       return alert("Please select a work type (new installation, replacement, or repair)");
     }
+    const splitProblem = splitError(splits);
+    if (splitProblem) {
+      return alert(splitProblem);
+    }
     // Every bidder needs one of our salespeople assigned to it.
     const missingSalesperson = bidderMissingSalesperson(biddingCompanies);
     if (missingSalesperson) {
@@ -199,7 +206,9 @@ export default function NewPipelineEntry() {
         modelNumber: firstEquipment.model || null,
         salespersonId: salespersonId || null,
         projectPointPersonId: projectPointPersonId || null,
-        trackedByIds: [],
+        splits: normalizeSplits(splits),
+        // Everyone on the split works the entry, same as adding it to their dashboard.
+        trackedByIds: withSplitMembers([], splits),
         outcome: null,
         wonByContractor: null,
         nextCheckIn: null,
@@ -348,6 +357,9 @@ export default function NewPipelineEntry() {
               </select>
             </div>
           </div>
+
+          <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split (optional)</h4>
+          <CreditSplitEditor idPrefix="new-pipeline-split" users={users} value={splits} onChange={setSplits} />
         </div>
 
         <div className="project-section">

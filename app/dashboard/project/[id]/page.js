@@ -33,6 +33,8 @@ import MobileNav from "../../../components/MobileNav";
 import ProjectMyReminders from "../../../components/ProjectMyReminders";
 import { isTrashed } from "../../../../lib/trash";
 import PhotoGallery from "../../../components/PhotoGallery";
+import CreditSplitEditor from "../../../components/CreditSplitEditor";
+import { describeSplit, normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
@@ -86,6 +88,7 @@ export default function ProjectDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
   const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
+  const [splitRows, setSplitRows] = useState([]);
   const [ownerRows, setOwnerRows] = useState([]);
   const [activeTab, setActiveTab] = useState("details"); // "details" | "bid"
   const [legacyBid, setLegacyBid] = useState(null);
@@ -250,6 +253,7 @@ export default function ProjectDetail() {
     });
     setEquipmentRows(equipmentRowsFrom(customer));
     setOwnerRows(customer.owners || []);
+    setSplitRows(normalizeSplits(customer.splits));
     setIsEditing(true);
   };
 
@@ -280,6 +284,10 @@ export default function ProjectDetail() {
     if (missing.length) {
       return alert(`Please fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
     }
+    const splitProblem = splitError(splitRows);
+    if (splitProblem) {
+      return alert(splitProblem);
+    }
 
     const payload = {};
     EDITABLE_FIELDS.forEach(f => {
@@ -289,6 +297,9 @@ export default function ProjectDetail() {
     const equipment = equipmentRows.filter(r => r.type || r.manufacturer || r.model || r.serial || r.yearInstalled);
     const first = equipment[0] || {};
     payload.equipment = equipment;
+    payload.splits = normalizeSplits(splitRows);
+    // Everyone on the split works the project, like a collaborator.
+    payload.collaboratorIds = withSplitMembers(customer.collaboratorIds, splitRows, customer.ownerId);
     payload.equipmentType = first.type || null;
     payload.towerManufacturer = first.manufacturer || null;
     payload.modelNumber = first.model || null;
@@ -619,7 +630,12 @@ export default function ProjectDetail() {
                 <label className="field-label" htmlFor="project-detail-value">Project Value</label>
                 <input id="project-detail-value" className="field" name="detail-projectValue" autoComplete="off" value={editData.projectValue} onChange={e => setEditData({ ...editData, projectValue: e.target.value })} />
               </div>
-              <WorkTypeSelect id="project-detail-work-type" value={editData.workType} onChange={v => setEditData({ ...editData, workType: v })} />
+              <WorkTypeSelect id="project-detail-work-type" value={editData.workType} onChange={v => setEditData(prev => ({ ...prev, workType: v }))} />
+            </div>
+
+            <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split</h4>
+            <CreditSplitEditor idPrefix="project-detail-split" users={users} value={splitRows} onChange={setSplitRows} ownerLabel="the project owner" />
+            <div className="form-grid-3">
               <div>
                 <label className="field-label">Project Address (required)</label>
                 <AddressAutocomplete name="detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
@@ -736,6 +752,7 @@ export default function ProjectDetail() {
                 <dt>Last Contact</dt><dd>{formatDate(customer.lastContact) || "—"}</dd>
                 <dt>Sector</dt><dd>{customer.buildingSector || "—"}</dd>
                 <dt>Value</dt><dd>{customer.projectValue || "—"}</dd>
+                <dt>Credit Split</dt><dd>{normalizeSplits(customer.splits).length ? describeSplit(customer.splits, ownerLabel) : "Not split"}</dd>
                 <dt>Work Type</dt><dd>{customer.workType || "—"}</dd>
               </dl>
             </div>

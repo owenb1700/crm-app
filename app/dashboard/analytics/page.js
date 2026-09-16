@@ -6,7 +6,8 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { BUILDING_SECTORS, WORK_TYPES } from "../../../lib/directory";
-import { canViewAnalytics, summarizeMixed, summarizeProjects, combinedBreakdown, breakdown, breakdownMulti, manufacturersOf, bidForecast, outcomesByMonth, formatMoney, parseMoney, statusOf } from "../../../lib/analytics";
+import { canViewAnalytics, summarizeMixed, summarizeProjects, combinedBreakdown, byPersonWeighted, breakdown, breakdownMulti, manufacturersOf, bidForecast, outcomesByMonth, formatMoney, parseMoney, statusOf } from "../../../lib/analytics";
+import { hasShare, splitShares } from "../../../lib/splits";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
 import { bidRecords, decodeFilters, encodeFilters, repairRecords, volumeRecords } from "../../../lib/analyticsFilters";
 import ExportButtons from "../../components/ExportButtons";
@@ -181,6 +182,13 @@ function OutcomesChart({ buckets }) {
   );
 }
 
+// Counts can be fractional when a job is shared (half a job each on a
+// 50/50 split), so they're shown to one decimal.
+const count1 = (n) => {
+  const rounded = Math.round((n || 0) * 10) / 10;
+  return Number.isInteger(rounded) ? rounded : rounded.toFixed(1);
+};
+
 // Pipeline and projects side by side for one grouping (work type, person).
 function CombinedTable({ title, sub, rows, nameHeader, filename }) {
   const exportRows = (format) => downloadTable({
@@ -188,10 +196,10 @@ function CombinedTable({ title, sub, rows, nameHeader, filename }) {
     filename: `${filename}-${csvDateStamp()}`,
     headers: [nameHeader, "Pipeline entries", "Won", "Lost", "Win rate %", "Won volume", "Open volume", "Projects", "Ongoing", "Closed", "Project volume"],
     rows: rows.map(r => [
-      r.label || r.key, r.pipeline.total, r.pipeline.won, r.pipeline.lost,
+      r.label || r.key, count1(r.pipeline.total), count1(r.pipeline.won), count1(r.pipeline.lost),
       r.pipeline.winRate === null ? "" : Math.round(r.pipeline.winRate * 1000) / 10,
       Math.round(r.pipeline.volume.won), Math.round(r.pipeline.volume.open),
-      r.projects.count, r.projects.ongoing, r.projects.closed, Math.round(r.projects.volume)
+      count1(r.projects.count), count1(r.projects.ongoing), count1(r.projects.closed), Math.round(r.projects.volume)
     ])
   });
 
@@ -226,9 +234,9 @@ function CombinedTable({ title, sub, rows, nameHeader, filename }) {
               {rows.map(r => (
                 <tr key={r.key}>
                   <td className="analytics-table-name" data-label={nameHeader}>{r.label || r.key}</td>
-                  <td data-label="Pipeline">{r.pipeline.total}</td>
-                  <td data-label="Won">{r.pipeline.won}</td>
-                  <td data-label="Lost">{r.pipeline.lost}</td>
+                  <td data-label="Pipeline">{count1(r.pipeline.total)}</td>
+                  <td data-label="Won">{count1(r.pipeline.won)}</td>
+                  <td data-label="Lost">{count1(r.pipeline.lost)}</td>
                   <td data-label="Win rate">
                     <div className="win-rate-cell">
                       <span>{pct(r.pipeline.winRate)}</span>
@@ -240,8 +248,8 @@ function CombinedTable({ title, sub, rows, nameHeader, filename }) {
                     </div>
                   </td>
                   <td data-label="Won volume">{formatMoney(r.pipeline.volume.won)}</td>
-                  <td data-label="Projects">{r.projects.count}</td>
-                  <td data-label="Ongoing">{r.projects.ongoing}</td>
+                  <td data-label="Projects">{count1(r.projects.count)}</td>
+                  <td data-label="Ongoing">{count1(r.projects.ongoing)}</td>
                   <td data-label="Project volume">{formatMoney(r.projects.volume)}</td>
                 </tr>
               ))}
@@ -417,7 +425,7 @@ function AnalyticsPageContent() {
   const filtered = useMemo(() => (filters.show === "projects" ? [] : entries)
     .filter(e => !filters.sector || e.buildingSector === filters.sector)
     .filter(e => !filters.workType || e.workType === filters.workType)
-    .filter(e => !filters.person || salespersonOf(e) === filters.person)
+    .filter(e => !filters.person || salespersonOf(e) === filters.person || hasShare(e, filters.person))
     .filter(e => !filters.stage || e.stage === filters.stage)
     .filter(e => matchesDateFilter(e.createdAt, filters.created)),
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -427,7 +435,7 @@ function AnalyticsPageContent() {
   const filteredProjects = useMemo(() => (filters.show === "pipeline" || filters.stage ? [] : projects)
     .filter(p => !filters.sector || p.buildingSector === filters.sector)
     .filter(p => !filters.workType || p.workType === filters.workType)
-    .filter(p => !filters.person || projectSalespersonOf(p) === filters.person)
+    .filter(p => !filters.person || projectSalespersonOf(p) === filters.person || hasShare(p, filters.person))
     .filter(p => !filters.status || p.category === filters.status)
     .filter(p => matchesDateFilter(p.createdAt, filters.created)),
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -446,14 +454,19 @@ function AnalyticsPageContent() {
   const byFirm = useMemo(() => breakdown(filtered, e => e.company), [filtered]);
   const byManufacturer = useMemo(() => breakdownMulti(filtered, manufacturersOf), [filtered]);
   const forecast = useMemo(() => bidForecast(filtered), [filtered]);
+  // A shared job counts for each person by their share of the split; shares
+  // landing on a non-sales account roll into Unassigned / non-sales.
+  const sharesOf = (record, fallbackId) =>
+    splitShares(record, fallbackId).map(s => ({ ...s, userId: creditedTo(s.userId) }));
+
   const byPerson = useMemo(
-    () => combinedBreakdown({
+    () => byPersonWeighted({
       entries: filtered,
       projects: filteredProjects,
-      entryKeyOf: e => creditedTo(salespersonOf(e)),
-      projectKeyOf: p => creditedTo(projectSalespersonOf(p)),
+      sharesOfEntry: e => sharesOf(e, salespersonOf(e)),
+      sharesOfProject: p => sharesOf(p, projectSalespersonOf(p)),
       // Every salesperson shows up, even at zero.
-      keys: salesUsers.map(u => u.id),
+      people: salesUsers.map(u => u.id),
       labelOf: (key) => (key === "Not set" ? "Unassigned / non-sales" : personLabel(key))
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -701,7 +714,7 @@ function AnalyticsPageContent() {
         title="By salesperson"
         nameHeader="Salesperson"
         filename="by-salesperson"
-        sub="Pipeline entries count for the assigned salesperson (or whoever created them); projects count for their owner. Admins and the Estimating Department aren't tracked as salespeople -- their entries show under Unassigned / non-sales."
+        sub="Pipeline entries count for the assigned salesperson (or whoever created them); projects count for their owner. A job with a credit split counts for each person by their share, so shared work shows as a fraction. Admins and the Estimating Department aren't tracked as salespeople -- their share shows under Unassigned / non-sales."
         rows={byPerson}
       />
       <BreakdownTable title="By sector (pipeline)" nameHeader="Sector" filename="by-sector" sub="Entries missing a sector show as Not set." rows={bySector} />

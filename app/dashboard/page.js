@@ -48,6 +48,7 @@ import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, roleLabel, accessSummary } from "
 import { FirmSelect } from "../components/DirectoryPickers";
 import GlobalSearch from "../components/GlobalSearch";
 import RemindersMenu from "../components/RemindersMenu";
+import { hasShare, splitShares } from "../../lib/splits";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -1125,7 +1126,7 @@ export default function Dashboard() {
 
   const filteredCustomers = useMemo(() => {
     let list = customers.filter(c =>
-      (c.ownerId === uid || (c.collaboratorIds || []).includes(uid)) &&
+      (c.ownerId === uid || (c.collaboratorIds || []).includes(uid) || hasShare(c, uid)) &&
       c.category !== "Project Closed"
     );
 
@@ -1151,7 +1152,8 @@ export default function Dashboard() {
         p.ownerId === uid ||
         p.salespersonId === uid ||
         p.projectPointPersonId === uid ||
-        (p.trackedByIds || []).includes(uid)
+        (p.trackedByIds || []).includes(uid) ||
+        hasShare(p, uid)
       )
       .filter(p => !p.convertedToProjectId && !p.outcome)
       .sort((a, b) => (a.bidDate || "").localeCompare(b.bidDate || ""));
@@ -1543,7 +1545,7 @@ export default function Dashboard() {
   ];
 
   const myActiveProjects = customers.filter(c =>
-    (c.ownerId === uid || (c.collaboratorIds || []).includes(uid)) && c.category !== "Project Closed"
+    (c.ownerId === uid || (c.collaboratorIds || []).includes(uid) || hasShare(c, uid)) && c.category !== "Project Closed"
   );
   const personalFilterDefs = [
     sectorFilter,

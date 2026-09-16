@@ -1123,6 +1123,47 @@ a {
   margin-bottom: 10px;
 }
 
+/* Credit split editor (projects and pipeline entries). */
+.credit-split-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 8px;
+}
+
+.credit-split-row .field {
+  margin-bottom: 0;
+}
+
+.credit-split-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.credit-split-total {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.credit-split-total.is-error {
+  color: var(--color-danger);
+}
+
+@media (max-width: 640px) {
+  .credit-split-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .credit-split-row > .btn {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
 /* Analytics tiles open the records behind their number. */
 .stat-tile-button {
   display: flex;

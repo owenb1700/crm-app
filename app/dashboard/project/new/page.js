@@ -15,6 +15,8 @@ import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
 import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "../../../components/DirectoryPickers";
+import CreditSplitEditor from "../../../components/CreditSplitEditor";
+import { normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
@@ -52,6 +54,7 @@ export default function NewProject() {
   const [buildingSector, setBuildingSector] = useState("");
   const [projectValue, setProjectValue] = useState("");
   const [workType, setWorkType] = useState("");
+  const [splits, setSplits] = useState([]);
   const [nextDate, setNextDate] = useState("");
   const [projectAddress, setProjectAddress] = useState("");
   const [notes, setNotes] = useState("");
@@ -204,6 +207,10 @@ export default function NewProject() {
     if (missing.length) {
       return alert(`Please fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
     }
+    const splitProblem = splitError(splits);
+    if (splitProblem) {
+      return alert(splitProblem);
+    }
 
     setSaving(true);
     try {
@@ -234,7 +241,9 @@ export default function NewProject() {
         lastContact: new Date().toISOString().split("T")[0],
         activityLog: [],
         ownerId: uid,
-        collaboratorIds: [],
+        splits: normalizeSplits(splits),
+        // Everyone on the split works the project, like a collaborator.
+        collaboratorIds: withSplitMembers([], splits, uid),
         createdAt: new Date().toISOString()
       });
 
@@ -328,6 +337,11 @@ export default function NewProject() {
 
           <input className="field" autoComplete="off" placeholder="Project Value" value={projectValue} onChange={e => setProjectValue(e.target.value)} />
           <WorkTypeSelect id="new-project-work-type" value={workType} onChange={setWorkType} />
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label className="field-label">Credit Split (optional)</label>
+            <CreditSplitEditor idPrefix="new-project-split" users={users} value={splits} onChange={setSplits} ownerLabel="you" />
+          </div>
 
           <div>
             <label className="field-label">Next Date</label>

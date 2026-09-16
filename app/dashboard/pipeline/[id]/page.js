@@ -36,6 +36,8 @@ import { isTrashed } from "../../../../lib/trash";
 import PhotoGallery from "../../../components/PhotoGallery";
 import { FirmSelect } from "../../../components/DirectoryPickers";
 import { sameCompany } from "../../../../lib/companyMatch";
+import CreditSplitEditor from "../../../components/CreditSplitEditor";
+import { describeSplit, normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
@@ -76,6 +78,7 @@ export default function PipelineDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
   const [biddingRows, setBiddingRows] = useState([]);
+  const [splitRows, setSplitRows] = useState([]);
   const [productRows, setProductRows] = useState([]);
 
   const [uploading, setUploading] = useState(false);
@@ -233,6 +236,7 @@ export default function PipelineDetail() {
       projectPointPersonId: pipeline.projectPointPersonId || ""
     });
     setBiddingRows(bidderRowsForEditing(pipeline.biddingCompanies));
+    setSplitRows(normalizeSplits(pipeline.splits));
     const rows = productRowsFrom(pipeline);
     setProductRows(rows.length ? rows : [blankProductRow()]);
     setIsEditing(true);
@@ -255,6 +259,10 @@ export default function PipelineDetail() {
     if (!editData.workType) {
       return alert("Please select a work type (new installation, replacement, or repair)");
     }
+    const splitProblem = splitError(splitRows);
+    if (splitProblem) {
+      return alert(splitProblem);
+    }
     // Every bidder needs one of our salespeople assigned to it.
     const missingSalesperson = bidderMissingSalesperson(biddingRows);
     if (missingSalesperson) {
@@ -267,6 +275,9 @@ export default function PipelineDetail() {
     });
     // One row per firm, with all of that firm's people grouped under it.
     payload.biddingCompanies = biddersForStorage(biddingRows);
+    payload.splits = normalizeSplits(splitRows);
+    // Everyone on the split works the entry, so it shows on their dashboard.
+    payload.trackedByIds = withSplitMembers(pipeline.trackedByIds, splitRows);
     // Products quoted; not installed yet, so never a serial number. The
     // first row is mirrored into the older single-product fields.
     payload.equipment = productRowsForStorage(productRows);
@@ -512,7 +523,8 @@ export default function PipelineDetail() {
         lastContact: now.split("T")[0],
         activityLog: [{ type: "converted", outcome: "From won pipeline entry", notes: `Converted by ${myName}`, timestamp: now }],
         ownerId: convertData.salespersonId,
-        collaboratorIds: [],
+        splits: normalizeSplits(pipeline.splits),
+        collaboratorIds: withSplitMembers([], pipeline.splits, convertData.salespersonId),
         projectPointPersonId: pipeline.projectPointPersonId || null,
         sourcePipelineId: pipeline.id,
         bidHistory: buildBidSnapshot(pipeline),
@@ -777,6 +789,9 @@ export default function PipelineDetail() {
               </div>
             </div>
 
+            <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split</h4>
+            <CreditSplitEditor idPrefix="pipeline-detail-split" users={users} value={splitRows} onChange={setSplitRows} />
+
             <h4 className="field-label" style={{ marginTop: 16 }}>Contractors & Owners Bidding</h4>
             <BidderEditor
               idPrefix="pipeline-detail-bidder"
@@ -802,6 +817,7 @@ export default function PipelineDetail() {
                   <dt>Sector</dt><dd>{pipeline.buildingSector || "—"}</dd>
                   <dt>Salesperson</dt><dd>{pipeline.salespersonId ? ownerLabel(pipeline.salespersonId) : "Unassigned"}</dd>
                   <dt>Point Person</dt><dd>{pipeline.projectPointPersonId ? ownerLabel(pipeline.projectPointPersonId) : "Unassigned"}</dd>
+                  <dt>Credit Split</dt><dd>{normalizeSplits(pipeline.splits).length ? describeSplit(pipeline.splits, ownerLabel) : "Not split"}</dd>
                 </dl>
               </div>
 
