@@ -1123,6 +1123,35 @@ a {
   margin-bottom: 10px;
 }
 
+/* Analytics tiles open the records behind their number. */
+.stat-tile-button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stat-tile-button:hover,
+.stat-tile-button:focus-visible {
+  border-color: var(--color-primary);
+}
+
+.stat-tile-open {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary);
+  opacity: 0;
+}
+
+.stat-tile-button:hover .stat-tile-open,
+.stat-tile-button:focus-visible .stat-tile-open {
+  opacity: 1;
+}
+
 /* Reminders button + search, together at the end of the tab row. */
 .header-tools {
   display: flex;

@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { BUILDING_SECTORS, WORK_TYPES } from "../../../lib/directory";
 import { canViewAnalytics, summarize, summarizeProjects, combinedBreakdown, breakdown, breakdownMulti, manufacturersOf, bidForecast, outcomesByMonth, formatMoney, parseMoney, statusOf } from "../../../lib/analytics";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
+import { decodeFilters, encodeFilters } from "../../../lib/analyticsFilters";
 import ExportButtons from "../../components/ExportButtons";
 import DashboardHeader from "../../components/DashboardHeader";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../../components/FilterBar";
@@ -42,13 +43,24 @@ const exportBreakdown = (filename, nameHeader, rows, format) => downloadTable({
   ])
 });
 
-function StatTile({ label, value, sub }) {
+// Every tile opens the records behind its number (see /analytics/details).
+function StatTile({ label, value, sub, metric, onOpen }) {
+  if (!metric) {
+    return (
+      <div className="stat-tile">
+        <div className="stat-tile-label">{label}</div>
+        <div className="stat-tile-value">{value}</div>
+        {sub && <div className="stat-tile-sub">{sub}</div>}
+      </div>
+    );
+  }
   return (
-    <div className="stat-tile">
-      <div className="stat-tile-label">{label}</div>
-      <div className="stat-tile-value">{value}</div>
-      {sub && <div className="stat-tile-sub">{sub}</div>}
-    </div>
+    <button type="button" className="stat-tile stat-tile-button" onClick={() => onOpen(metric)}>
+      <span className="stat-tile-label">{label}</span>
+      <span className="stat-tile-value">{value}</span>
+      {sub && <span className="stat-tile-sub">{sub}</span>}
+      <span className="stat-tile-open">See the records →</span>
+    </button>
   );
 }
 
@@ -300,7 +312,7 @@ function BreakdownTable({ title, sub, rows, nameHeader, filename }) {
   );
 }
 
-export default function AnalyticsPage() {
+function AnalyticsPageContent() {
   const router = useRouter();
   const [uid, setUid] = useState(null);
   const [allowed, setAllowed] = useState(null); // null = checking
@@ -313,7 +325,15 @@ export default function AnalyticsPage() {
   const [entries, setEntries] = useState([]);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
-  const [filters, setFilters] = useState({});
+  // Coming back from a tile's records keeps whatever was filtered there.
+  const searchParams = useSearchParams();
+  const [filters, setFilters] = useState(() => decodeFilters(searchParams.get("f")));
+
+  // Opening a tile carries the filters along, so the list matches the number.
+  const openMetric = (metric) => {
+    const f = encodeFilters(filters);
+    router.push(`/dashboard/analytics/details?metric=${metric}${f ? `&f=${f}` : ""}`);
+  };
 
   useEffect(() => {
     let timer;
@@ -537,22 +557,22 @@ export default function AnalyticsPage() {
 
       <h2 className="analytics-section-title">Bids</h2>
       <div className="stat-row">
-        <StatTile label="Total entries" value={stats.total} sub={anyFilter ? "Matching filters" : "All pipeline entries"} />
-        <StatTile label="Bid on" value={stats.bidOn} sub="Everything except Did Not Bid" />
-        <StatTile label="Won" value={stats.won} />
-        <StatTile label="Lost" value={stats.lost} />
-        <StatTile label="Did Not Bid" value={stats.dnb} />
-        <StatTile label="Still open" value={stats.open} />
-        <StatTile label="Win rate" value={pct(stats.winRate)} sub={stats.decided ? `${stats.won} of ${stats.decided} decided bids` : "No decided bids yet"} />
+        <StatTile label="Total entries" value={stats.total} sub={anyFilter ? "Matching filters" : "All pipeline entries"} metric="total" onOpen={openMetric} />
+        <StatTile label="Bid on" value={stats.bidOn} sub="Everything except Did Not Bid" metric="bidOn" onOpen={openMetric} />
+        <StatTile label="Won" value={stats.won} metric="won" onOpen={openMetric} />
+        <StatTile label="Lost" value={stats.lost} metric="lost" onOpen={openMetric} />
+        <StatTile label="Did Not Bid" value={stats.dnb} metric="dnb" onOpen={openMetric} />
+        <StatTile label="Still open" value={stats.open} metric="open" onOpen={openMetric} />
+        <StatTile label="Win rate" value={pct(stats.winRate)} sub={stats.decided ? `${stats.won} of ${stats.decided} decided bids` : "No decided bids yet"} metric="winRate" onOpen={openMetric} />
       </div>
 
       <h2 className="analytics-section-title">Volume</h2>
       <div className="stat-row">
-        <StatTile label="Total bid volume" value={formatMoney(stats.volume.total)} />
-        <StatTile label="Won volume" value={formatMoney(stats.volume.won)} />
-        <StatTile label="Lost volume" value={formatMoney(stats.volume.lost)} />
-        <StatTile label="Open volume" value={formatMoney(stats.volume.open)} sub="Still in the pipeline" />
-        <StatTile label="Avg. won job" value={stats.avgWonValue ? formatMoney(stats.avgWonValue) : "—"} />
+        <StatTile label="Total bid volume" value={formatMoney(stats.volume.total)} metric="volumeTotal" onOpen={openMetric} />
+        <StatTile label="Won volume" value={formatMoney(stats.volume.won)} metric="volumeWon" onOpen={openMetric} />
+        <StatTile label="Lost volume" value={formatMoney(stats.volume.lost)} metric="volumeLost" onOpen={openMetric} />
+        <StatTile label="Open volume" value={formatMoney(stats.volume.open)} sub="Still in the pipeline" metric="volumeOpen" onOpen={openMetric} />
+        <StatTile label="Avg. won job" value={stats.avgWonValue ? formatMoney(stats.avgWonValue) : "—"} metric="avgWon" onOpen={openMetric} />
       </div>
       {stats.missingValue > 0 && (
         <p className="private-note-hint" style={{ marginTop: -4 }}>
@@ -562,11 +582,11 @@ export default function AnalyticsPage() {
 
       <h2 className="analytics-section-title">Projects</h2>
       <div className="stat-row">
-        <StatTile label="Projects" value={projectStats.count} sub={anyFilter ? "Matching filters" : "All projects"} />
-        <StatTile label="Ongoing" value={projectStats.ongoing} />
-        <StatTile label="Closed" value={projectStats.closed} />
-        <StatTile label="Project volume" value={formatMoney(projectStats.volume)} />
-        <StatTile label="Avg. project" value={projectStats.avgValue ? formatMoney(projectStats.avgValue) : "—"} />
+        <StatTile label="Projects" value={projectStats.count} sub={anyFilter ? "Matching filters" : "All projects"} metric="projects" onOpen={openMetric} />
+        <StatTile label="Ongoing" value={projectStats.ongoing} metric="projectsOngoing" onOpen={openMetric} />
+        <StatTile label="Closed" value={projectStats.closed} metric="projectsClosed" onOpen={openMetric} />
+        <StatTile label="Project volume" value={formatMoney(projectStats.volume)} metric="projectVolume" onOpen={openMetric} />
+        <StatTile label="Avg. project" value={projectStats.avgValue ? formatMoney(projectStats.avgValue) : "—"} metric="avgProject" onOpen={openMetric} />
       </div>
       {projectStats.missingValue > 0 && (
         <p className="private-note-hint" style={{ marginTop: -4 }}>
@@ -584,6 +604,8 @@ export default function AnalyticsPage() {
               label={w.label}
               value={formatMoney(w.volume)}
               sub={`${w.count} open ${w.count === 1 ? "entry" : "entries"}${k === "pastDue" && w.count ? " still need an outcome" : ""}`}
+              metric={`forecast${k[0].toUpperCase()}${k.slice(1)}`}
+              onOpen={openMetric}
             />
           );
         })}
@@ -687,5 +709,13 @@ export default function AnalyticsPage() {
         rows={byManufacturer}
       />
     </div>
+  );
+}
+
+export default function AnalyticsPage() {
+  return (
+    <Suspense fallback={<div className="dashboard-page">Loading...</div>}>
+      <AnalyticsPageContent />
+    </Suspense>
   );
 }
