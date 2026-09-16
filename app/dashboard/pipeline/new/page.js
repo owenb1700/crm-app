@@ -359,7 +359,7 @@ export default function NewPipelineEntry() {
           </div>
 
           <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split (optional)</h4>
-          <CreditSplitEditor idPrefix="new-pipeline-split" users={users} value={splits} onChange={setSplits} />
+          <CreditSplitEditor idPrefix="new-pipeline-split" users={users} value={splits} onChange={setSplits} ownerId={salespersonId || uid} />
         </div>
 
         <div className="project-section">

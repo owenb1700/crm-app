@@ -340,7 +340,7 @@ export default function NewProject() {
 
           <div style={{ gridColumn: "1 / -1" }}>
             <label className="field-label">Credit Split (optional)</label>
-            <CreditSplitEditor idPrefix="new-project-split" users={users} value={splits} onChange={setSplits} ownerLabel="you" />
+            <CreditSplitEditor idPrefix="new-project-split" users={users} value={splits} onChange={setSplits} ownerId={uid} ownerLabel="you" />
           </div>
 
           <div>

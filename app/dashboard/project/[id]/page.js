@@ -634,7 +634,7 @@ export default function ProjectDetail() {
             </div>
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split</h4>
-            <CreditSplitEditor idPrefix="project-detail-split" users={users} value={splitRows} onChange={setSplitRows} ownerLabel="the project owner" />
+            <CreditSplitEditor idPrefix="project-detail-split" users={users} value={splitRows} onChange={setSplitRows} ownerId={customer.ownerId} ownerLabel="the project owner" />
             <div className="form-grid-3">
               <div>
                 <label className="field-label">Project Address (required)</label>

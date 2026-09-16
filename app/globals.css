@@ -1132,8 +1132,25 @@ a {
   margin-bottom: 8px;
 }
 
+.credit-split-row.no-percent {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .credit-split-row .field {
   margin-bottom: 0;
+}
+
+/* Percentage input with a % sitting just outside the box. */
+.percent-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.percent-suffix {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-muted);
 }
 
 .credit-split-foot {

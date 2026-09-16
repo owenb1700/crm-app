@@ -790,7 +790,7 @@ export default function PipelineDetail() {
             </div>
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split</h4>
-            <CreditSplitEditor idPrefix="pipeline-detail-split" users={users} value={splitRows} onChange={setSplitRows} />
+            <CreditSplitEditor idPrefix="pipeline-detail-split" users={users} value={splitRows} onChange={setSplitRows} ownerId={editData.salespersonId || pipeline.ownerId} />
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Contractors & Owners Bidding</h4>
             <BidderEditor
