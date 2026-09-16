@@ -523,9 +523,10 @@ export default function Dashboard() {
 
   const sendNotificationEmail = async (to, subject, html) => {
     try {
+      const idToken = await auth.currentUser.getIdToken();
       const res = await fetch("/api/send-email", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ to, subject, html })
       });
       // A non-network failure (Gmail rejected it, etc.) already alerts
@@ -592,11 +593,11 @@ export default function Dashboard() {
       // Leave it for now -- it'll be retried next time its owner or an admin
       // loads the dashboard. Still tell an admin, so a change that keeps
       // failing (a permissions bug, say) doesn't go unnoticed.
-      fetch("/api/report-issue", {
+      auth.currentUser?.getIdToken().then(idToken => fetch("/api/report-issue", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ area: "Closed project update", message: `Failed to update "${label}" (customer ${c.id})`, detail: err.message })
-      }).catch(() => {});
+      })).catch(() => {});
     };
 
     const apply = async (c, fields, notice) => {

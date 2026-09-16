@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { deleteDoc, doc, setDoc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, ROLE_OPTIONS, roleLabel } from "../../lib/permissions";
 import ConfirmDialog from "./ConfirmDialog";
@@ -51,14 +51,16 @@ export default function EditUserModal({ user, ownedCounts, onClose, onChanged, o
 
   const toggleDisabled = () => run(async () => {
     const nowDisabled = !user.disabled;
-    await updateDoc(doc(db, "users", user.id), { disabled: nowDisabled });
-    // Mirrored to a publicly readable lookup so the signed-out Forgot
-    // Password screen refuses disabled accounts too.
-    if (nowDisabled) {
-      await setDoc(doc(db, "disabledEmails", user.email), { disabled: true });
-    } else {
-      await deleteDoc(doc(db, "disabledEmails", user.email));
-    }
+    // Server-side: it also turns off their sign-in and drops any session
+    // they still have open, which the app alone can't do.
+    const idToken = await auth.currentUser.getIdToken();
+    const res = await fetch("/api/admin/set-user-active", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ uid: user.id, disabled: nowDisabled })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.code ? `${data.error} (code ${data.code})` : (data.error || "Couldn't change this account"));
     setConfirm(null);
     onChanged?.(`${nameOf(user)} ${nowDisabled ? "deactivated" : "reactivated"}`);
     onClose();
@@ -205,7 +207,7 @@ export default function EditUserModal({ user, ownedCounts, onClose, onChanged, o
           <p>
             {user.disabled
               ? "They'll be able to sign in again and reset their password."
-              : "They won't be able to sign in or reset their password until reactivated. Their data stays as it is."}
+              : "Their sign-in is switched off and any session they still have open stops working. Their data stays as it is."}
           </p>
           {error && <p className="settings-status is-error">{error}</p>}
         </ConfirmDialog>

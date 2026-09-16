@@ -5,6 +5,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Signed in AND still an active account. Deactivating someone has to
+    // lock them out of the data itself, not just out of the app's screens.
+    function isActive() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('disabled', false) == false;
+    }
+
     function isAdmin() {
       return isSignedIn() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
@@ -71,18 +79,18 @@ service cloud.firestore {
     }
 
     match /customers/{customerId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && (
+      allow read: if isActive();
+      allow create: if isActive() && (
         request.resource.data.ownerId == request.auth.uid ||
         isConvertingOwnPipeline(request.resource.data)
       );
-      allow delete: if isSignedIn() &&
+      allow delete: if isActive() &&
         (resource.data.ownerId == request.auth.uid || isAdmin());
 
       // Owner/admin can change anything. A collaborator may ALSO update,
       // but only to remove themselves from collaboratorIds -- nothing else
       // about the entry, and they can't touch anyone else's access.
-      allow update: if isSignedIn() && (
+      allow update: if isActive() && (
         resource.data.ownerId == request.auth.uid ||
         isAdmin() ||
         (
@@ -96,25 +104,25 @@ service cloud.firestore {
       // admin (read-only for admin -- they can see but not silently edit
       // someone else's notes).
       match /private/{doc} {
-        allow read: if isSignedIn() &&
+        allow read: if isActive() &&
           (isOwner(customerId) || isCollaborator(customerId) || isAdmin());
-        allow write: if isSignedIn() &&
+        allow write: if isActive() &&
           (isOwner(customerId) || isCollaborator(customerId));
         // The person converting a pipeline entry seeds the new project's
         // private notes and bid files once, even though the project belongs
         // to the salesperson they assigned. Create only -- never edit after.
-        allow create: if isSignedIn() && isConvertingOwnPipeline(customerData(customerId));
+        allow create: if isActive() && isConvertingOwnPipeline(customerData(customerId));
       }
 
       // A teammate can request to collaborate on an entry they don't own.
       // Only the owner (or the requester themselves, to cancel) can
       // approve/deny by updating or deleting the request.
       match /collabRequests/{requesterId} {
-        allow read: if isSignedIn() &&
+        allow read: if isActive() &&
           (request.auth.uid == requesterId || isOwner(customerId) || isAdmin());
-        allow create: if isSignedIn() &&
+        allow create: if isActive() &&
           request.auth.uid == requesterId && !isOwner(customerId);
-        allow update, delete: if isSignedIn() &&
+        allow update, delete: if isActive() &&
           (isOwner(customerId) || request.auth.uid == requesterId);
       }
 
@@ -123,8 +131,8 @@ service cloud.firestore {
       // rest of the project record). Only the owner/admin can upload or
       // delete, matching who can edit the project itself.
       match /drawings/{doc} {
-        allow read: if isSignedIn();
-        allow write: if isSignedIn() && (isOwner(customerId) || isAdmin());
+        allow read: if isActive();
+        allow write: if isActive() && (isOwner(customerId) || isAdmin());
       }
 
       // Photos: the whole team can see them. The owner, collaborators, and
@@ -132,13 +140,13 @@ service cloud.firestore {
       // its photos along); a photo's uploader, the owner, or an admin can
       // change its date/caption or delete it.
       match /photos/{photoId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn() && (
+        allow read: if isActive();
+        allow create: if isActive() && (
           (request.resource.data.uploadedBy == request.auth.uid &&
             (isOwner(customerId) || isCollaborator(customerId) || isAdmin())) ||
           isConvertingOwnPipeline(customerData(customerId))
         );
-        allow update, delete: if isSignedIn() &&
+        allow update, delete: if isActive() &&
           (resource.data.uploadedBy == request.auth.uid || isOwner(customerId) || isAdmin());
       }
     }
@@ -151,17 +159,17 @@ service cloud.firestore {
     // can delete the entry itself, and private notes/files stay locked
     // down below.
     match /pipeline/{pipelineId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn() &&
+      allow read: if isActive();
+      allow create: if isActive() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isActive();
+      allow delete: if isActive() &&
         (resource.data.ownerId == request.auth.uid || isAdmin());
 
       // Notes + files are private to the owner (read-only for admin).
       match /private/{doc} {
-        allow read: if isSignedIn() &&
+        allow read: if isActive() &&
           (get(/databases/$(database)/documents/pipeline/$(pipelineId)).data.ownerId == request.auth.uid || isAdmin());
-        allow write: if isSignedIn() &&
+        allow write: if isActive() &&
           get(/databases/$(database)/documents/pipeline/$(pipelineId)).data.ownerId == request.auth.uid;
       }
 
@@ -169,9 +177,9 @@ service cloud.firestore {
       // A photo's uploader, the entry's owner, or an admin can change its
       // date/caption or delete it.
       match /photos/{photoId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.uploadedBy == request.auth.uid;
-        allow update, delete: if isSignedIn() && (
+        allow read: if isActive();
+        allow create: if isActive() && request.resource.data.uploadedBy == request.auth.uid;
+        allow update, delete: if isActive() && (
           resource.data.uploadedBy == request.auth.uid ||
           get(/databases/$(database)/documents/pipeline/$(pipelineId)).data.ownerId == request.auth.uid ||
           isAdmin()
@@ -185,8 +193,8 @@ service cloud.firestore {
     // or update (so the whole team can enrich/correct shared records);
     // only admins can delete, to guard against accidental data loss.
     match /companies/{companyId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow read: if isActive();
+      allow create, update: if isActive();
       allow delete: if isAdmin();
     }
 
@@ -195,19 +203,19 @@ service cloud.firestore {
     // same transaction, so the same firm can't be created twice even by two
     // people at once. Team-maintained, like companies themselves.
     match /companyKeys/{key} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isActive();
     }
 
     // Groups an admin marked "not duplicates" on Find Duplicates (written by
     // the server).
     match /duplicateDismissals/{groupId} {
-      allow read: if isSignedIn();
+      allow read: if isActive();
       allow write: if isAdmin();
     }
 
     match /contacts/{contactId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow read: if isActive();
+      allow create, update: if isActive();
       allow delete: if isAdmin();
     }
 
@@ -216,8 +224,8 @@ service cloud.firestore {
     // Drawings live in the "drawings" array field directly on this doc,
     // so no extra subcollection rule is needed for them.
     match /towerModels/{modelId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow read: if isActive();
+      allow create, update: if isActive();
       allow delete: if isAdmin();
     }
 
@@ -227,17 +235,17 @@ service cloud.firestore {
     // companies/contacts/towerModels: any signed-in user can add or edit,
     // only admins can delete.
     match /products/{productId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow read: if isActive();
+      allow create, update: if isActive();
       allow delete: if isAdmin();
     }
 
     // Personal reminders: private to the one person who made them -- not
     // even admins can read someone else's. Completing one deletes it.
     match /reminders/{reminderId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() &&
+      allow read, delete: if isActive() && resource.data.userId == request.auth.uid;
+      allow create: if isActive() && request.resource.data.userId == request.auth.uid;
+      allow update: if isActive() &&
         resource.data.userId == request.auth.uid &&
         request.resource.data.userId == request.auth.uid;
     }
@@ -248,8 +256,8 @@ service cloud.firestore {
     // collaboration request notifies the owner), but only the recipient
     // can read, mark read, or delete their own.
     match /notifications/{notificationId} {
-      allow read, update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn();
+      allow read, update, delete: if isActive() && resource.data.userId == request.auth.uid;
+      allow create: if isActive();
     }
   }
 }

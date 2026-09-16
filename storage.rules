@@ -2,74 +2,71 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    // Signed in AND still an active account -- a deactivated person loses
+    // access to files as well as to data.
+    function isActive() {
+      return request.auth != null &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('disabled', false) == false;
+    }
+
+
     // Pipeline files (project plans, bid documents, etc.) are private to
     // the pipeline entry's owner, read-only for admins -- same model as
     // pipeline notes in Firestore. Cross-references the pipeline doc's
     // ownerId in Firestore to decide access.
     match /pipeline/{pipelineId}/{fileName} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       function pipelineOwnerId() {
         return firestore.get(/databases/(default)/documents/pipeline/$(pipelineId)).data.ownerId;
       }
 
       function isAdmin() {
-        return isSignedIn() &&
+        return isActive() &&
           firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
           firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
       }
 
-      allow read: if isSignedIn() && (pipelineOwnerId() == request.auth.uid || isAdmin());
-      allow write: if isSignedIn() && pipelineOwnerId() == request.auth.uid;
+      allow read: if isActive() && (pipelineOwnerId() == request.auth.uid || isAdmin());
+      allow write: if isActive() && pipelineOwnerId() == request.auth.uid;
     }
 
     // Project drawings are visible to the whole team (like the project
     // record itself), but only the project's owner or an admin can
     // upload/replace/delete them.
     match /customers/{customerId}/{fileName} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       function customerOwnerId() {
         return firestore.get(/databases/(default)/documents/customers/$(customerId)).data.ownerId;
       }
 
       function isAdmin() {
-        return isSignedIn() &&
+        return isActive() &&
           firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
           firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
       }
 
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && (customerOwnerId() == request.auth.uid || isAdmin());
+      allow read: if isActive();
+      allow write: if isActive() && (customerOwnerId() == request.auth.uid || isAdmin());
     }
 
     // Photos on a pipeline entry: the whole team can see and add them (JPEG
     // images only, up to 20 MB -- the app shrinks photos before upload).
     match /pipeline/{pipelineId}/photos/{fileName} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null &&
+      allow read: if isActive();
+      allow create, update: if isActive() &&
         request.resource.contentType.matches('image/.*') &&
         request.resource.size < 20 * 1024 * 1024;
-      allow delete: if request.auth != null;
+      allow delete: if isActive();
     }
 
     // Photos on a project: the whole team can see them; the owner,
     // collaborators, and admins can add or remove them.
     match /customers/{customerId}/photos/{fileName} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       function customer() {
         return firestore.get(/databases/(default)/documents/customers/$(customerId)).data;
       }
 
       function canWork() {
-        return isSignedIn() && (
+        return isActive() && (
           customer().ownerId == request.auth.uid ||
           request.auth.uid in customer().get('collaboratorIds', []) ||
           (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
@@ -77,7 +74,7 @@ service firebase.storage {
         );
       }
 
-      allow read: if isSignedIn();
+      allow read: if isActive();
       allow create, update: if canWork() &&
         request.resource.contentType.matches('image/.*') &&
         request.resource.size < 20 * 1024 * 1024;
@@ -88,8 +85,8 @@ service firebase.storage {
     // any one person -- same "anyone signed in can manage" model as the
     // companies/contacts directory records.
     match /towerModels/{modelId}/{fileName} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isActive();
+      allow write: if isActive();
     }
   }
 }
