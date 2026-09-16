@@ -47,6 +47,7 @@ import EditUserModal from "../components/EditUserModal";
 import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, roleLabel, accessSummary } from "../../lib/permissions";
 import { FirmSelect } from "../components/DirectoryPickers";
 import GlobalSearch from "../components/GlobalSearch";
+import RemindersMenu from "../components/RemindersMenu";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -357,6 +358,10 @@ export default function Dashboard() {
   };
 
   // A reminder's attached job as a JobPicker key ("project:<id>" / "pipeline:<id>").
+  const openNewReminder = () => {
+    setReminderForm({ subject: "", date: toLocalDateKey(new Date()), notes: "", job: "" });
+  };
+
   const jobKeyOf = (r) => (r.projectId ? `project:${r.projectId}` : r.pipelineId ? `pipeline:${r.pipelineId}` : "");
 
   const openEditReminder = (r) => {
@@ -1881,7 +1886,6 @@ export default function Dashboard() {
             </button>
           )}
 
-          <button className="tab-btn" onClick={() => router.push("/dashboard/reminders")}>Reminders</button>
 
           {(myPermissions.directory || myPermissions.towers || myPermissions.products) && (
             <div className="tab-dropdown">
@@ -1930,6 +1934,11 @@ export default function Dashboard() {
           </button>
 
           <div className="header-tools">
+            <RemindersMenu
+              className="hide-with-mobile-nav"
+              onAdd={openNewReminder}
+              onSeeAll={() => router.push("/dashboard/reminders")}
+            />
             <GlobalSearch customers={customers} pipelineEntries={pipelineEntries} companies={companies} contacts={contacts} />
           </div>
         </div>
@@ -2438,7 +2447,7 @@ export default function Dashboard() {
                 <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ Couldn't load your reminders: {remindersError}</p>
               )}
               {!remindersError && activeReminders.length === 0 && (
-                <p className="private-note-hint">No reminders. Add one on the Reminders page.</p>
+                <p className="private-note-hint">No reminders. Use Reminders → Add reminder to create one.</p>
               )}
               {[...activeReminders]
                 .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
