@@ -3253,18 +3253,18 @@ a {
     align-items: flex-start;
   }
 
-  /* Add Project / Add Pipeline Entry also carry Cancel + Add in the header:
-     logo and title take the top row, and the buttons, bell, and avatar
-     share the second row with the menu button (menu left, actions right). */
-  .dashboard-header.is-sticky .dashboard-brand {
-    flex-basis: 100%;
+  /* Add Project / Add Pipeline Entry also carry Cancel + Add in the header;
+     they sit on the same row as the menu, logo, and title. */
+  .dashboard-header.is-sticky .dashboard-header-actions {
+    gap: 5px;
   }
 
-  .dashboard-header.is-sticky .dashboard-header-actions {
-    position: absolute;
-    right: max(12px, env(safe-area-inset-right));
-    bottom: 10px;
-    gap: 5px;
+  /* On a phone the Cancel / Add buttons need the room more than the page
+     title does, and they already say what the page is. */
+  @media (max-width: 640px) {
+    .dashboard-header.is-sticky .dashboard-title {
+      display: none;
+    }
   }
 
   .dashboard-header.is-sticky .dashboard-header-actions > .btn {
@@ -3282,8 +3282,8 @@ a {
   .dashboard-brand {
     flex: 1 1 0;
     min-width: 0;
-    flex-wrap: wrap;
-    row-gap: 10px;
+    flex-wrap: nowrap;
+    gap: 10px;
   }
 
   .dashboard-logo {
@@ -3303,10 +3303,12 @@ a {
     flex-wrap: nowrap;
   }
 
+  /* The menu button shares the top row, to the left of the logo, so the
+     header stays one line and the page keeps the space. */
   .mobile-nav {
     display: block;
-    order: 2;
-    flex-basis: 100%;
+    order: 0;
+    flex-shrink: 0;
   }
 
   /* The menu replaces the tab row; search and + Add Reminder stay. The
