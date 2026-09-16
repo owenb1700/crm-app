@@ -996,6 +996,7 @@ export default function PipelineDetail() {
             myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
             canAdd
             canManageAll={isOwner || role === "admin"}
+            limit={5}
           />
         )}
 

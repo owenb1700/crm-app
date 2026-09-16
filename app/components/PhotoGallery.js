@@ -17,7 +17,7 @@ import ConfirmDialog from "./ConfirmDialog";
 // On a record's own page only the newest `limit` photos are shown, with a
 // button through to the full gallery; the gallery passes limit={0} to show
 // everything. The viewer always pages through every photo.
-export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canManageAll, limit = 4, showGalleryLink = true }) {
+export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canManageAll, limit = 5, showGalleryLink = true }) {
   const router = useRouter();
   const collectionName = kind === "project" ? "customers" : "pipeline";
   const photosCol = () => collection(db, collectionName, recordId, "photos");
