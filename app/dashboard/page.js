@@ -47,6 +47,7 @@ import EditUserModal from "../components/EditUserModal";
 import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, roleLabel, accessSummary } from "../../lib/permissions";
 import { FirmSelect } from "../components/DirectoryPickers";
 import GlobalSearch from "../components/GlobalSearch";
+import RemindersMenu from "../components/RemindersMenu";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -1931,10 +1932,10 @@ export default function Dashboard() {
             Past Projects
           </button>
 
-          {(view === "home" || view === "personal") && (
-            <button className="btn btn-primary global-search-add" type="button" onClick={openNewReminder}>+ Add Reminder</button>
-          )}
-          <GlobalSearch customers={customers} pipelineEntries={pipelineEntries} companies={companies} contacts={contacts} />
+          <div className="header-tools">
+            <RemindersMenu onAdd={openNewReminder} onSeeAll={() => router.push("/dashboard/reminders")} />
+            <GlobalSearch customers={customers} pipelineEntries={pipelineEntries} companies={companies} contacts={contacts} />
+          </div>
         </div>
       )}
 
