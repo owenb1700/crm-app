@@ -115,6 +115,10 @@ export default function Dashboard() {
   // see FilterBar for the value shapes.
   const [teamFilters, setTeamFilters] = useState({});
   const [pipelineFilters, setPipelineFilters] = useState({});
+  const [personalFilters, setPersonalFilters] = useState({});
+  // Filters sit behind a button on My Projects and Pipeline so the lists
+  // start clean; opening one keeps it open while it has anything set.
+  const [openFilters, setOpenFilters] = useState({});
   const [pastFilters, setPastFilters] = useState({});
 
   // REMINDERS: personal, private to whoever made them
@@ -1123,12 +1127,18 @@ export default function Dashboard() {
       (c.ownerId === uid || (c.collaboratorIds || []).includes(uid)) &&
       c.category !== "Project Closed"
     );
-    list = [...list].sort(
+
+    const f = personalFilters;
+    if (f.sector) list = list.filter(c => c.buildingSector === f.sector);
+    if (f.workType) list = list.filter(c => c.workType === f.workType);
+    if (f.firm) list = list.filter(c => c.company === f.firm || (c.owners || []).some(o => o.company === f.firm));
+    if (f.status) list = list.filter(c => c.category === f.status);
+    list = list.filter(c => matchesDateFilter(c.nextCheckIn, f.due));
+
+    return [...list].sort(
       (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
     );
-
-    return list;
-  }, [customers, uid]);
+  }, [customers, uid, personalFilters]);
 
   // Pipeline entries "on my dashboard" -- owner, assigned salesperson,
   // assigned project point person, or self-tracked. Pulled live from the
@@ -1528,6 +1538,17 @@ export default function Dashboard() {
     { key: "firm", label: "Contractor / Owner", type: "select", options: optionsFrom(customers.flatMap(c => [c.company, ...(c.owners || []).map(o => o.company)])) },
     { key: "status", label: "Status", type: "select", options: optionsFrom(customers.map(c => c.category)) },
     { key: "outcome", label: "Outcome", type: "select", options: optionsFrom(customers.map(c => c.closedOutcome)) },
+    { key: "due", label: "Next check-in", type: "date", presets: ["overdue", "today", "next7", "next30"] }
+  ];
+
+  const myActiveProjects = customers.filter(c =>
+    (c.ownerId === uid || (c.collaboratorIds || []).includes(uid)) && c.category !== "Project Closed"
+  );
+  const personalFilterDefs = [
+    sectorFilter,
+    workTypeFilter,
+    { key: "firm", label: "Contractor / Owner", type: "select", options: optionsFrom(myActiveProjects.flatMap(c => [c.company, ...(c.owners || []).map(o => o.company)])) },
+    { key: "status", label: "Status", type: "select", options: optionsFrom(myActiveProjects.map(c => c.category)) },
     { key: "due", label: "Next check-in", type: "date", presets: ["overdue", "today", "next7", "next30"] }
   ];
 
@@ -2008,10 +2029,27 @@ export default function Dashboard() {
         <>
           <MyScorecard pipelineEntries={pipelineEntries} projects={customers} uid={uid} />
 
-          {/* ADD PROJECT BUTTON */}
-          <div style={{ marginBottom: 20 }}>
-            <button className="btn btn-primary" onClick={() => router.push("/dashboard/project/new")}>ADD PROJECT</button>
+          <div className="list-toolbar">
+            <button
+              className={`btn btn-secondary ${anyActive(personalFilters) ? "has-filters" : ""}`}
+              onClick={() => setOpenFilters(prev => ({ ...prev, personal: !prev.personal }))}
+            >
+              Filters{anyActive(personalFilters) ? ` (${Object.values(personalFilters).filter(isFilterActive).length})` : ""}
+            </button>
+            <button className="btn btn-primary list-toolbar-add" onClick={() => router.push("/dashboard/project/new")}>ADD PROJECT</button>
           </div>
+
+          {(openFilters.personal || anyActive(personalFilters)) && (
+            <FilterBar
+              idPrefix="personal-filter"
+              filters={personalFilterDefs}
+              values={personalFilters}
+              onChange={setFilter(setPersonalFilters)}
+              onClear={() => setPersonalFilters({})}
+              resultCount={filteredCustomers.length}
+              resultNoun={filteredCustomers.length === 1 ? "project" : "projects"}
+            />
+          )}
 
           {/* SEARCH */}
 
@@ -2257,7 +2295,9 @@ export default function Dashboard() {
           )}
 
           {filteredCustomers.length === 0 && myPipelineEntries.length === 0 && activeReminders.length === 0 && (
-            <p className="private-note-hint">Nothing on your dashboard yet.</p>
+            <p className="private-note-hint">
+              {anyActive(personalFilters) ? "No projects match these filters." : "Nothing on your dashboard yet."}
+            </p>
           )}
 
           {/* MODAL */}
@@ -2409,19 +2449,27 @@ export default function Dashboard() {
             </div>
           )}
 
-          <div style={{ marginBottom: 20, display: "flex", gap: 10, alignItems: "center" }}>
-            <button className="btn btn-primary" onClick={() => router.push("/dashboard/pipeline/new")}>ADD PIPELINE ENTRY</button>
+          <div className="list-toolbar">
+            <button
+              className={`btn btn-secondary ${anyActive(pipelineFilters) ? "has-filters" : ""}`}
+              onClick={() => setOpenFilters(prev => ({ ...prev, pipeline: !prev.pipeline }))}
+            >
+              Filters{anyActive(pipelineFilters) ? ` (${Object.values(pipelineFilters).filter(isFilterActive).length})` : ""}
+            </button>
+            <button className="btn btn-primary list-toolbar-add" onClick={() => router.push("/dashboard/pipeline/new")}>ADD PIPELINE ENTRY</button>
           </div>
 
-          <FilterBar
-            idPrefix="pipeline-filter"
-            filters={pipelineFilterDefs}
-            values={pipelineFilters}
-            onChange={setFilter(setPipelineFilters)}
-            onClear={() => setPipelineFilters({})}
-            resultCount={filteredPipeline.length}
-            resultNoun={filteredPipeline.length === 1 ? "entry" : "entries"}
-          />
+          {(openFilters.pipeline || anyActive(pipelineFilters)) && (
+            <FilterBar
+              idPrefix="pipeline-filter"
+              filters={pipelineFilterDefs}
+              values={pipelineFilters}
+              onChange={setFilter(setPipelineFilters)}
+              onClear={() => setPipelineFilters({})}
+              resultCount={filteredPipeline.length}
+              resultNoun={filteredPipeline.length === 1 ? "entry" : "entries"}
+            />
+          )}
 
           {filteredPipeline.map(p => (
             <div
