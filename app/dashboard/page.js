@@ -1959,7 +1959,10 @@ export default function Dashboard() {
               value={globalSearchQuery}
               onChange={e => setGlobalSearchQuery(e.target.value)}
             />
-            <button className="btn btn-secondary" type="submit">Search</button>
+            <button className="btn btn-secondary search-submit" type="submit" aria-label="Search">
+              <span className="search-submit-text">Search</span>
+              <span className="search-submit-icon" aria-hidden="true">🔍</span>
+            </button>
           </form>
         </div>
       )}

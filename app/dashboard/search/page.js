@@ -214,7 +214,10 @@ function SearchPageContent() {
           style={{ flex: 1, marginBottom: 0 }}
           autoFocus
         />
-        <button className="btn btn-primary" type="submit">Search</button>
+        <button className="btn btn-primary search-submit" type="submit" aria-label="Search">
+          <span className="search-submit-text">Search</span>
+          <span className="search-submit-icon" aria-hidden="true">🔍</span>
+        </button>
       </form>
 
       {!q && <p className="private-note-hint">Type something above and hit search.</p>}
