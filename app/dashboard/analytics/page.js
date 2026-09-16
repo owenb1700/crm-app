@@ -6,7 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { BUILDING_SECTORS, WORK_TYPES } from "../../../lib/directory";
-import { canViewAnalytics, summarize, breakdown, breakdownMulti, manufacturersOf, bidForecast, outcomesByMonth, formatMoney, parseMoney, statusOf } from "../../../lib/analytics";
+import { canViewAnalytics, summarize, summarizeProjects, combinedBreakdown, breakdown, breakdownMulti, manufacturersOf, bidForecast, outcomesByMonth, formatMoney, parseMoney, statusOf } from "../../../lib/analytics";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
 import ExportButtons from "../../components/ExportButtons";
 import DashboardHeader from "../../components/DashboardHeader";
@@ -169,6 +169,78 @@ function OutcomesChart({ buckets }) {
   );
 }
 
+// Pipeline and projects side by side for one grouping (work type, person).
+function CombinedTable({ title, sub, rows, nameHeader, filename }) {
+  const exportRows = (format) => downloadTable({
+    format,
+    filename: `${filename}-${csvDateStamp()}`,
+    headers: [nameHeader, "Pipeline entries", "Won", "Lost", "Win rate %", "Won volume", "Open volume", "Projects", "Ongoing", "Closed", "Project volume"],
+    rows: rows.map(r => [
+      r.label || r.key, r.pipeline.total, r.pipeline.won, r.pipeline.lost,
+      r.pipeline.winRate === null ? "" : Math.round(r.pipeline.winRate * 1000) / 10,
+      Math.round(r.pipeline.volume.won), Math.round(r.pipeline.volume.open),
+      r.projects.count, r.projects.ongoing, r.projects.closed, Math.round(r.projects.volume)
+    ])
+  });
+
+  return (
+    <div className="analytics-card">
+      <div className="analytics-card-head" style={{ marginBottom: 0 }}>
+        <div>
+          <h3 className="analytics-card-title">{title}</h3>
+          {sub && <p className="analytics-card-sub">{sub}</p>}
+        </div>
+        {rows.length > 0 && <ExportButtons label={title} onExport={exportRows} />}
+      </div>
+      {rows.length === 0 ? (
+        <p className="private-note-hint">Nothing matches these filters.</p>
+      ) : (
+        <div className="analytics-table-wrap">
+          <table className="analytics-table stack-on-phone">
+            <thead>
+              <tr>
+                <th>{nameHeader}</th>
+                <th>Pipeline</th>
+                <th>Won</th>
+                <th>Lost</th>
+                <th>Win rate</th>
+                <th>Won volume</th>
+                <th>Projects</th>
+                <th>Ongoing</th>
+                <th>Project volume</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.key}>
+                  <td className="analytics-table-name" data-label={nameHeader}>{r.label || r.key}</td>
+                  <td data-label="Pipeline">{r.pipeline.total}</td>
+                  <td data-label="Won">{r.pipeline.won}</td>
+                  <td data-label="Lost">{r.pipeline.lost}</td>
+                  <td data-label="Win rate">
+                    <div className="win-rate-cell">
+                      <span>{pct(r.pipeline.winRate)}</span>
+                      {r.pipeline.winRate !== null && (
+                        <span className="win-rate-track" aria-hidden="true">
+                          <span className="win-rate-fill" style={{ width: `${r.pipeline.winRate * 100}%` }} />
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td data-label="Won volume">{formatMoney(r.pipeline.volume.won)}</td>
+                  <td data-label="Projects">{r.projects.count}</td>
+                  <td data-label="Ongoing">{r.projects.ongoing}</td>
+                  <td data-label="Project volume">{formatMoney(r.projects.volume)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BreakdownTable({ title, sub, rows, nameHeader, filename }) {
   return (
     <div className="analytics-card">
@@ -239,6 +311,7 @@ export default function AnalyticsPage() {
   const [loaded, setLoaded] = useState(false);
 
   const [entries, setEntries] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
   const [filters, setFilters] = useState({});
 
@@ -280,11 +353,13 @@ export default function AnalyticsPage() {
         setAllowed(true);
         setMyProfile(profile);
 
-        const [pipelineSnap, usersSnap] = await Promise.all([
+        const [pipelineSnap, customersSnap, usersSnap] = await Promise.all([
           getDocs(collection(db, "pipeline")),
+          getDocs(collection(db, "customers")),
           getDocs(collection(db, "users"))
         ]);
         setEntries(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
+        setProjects(withoutTrashed(customersSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setLoaded(true);
       } catch (err) {
@@ -307,7 +382,10 @@ export default function AnalyticsPage() {
   // to whoever created them.
   const salespersonOf = (e) => e.salespersonId || e.ownerId;
 
-  const filtered = useMemo(() => entries
+  // A project is credited to its owner (the salesperson it was assigned to).
+  const projectSalespersonOf = (p) => p.ownerId;
+
+  const filtered = useMemo(() => (filters.show === "projects" ? [] : entries)
     .filter(e => !filters.sector || e.buildingSector === filters.sector)
     .filter(e => !filters.workType || e.workType === filters.workType)
     .filter(e => !filters.person || salespersonOf(e) === filters.person)
@@ -316,6 +394,18 @@ export default function AnalyticsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [entries, filters]);
 
+  // Stage is a pipeline-only idea, so picking one leaves projects out.
+  const filteredProjects = useMemo(() => (filters.show === "pipeline" || filters.stage ? [] : projects)
+    .filter(p => !filters.sector || p.buildingSector === filters.sector)
+    .filter(p => !filters.workType || p.workType === filters.workType)
+    .filter(p => !filters.person || projectSalespersonOf(p) === filters.person)
+    .filter(p => !filters.status || p.category === filters.status)
+    .filter(p => matchesDateFilter(p.createdAt, filters.created)),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [projects, filters]);
+
+  const projectStats = useMemo(() => summarizeProjects(filteredProjects), [filteredProjects]);
+
   const stats = useMemo(() => summarize(filtered), [filtered]);
   const months = useMemo(() => outcomesByMonth(filtered), [filtered]);
   const bySector = useMemo(() => breakdown(filtered, e => e.buildingSector), [filtered]);
@@ -323,17 +413,42 @@ export default function AnalyticsPage() {
   const byManufacturer = useMemo(() => breakdownMulti(filtered, manufacturersOf), [filtered]);
   const forecast = useMemo(() => bidForecast(filtered), [filtered]);
   const byPerson = useMemo(
-    () => breakdown(filtered, salespersonOf).map(r => ({ ...r, label: r.key === "Not set" ? "Not set" : personLabel(r.key) })),
+    () => combinedBreakdown({
+      entries: filtered,
+      projects: filteredProjects,
+      entryKeyOf: salespersonOf,
+      projectKeyOf: projectSalespersonOf,
+      // Everyone with an account shows up, even at zero.
+      keys: users.filter(u => !u.disabled).map(u => u.id),
+      labelOf: (key) => (key === "Not set" ? "Not set" : personLabel(key))
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filtered, users]
+    [filtered, filteredProjects, users]
+  );
+
+  const byWorkType = useMemo(
+    () => combinedBreakdown({
+      entries: filtered,
+      projects: filteredProjects,
+      entryKeyOf: e => e.workType,
+      projectKeyOf: p => p.workType,
+      keys: WORK_TYPES
+    }),
+    [filtered, filteredProjects]
   );
 
   const filterDefs = [
-    { key: "created", label: "Entry created", type: "date", presets: ["last30", "last90", "thisYear", "lastYear"] },
+    { key: "show", label: "Show", type: "select", anyLabel: "Pipeline & projects", options: [
+      { value: "pipeline", label: "Pipeline only" },
+      { value: "projects", label: "Projects only" }
+    ] },
+    { key: "created", label: "Created", type: "date", presets: ["last30", "last90", "thisYear", "lastYear"] },
     { key: "sector", label: "Sector", type: "select", options: BUILDING_SECTORS.map(v => ({ value: v, label: v })) },
     { key: "workType", label: "Work type", type: "select", options: WORK_TYPES.map(v => ({ value: v, label: v })) },
-    { key: "person", label: "Salesperson", type: "select", options: optionsFrom(entries.map(salespersonOf), personLabel) },
-    { key: "stage", label: "Stage", type: "select", options: optionsFrom(entries.map(e => e.stage)) }
+    // Every active person is listed, whether or not they have anything yet.
+    { key: "person", label: "Salesperson", type: "select", options: users.filter(u => !u.disabled).map(u => ({ value: u.id, label: personLabel(u.id) })).sort((a, b) => a.label.localeCompare(b.label)) },
+    { key: "stage", label: "Stage (pipeline)", type: "select", options: optionsFrom(entries.map(e => e.stage)) },
+    { key: "status", label: "Status (projects)", type: "select", options: optionsFrom(projects.map(p => p.category)) }
   ];
 
   if (loadError) {
@@ -403,8 +518,8 @@ export default function AnalyticsPage() {
         values={filters}
         onChange={(key, value) => setFilters(prev => ({ ...prev, [key]: value }))}
         onClear={() => setFilters({})}
-        resultCount={filtered.length}
-        resultNoun={filtered.length === 1 ? "pipeline entry" : "pipeline entries"}
+        resultCount={filtered.length + filteredProjects.length}
+        resultNoun={`records (${filtered.length} pipeline, ${filteredProjects.length} project${filteredProjects.length === 1 ? "" : "s"})`}
       />
 
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginTop: -6, marginBottom: 14 }}>
@@ -433,6 +548,20 @@ export default function AnalyticsPage() {
       {stats.missingValue > 0 && (
         <p className="private-note-hint" style={{ marginTop: -4 }}>
           {stats.missingValue} of {stats.total} entries have no usable estimated value (blank or not a number), so they aren't counted in volume.
+        </p>
+      )}
+
+      <h2 className="analytics-section-title">Projects</h2>
+      <div className="stat-row">
+        <StatTile label="Projects" value={projectStats.count} sub={anyFilter ? "Matching filters" : "All projects"} />
+        <StatTile label="Ongoing" value={projectStats.ongoing} />
+        <StatTile label="Closed" value={projectStats.closed} />
+        <StatTile label="Project volume" value={formatMoney(projectStats.volume)} />
+        <StatTile label="Avg. project" value={projectStats.avgValue ? formatMoney(projectStats.avgValue) : "—"} />
+      </div>
+      {projectStats.missingValue > 0 && (
+        <p className="private-note-hint" style={{ marginTop: -4 }}>
+          {projectStats.missingValue} of {projectStats.count} projects have no usable value, so they aren&apos;t counted in project volume.
         </p>
       )}
 
@@ -525,11 +654,24 @@ export default function AnalyticsPage() {
         <ExportDataModal viewer={{ id: uid, ...myProfile }} target={exportTarget} onClose={() => setExportTarget(null)} />
       )}
 
-      <BreakdownTable title="By sector" nameHeader="Sector" filename="by-sector" sub="Entries missing a sector show as Not set." rows={bySector} />
-      <BreakdownTable title="By salesperson" nameHeader="Salesperson" filename="by-salesperson" sub="Credited to the assigned salesperson, or whoever created the entry if none was assigned." rows={byPerson} />
-      <BreakdownTable title="By engineering firm" nameHeader="Engineering firm" filename="by-engineering-firm" sub="The engineering firm on each pipeline entry." rows={byFirm} />
+      <CombinedTable
+        title="By work type"
+        nameHeader="Work type"
+        filename="by-work-type"
+        sub="New installation, replacement, or repair, across pipeline entries and projects."
+        rows={byWorkType}
+      />
+      <CombinedTable
+        title="By salesperson"
+        nameHeader="Salesperson"
+        filename="by-salesperson"
+        sub="Pipeline entries count for the assigned salesperson (or whoever created them); projects count for their owner. Everyone is listed, even at zero."
+        rows={byPerson}
+      />
+      <BreakdownTable title="By sector (pipeline)" nameHeader="Sector" filename="by-sector" sub="Entries missing a sector show as Not set." rows={bySector} />
+      <BreakdownTable title="By engineering firm (pipeline)" nameHeader="Engineering firm" filename="by-engineering-firm" sub="The engineering firm on each pipeline entry." rows={byFirm} />
       <BreakdownTable
-        title="By manufacturer"
+        title="By manufacturer (pipeline)"
         nameHeader="Manufacturer"
         filename="by-manufacturer"
         sub="Every manufacturer quoted on an entry. An entry quoting two manufacturers counts under both, so these rows can add up to more than the total."
