@@ -378,9 +378,18 @@ export default function AnalyticsPage() {
     if (!u) return "Unknown";
     return u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email;
   };
+  // Only people who actually sell are tracked as salespeople: admins and
+  // the Estimating Department still see everything here, but their own
+  // entries and projects are never credited to them as sales numbers.
+  const isSalesperson = (u) => !u.disabled && u.role !== "admin" && u.role !== "estimating";
+  const salesUsers = useMemo(() => users.filter(isSalesperson), [users]);
+  const salesIds = useMemo(() => new Set(salesUsers.map(u => u.id)), [salesUsers]);
+
   // Credit goes to the assigned salesperson; entries without one fall back
-  // to whoever created them.
+  // to whoever created them. Anything landing on a non-sales account counts
+  // as unassigned.
   const salespersonOf = (e) => e.salespersonId || e.ownerId;
+  const creditedTo = (id) => (id && salesIds.has(id) ? id : "Not set");
 
   // A project is credited to its owner (the salesperson it was assigned to).
   const projectSalespersonOf = (p) => p.ownerId;
@@ -416,11 +425,11 @@ export default function AnalyticsPage() {
     () => combinedBreakdown({
       entries: filtered,
       projects: filteredProjects,
-      entryKeyOf: salespersonOf,
-      projectKeyOf: projectSalespersonOf,
-      // Everyone with an account shows up, even at zero.
-      keys: users.filter(u => !u.disabled).map(u => u.id),
-      labelOf: (key) => (key === "Not set" ? "Not set" : personLabel(key))
+      entryKeyOf: e => creditedTo(salespersonOf(e)),
+      projectKeyOf: p => creditedTo(projectSalespersonOf(p)),
+      // Every salesperson shows up, even at zero.
+      keys: salesUsers.map(u => u.id),
+      labelOf: (key) => (key === "Not set" ? "Unassigned / non-sales" : personLabel(key))
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [filtered, filteredProjects, users]
@@ -445,8 +454,8 @@ export default function AnalyticsPage() {
     { key: "created", label: "Created", type: "date", presets: ["last30", "last90", "thisYear", "lastYear"] },
     { key: "sector", label: "Sector", type: "select", options: BUILDING_SECTORS.map(v => ({ value: v, label: v })) },
     { key: "workType", label: "Work type", type: "select", options: WORK_TYPES.map(v => ({ value: v, label: v })) },
-    // Every active person is listed, whether or not they have anything yet.
-    { key: "person", label: "Salesperson", type: "select", options: users.filter(u => !u.disabled).map(u => ({ value: u.id, label: personLabel(u.id) })).sort((a, b) => a.label.localeCompare(b.label)) },
+    // Every salesperson is listed, whether or not they have anything yet.
+    { key: "person", label: "Salesperson", type: "select", options: salesUsers.map(u => ({ value: u.id, label: personLabel(u.id) })).sort((a, b) => a.label.localeCompare(b.label)) },
     { key: "stage", label: "Stage (pipeline)", type: "select", options: optionsFrom(entries.map(e => e.stage)) },
     { key: "status", label: "Status (projects)", type: "select", options: optionsFrom(projects.map(p => p.category)) }
   ];
@@ -665,7 +674,7 @@ export default function AnalyticsPage() {
         title="By salesperson"
         nameHeader="Salesperson"
         filename="by-salesperson"
-        sub="Pipeline entries count for the assigned salesperson (or whoever created them); projects count for their owner. Everyone is listed, even at zero."
+        sub="Pipeline entries count for the assigned salesperson (or whoever created them); projects count for their owner. Admins and the Estimating Department aren't tracked as salespeople -- their entries show under Unassigned / non-sales."
         rows={byPerson}
       />
       <BreakdownTable title="By sector (pipeline)" nameHeader="Sector" filename="by-sector" sub="Entries missing a sector show as Not set." rows={bySector} />
