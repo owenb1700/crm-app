@@ -17,6 +17,13 @@ export default function CreditSplitEditor({ idPrefix, users = [], value = [], on
   const sorted = [...active].sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
 
   const update = (i, patch) => onChange(rows.map((r, x) => (x === i ? { ...r, ...patch } : r)));
+
+  // Dropping back to one person means that person has the whole job, so the
+  // share goes back to 100% on its own (and the percentages disappear).
+  const removeRow = (i) => {
+    const left = rows.filter((_, x) => x !== i);
+    onChange(left.length === 1 ? [{ ...left[0], percent: 100 }] : left);
+  };
   const remaining = Math.max(0, Math.round((100 - total) * 10) / 10);
 
   // Adding the first person splits the job with whoever owns it today.
@@ -74,7 +81,7 @@ export default function CreditSplitEditor({ idPrefix, users = [], value = [], on
                   </div>
                 </div>
               )}
-              <button type="button" className="btn btn-secondary" onClick={() => onChange(rows.filter((_, x) => x !== i))}>Remove</button>
+              <button type="button" className="btn btn-secondary" onClick={() => removeRow(i)}>Remove</button>
             </div>
           ))}
 
