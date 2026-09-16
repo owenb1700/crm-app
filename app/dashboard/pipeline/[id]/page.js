@@ -739,14 +739,14 @@ export default function PipelineDetail() {
                 contactValue={editData.contact}
                 emailValue={editData.email}
                 phoneValue={editData.phone}
-                onCompanyChange={v => setEditData({
-                  ...editData,
+                onCompanyChange={v => setEditData(prev => ({
+                  ...prev,
                   company: v,
-                  salespersonId: salespersonAfterFirmChange({ companies, users, previousFirm: editData.company, nextFirm: v, currentSalespersonId: editData.salespersonId })
-                })}
-                onContactChange={v => setEditData({ ...editData, contact: v })}
-                onEmailChange={v => setEditData({ ...editData, email: v })}
-                onPhoneChange={v => setEditData({ ...editData, phone: v })}
+                  salespersonId: salespersonAfterFirmChange({ companies, users, previousFirm: prev.company, nextFirm: v, currentSalespersonId: prev.salespersonId })
+                }))}
+                onContactChange={v => setEditData(prev => ({ ...prev, contact: v }))}
+                onEmailChange={v => setEditData(prev => ({ ...prev, email: v }))}
+                onPhoneChange={v => setEditData(prev => ({ ...prev, phone: v }))}
               />
 
               <div>

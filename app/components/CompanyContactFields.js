@@ -27,6 +27,9 @@ export default function CompanyContactFields({
   // near-duplicate names are caught -- see MatchingSelect.
   const matchingContacts = peopleAtFirm(contacts, companyValue, companies);
 
+  // Picking a known person sets three fields in a row, so each handler must
+  // update from the latest state (setState(prev => ...)) -- reading a stale
+  // copy would make the last one overwrite the other two.
   const handleContactChange = (value) => {
     onContactChange(value);
     const match = findPerson(matchingContacts, value);

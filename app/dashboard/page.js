@@ -2114,10 +2114,10 @@ export default function Dashboard() {
                         contactValue={editData.contact}
                         emailValue={editData.email}
                         phoneValue={editData.phone}
-                        onCompanyChange={v => setEditData({ ...editData, company: v })}
-                        onContactChange={v => setEditData({ ...editData, contact: v })}
-                        onEmailChange={v => setEditData({ ...editData, email: v })}
-                        onPhoneChange={v => setEditData({ ...editData, phone: v })}
+                        onCompanyChange={v => setEditData(prev => ({ ...prev, company: v }))}
+                        onContactChange={v => setEditData(prev => ({ ...prev, contact: v }))}
+                        onEmailChange={v => setEditData(prev => ({ ...prev, email: v }))}
+                        onPhoneChange={v => setEditData(prev => ({ ...prev, phone: v }))}
                       />
 
                       <BuildingSectorSelect id={`edit-project-sector-${c.id}`} value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
