@@ -114,14 +114,56 @@ function AnalyticsDetailsContent() {
   }
   if (!loaded) return <div className="dashboard-page">Loading...</div>;
 
-  const records = metric.records({
+  // A tile can hold pipeline entries, projects, or both; each record carries
+  // which it is so one table can list them together.
+  const picked = metric.records({
     entries: filterEntries(entries, filters),
     projects: filterProjects(projects, filters)
   });
-  const isPipeline = metric.kind === "pipeline";
-  const value = (r) => parseMoney(isPipeline ? r.value : r.projectValue);
-  const totalValue = records.reduce((sum, r) => sum + (value(r) || 0), 0);
-  const missingValue = records.filter(r => value(r) === null).length;
+  const records = [
+    ...picked.entries.map(e => ({
+      kind: "Pipeline",
+      id: e.id,
+      href: `/dashboard/pipeline/${e.id}`,
+      name: e.title || "Untitled pipeline entry",
+      status: STATUS_LABEL[statusOf(e)],
+      stage: e.stage || "",
+      person: salespersonOfEntry(e),
+      company: e.company,
+      sector: e.buildingSector,
+      workType: e.workType,
+      date: day(e.bidDate),
+      rawValue: e.value,
+      value: parseMoney(e.value),
+      created: day(e.createdAt)
+    })),
+    ...picked.projects.map(p => ({
+      kind: "Project",
+      id: p.id,
+      href: `/dashboard/project/${p.id}`,
+      name: p.projectName || p.company || "Untitled project",
+      status: p.category || "",
+      stage: "",
+      person: salespersonOfProject(p),
+      company: p.company,
+      sector: p.buildingSector,
+      workType: p.workType,
+      date: day(p.nextCheckIn),
+      rawValue: p.projectValue,
+      value: parseMoney(p.projectValue),
+      created: day(p.createdAt)
+    }))
+  ].sort((a, b) => (b.value || 0) - (a.value || 0) || a.name.localeCompare(b.name));
+
+  const hasProjects = picked.projects.length > 0;
+  const hasEntries = picked.entries.length > 0;
+  const countLabel = hasEntries && hasProjects
+    ? `${picked.entries.length} pipeline ${picked.entries.length === 1 ? "entry" : "entries"} + ${picked.projects.length} project${picked.projects.length === 1 ? "" : "s"}`
+    : hasProjects
+      ? `${picked.projects.length} project${picked.projects.length === 1 ? "" : "s"}`
+      : `${picked.entries.length} pipeline ${picked.entries.length === 1 ? "entry" : "entries"}`;
+  const totalValue = records.reduce((sum, r) => sum + (r.value || 0), 0);
+  const missingValue = records.filter(r => r.value === null).length;
 
   const activeFilters = Object.entries(filters)
     .map(([key, v]) => {
@@ -135,12 +177,10 @@ function AnalyticsDetailsContent() {
     format,
     filename: `${metricKey}-${csvDateStamp()}`,
     sheetName: metric.label.slice(0, 28),
-    headers: isPipeline
-      ? ["Opportunity", "Status", "Stage", "Salesperson", "Engineering firm", "Sector", "Work type", "Bid date", "Value (as entered)", "Value ($)", "Created"]
-      : ["Project", "Status", "Salesperson", "Contractor / owner", "Sector", "Work type", "Next check-in", "Value (as entered)", "Value ($)", "Created"],
-    rows: records.map(r => (isPipeline
-      ? [r.title, STATUS_LABEL[statusOf(r)], r.stage, personLabel(salespersonOfEntry(r)), r.company, r.buildingSector, r.workType, day(r.bidDate), r.value, value(r) ?? "", day(r.createdAt)]
-      : [r.projectName || r.company, r.category, personLabel(salespersonOfProject(r)), r.company, r.buildingSector, r.workType, day(r.nextCheckIn), r.projectValue, value(r) ?? "", day(r.createdAt)]))
+    headers: ["Type", "Name", "Status", "Stage", "Salesperson", "Firm", "Sector", "Work type", "Bid date / next check-in", "Value (as entered)", "Value ($)", "Created"],
+    rows: records.map(r => [
+      r.kind, r.name, r.status, r.stage, personLabel(r.person), r.company, r.sector, r.workType, r.date, r.rawValue, r.value ?? "", r.created
+    ])
   });
 
   return (
@@ -160,9 +200,7 @@ function AnalyticsDetailsContent() {
       <div className="analytics-card">
         <div className="analytics-card-head" style={{ marginBottom: 0 }}>
           <div>
-            <h3 className="analytics-card-title">
-              {records.length} {isPipeline ? (records.length === 1 ? "pipeline entry" : "pipeline entries") : (records.length === 1 ? "project" : "projects")} · {formatMoney(totalValue)}
-            </h3>
+            <h3 className="analytics-card-title">{countLabel} · {formatMoney(totalValue)}</h3>
             <p className="analytics-card-sub">
               {metric.sub ? `${metric.sub}. ` : ""}
               {activeFilters.length ? `Filters: ${activeFilters.join(", ")}.` : "No filters applied."}
@@ -178,27 +216,21 @@ function AnalyticsDetailsContent() {
           <div className="analytics-table-wrap">
             <table className="analytics-table stack-on-phone">
               <thead>
-                {isPipeline ? (
-                  <tr><th>Opportunity</th><th>Status</th><th>Stage</th><th>Salesperson</th><th>Engineering firm</th><th>Work type</th><th>Bid date</th><th>Value</th></tr>
-                ) : (
-                  <tr><th>Project</th><th>Status</th><th>Salesperson</th><th>Contractor / owner</th><th>Work type</th><th>Next check-in</th><th>Value</th></tr>
-                )}
+                <tr>
+                  <th>Type</th><th>Name</th><th>Status</th><th>Salesperson</th><th>Firm</th><th>Work type</th><th>Bid / check-in</th><th>Value</th>
+                </tr>
               </thead>
               <tbody>
                 {records.map(r => (
-                  <tr
-                    key={r.id}
-                    className="analytics-row-link"
-                    onClick={() => router.push(isPipeline ? `/dashboard/pipeline/${r.id}` : `/dashboard/project/${r.id}`)}
-                  >
-                    <td className="analytics-table-name" data-label={isPipeline ? "Opportunity" : "Project"}>{isPipeline ? r.title : (r.projectName || r.company)}</td>
-                    <td data-label="Status">{isPipeline ? STATUS_LABEL[statusOf(r)] : (r.category || "—")}</td>
-                    {isPipeline && <td data-label="Stage">{r.stage || "—"}</td>}
-                    <td data-label="Salesperson">{personLabel(isPipeline ? salespersonOfEntry(r) : salespersonOfProject(r))}</td>
-                    <td data-label={isPipeline ? "Engineering firm" : "Contractor / owner"}>{r.company || "—"}</td>
+                  <tr key={`${r.kind}-${r.id}`} className="analytics-row-link" onClick={() => router.push(r.href)}>
+                    <td data-label="Type">{r.kind}</td>
+                    <td className="analytics-table-name" data-label="Name">{r.name}</td>
+                    <td data-label="Status">{r.status || "—"}</td>
+                    <td data-label="Salesperson">{personLabel(r.person)}</td>
+                    <td data-label="Firm">{r.company || "—"}</td>
                     <td data-label="Work type">{r.workType || "—"}</td>
-                    <td data-label={isPipeline ? "Bid date" : "Next check-in"}>{day(isPipeline ? r.bidDate : r.nextCheckIn) || "—"}</td>
-                    <td data-label="Value">{value(r) === null ? "—" : formatMoney(value(r))}</td>
+                    <td data-label="Bid / check-in">{r.date || "—"}</td>
+                    <td data-label="Value">{r.value === null ? "—" : formatMoney(r.value)}</td>
                   </tr>
                 ))}
               </tbody>

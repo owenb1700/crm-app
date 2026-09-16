@@ -6,9 +6,9 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { BUILDING_SECTORS, WORK_TYPES } from "../../../lib/directory";
-import { canViewAnalytics, summarize, summarizeProjects, combinedBreakdown, breakdown, breakdownMulti, manufacturersOf, bidForecast, outcomesByMonth, formatMoney, parseMoney, statusOf } from "../../../lib/analytics";
+import { canViewAnalytics, summarizeMixed, summarizeProjects, combinedBreakdown, breakdown, breakdownMulti, manufacturersOf, bidForecast, outcomesByMonth, formatMoney, parseMoney, statusOf } from "../../../lib/analytics";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
-import { decodeFilters, encodeFilters } from "../../../lib/analyticsFilters";
+import { bidRecords, decodeFilters, encodeFilters, repairRecords, volumeRecords } from "../../../lib/analyticsFilters";
 import ExportButtons from "../../components/ExportButtons";
 import DashboardHeader from "../../components/DashboardHeader";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../../components/FilterBar";
@@ -433,9 +433,14 @@ function AnalyticsPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [projects, filters]);
 
-  const projectStats = useMemo(() => summarizeProjects(filteredProjects), [filteredProjects]);
 
-  const stats = useMemo(() => summarize(filtered), [filtered]);
+
+  // Bids: pipeline entries plus replacement projects that were never bid.
+  // Volume: every job once -- a converted entry counts as its project.
+  // Repairs are their own section, since they aren't bid work.
+  const stats = useMemo(() => summarizeMixed(bidRecords({ entries: filtered, projects: filteredProjects })), [filtered, filteredProjects]);
+  const volumeStats = useMemo(() => summarizeMixed(volumeRecords({ entries: filtered, projects: filteredProjects })), [filtered, filteredProjects]);
+  const repairStats = useMemo(() => summarizeProjects(repairRecords({ projects: filteredProjects }).projects), [filteredProjects]);
   const months = useMemo(() => outcomesByMonth(filtered), [filtered]);
   const bySector = useMemo(() => breakdown(filtered, e => e.buildingSector), [filtered]);
   const byFirm = useMemo(() => breakdown(filtered, e => e.company), [filtered]);
@@ -557,7 +562,7 @@ function AnalyticsPageContent() {
 
       <h2 className="analytics-section-title">Bids</h2>
       <div className="stat-row">
-        <StatTile label="Total entries" value={stats.total} sub={anyFilter ? "Matching filters" : "All pipeline entries"} metric="total" onOpen={openMetric} />
+        <StatTile label="Total bids" value={stats.total} sub="Pipeline entries + replacement projects" metric="total" onOpen={openMetric} />
         <StatTile label="Bid on" value={stats.bidOn} sub="Everything except Did Not Bid" metric="bidOn" onOpen={openMetric} />
         <StatTile label="Won" value={stats.won} metric="won" onOpen={openMetric} />
         <StatTile label="Lost" value={stats.lost} metric="lost" onOpen={openMetric} />
@@ -568,29 +573,29 @@ function AnalyticsPageContent() {
 
       <h2 className="analytics-section-title">Volume</h2>
       <div className="stat-row">
-        <StatTile label="Total bid volume" value={formatMoney(stats.volume.total)} metric="volumeTotal" onOpen={openMetric} />
-        <StatTile label="Won volume" value={formatMoney(stats.volume.won)} metric="volumeWon" onOpen={openMetric} />
-        <StatTile label="Lost volume" value={formatMoney(stats.volume.lost)} metric="volumeLost" onOpen={openMetric} />
-        <StatTile label="Open volume" value={formatMoney(stats.volume.open)} sub="Still in the pipeline" metric="volumeOpen" onOpen={openMetric} />
-        <StatTile label="Avg. won job" value={stats.avgWonValue ? formatMoney(stats.avgWonValue) : "—"} metric="avgWon" onOpen={openMetric} />
+        <StatTile label="Total volume" value={formatMoney(volumeStats.volume.total)} sub="Every job counted once" metric="volumeTotal" onOpen={openMetric} />
+        <StatTile label="Won volume" value={formatMoney(volumeStats.volume.won)} sub="Projects + won entries not yet converted" metric="volumeWon" onOpen={openMetric} />
+        <StatTile label="Lost volume" value={formatMoney(volumeStats.volume.lost)} metric="volumeLost" onOpen={openMetric} />
+        <StatTile label="Open volume" value={formatMoney(volumeStats.volume.open)} sub="Still in the pipeline" metric="volumeOpen" onOpen={openMetric} />
+        <StatTile label="Avg. won job" value={volumeStats.avgWonValue ? formatMoney(volumeStats.avgWonValue) : "—"} metric="avgWon" onOpen={openMetric} />
       </div>
       {stats.missingValue > 0 && (
         <p className="private-note-hint" style={{ marginTop: -4 }}>
-          {stats.missingValue} of {stats.total} entries have no usable estimated value (blank or not a number), so they aren't counted in volume.
+          {volumeStats.missingValue} of {volumeStats.total} jobs have no usable value (blank or not a number), so they aren't counted in volume.
         </p>
       )}
 
-      <h2 className="analytics-section-title">Projects</h2>
+      <h2 className="analytics-section-title">Repair projects</h2>
       <div className="stat-row">
-        <StatTile label="Projects" value={projectStats.count} sub={anyFilter ? "Matching filters" : "All projects"} metric="projects" onOpen={openMetric} />
-        <StatTile label="Ongoing" value={projectStats.ongoing} metric="projectsOngoing" onOpen={openMetric} />
-        <StatTile label="Closed" value={projectStats.closed} metric="projectsClosed" onOpen={openMetric} />
-        <StatTile label="Project volume" value={formatMoney(projectStats.volume)} metric="projectVolume" onOpen={openMetric} />
-        <StatTile label="Avg. project" value={projectStats.avgValue ? formatMoney(projectStats.avgValue) : "—"} metric="avgProject" onOpen={openMetric} />
+        <StatTile label="Repair projects" value={repairStats.count} sub={anyFilter ? "Matching filters" : "Work type: Repair"} metric="projects" onOpen={openMetric} />
+        <StatTile label="Ongoing" value={repairStats.ongoing} metric="projectsOngoing" onOpen={openMetric} />
+        <StatTile label="Closed" value={repairStats.closed} metric="projectsClosed" onOpen={openMetric} />
+        <StatTile label="Repair volume" value={formatMoney(repairStats.volume)} metric="projectVolume" onOpen={openMetric} />
+        <StatTile label="Avg. repair" value={repairStats.avgValue ? formatMoney(repairStats.avgValue) : "—"} metric="avgProject" onOpen={openMetric} />
       </div>
-      {projectStats.missingValue > 0 && (
+      {repairStats.missingValue > 0 && (
         <p className="private-note-hint" style={{ marginTop: -4 }}>
-          {projectStats.missingValue} of {projectStats.count} projects have no usable value, so they aren&apos;t counted in project volume.
+          {repairStats.missingValue} of {repairStats.count} repair projects have no usable value, so they aren&apos;t counted in repair volume.
         </p>
       )}
 
