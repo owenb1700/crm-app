@@ -46,6 +46,7 @@ import MobileNav from "../components/MobileNav";
 import EditUserModal from "../components/EditUserModal";
 import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, roleLabel, accessSummary } from "../../lib/permissions";
 import { FirmSelect } from "../components/DirectoryPickers";
+import GlobalSearch from "../components/GlobalSearch";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -156,8 +157,6 @@ export default function Dashboard() {
   const [toast, setToast] = useState("");
 
   // SEARCH
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [pastProjectsSearch, setPastProjectsSearch] = useState("");
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
 
@@ -1128,22 +1127,8 @@ export default function Dashboard() {
       (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
     );
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-
-      list = list.filter(c =>
-        (c.projectName || "").toLowerCase().includes(q) ||
-        (c.company || "").toLowerCase().includes(q) ||
-        (c.contact || "").toLowerCase().includes(q) ||
-        (c.phone || "").toLowerCase().includes(q) ||
-        (c.projectAddress || "").toLowerCase().includes(q) ||
-        (notesById[c.id]?.notes || "").toLowerCase().includes(q) ||
-        (notesById[c.id]?.notesHistory || []).some(h => (h.text || "").toLowerCase().includes(q))
-      );
-    }
-
     return list;
-  }, [customers, searchQuery, uid, notesById]);
+  }, [customers, uid]);
 
   // Pipeline entries "on my dashboard" -- owner, assigned salesperson,
   // assigned project point person, or self-tracked. Pulled live from the
@@ -1258,25 +1243,8 @@ export default function Dashboard() {
     if (f.outcome) list = list.filter(c => c.closedOutcome === f.outcome);
     list = list.filter(c => matchesDateFilter(c.nextCheckIn, f.due));
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-
-      list = list.filter(c =>
-        (c.projectName || "").toLowerCase().includes(q) ||
-        (c.company || "").toLowerCase().includes(q) ||
-        (c.contact || "").toLowerCase().includes(q) ||
-        (c.phone || "").toLowerCase().includes(q) ||
-        (c.projectAddress || "").toLowerCase().includes(q) ||
-        // Notes are only searchable here for entries you actually have
-        // access to (owned/collaborating) -- notesById never contains
-        // other people's private notes, so this can't leak anything.
-        (notesById[c.id]?.notes || "").toLowerCase().includes(q) ||
-        (notesById[c.id]?.notesHistory || []).some(h => (h.text || "").toLowerCase().includes(q))
-      );
-    }
-
     return list;
-  }, [customers, searchQuery, teamFilters, notesById]);
+  }, [customers, teamFilters]);
 
   const ownerLabel = (ownerId) => {
     if (ownerId === uid) return "You";
@@ -1942,28 +1910,10 @@ export default function Dashboard() {
             Past Projects
           </button>
 
-          <form
-            className="global-search"
-            onSubmit={e => {
-              e.preventDefault();
-              if (!globalSearchQuery.trim()) return;
-              router.push(`/dashboard/search?q=${encodeURIComponent(globalSearchQuery.trim())}`);
-            }}
-          >
-            {(view === "home" || view === "personal") && (
-              <button className="btn btn-primary" type="button" onClick={openNewReminder}>+ Add Reminder</button>
-            )}
-            <input
-              className="field global-search-input"
-              placeholder="Search everything..."
-              value={globalSearchQuery}
-              onChange={e => setGlobalSearchQuery(e.target.value)}
-            />
-            <button className="btn btn-secondary search-submit" type="submit" aria-label="Search">
-              <span className="search-submit-text">Search</span>
-              <span className="search-submit-icon" aria-hidden="true">🔍</span>
-            </button>
-          </form>
+          {(view === "home" || view === "personal") && (
+            <button className="btn btn-primary global-search-add" type="button" onClick={openNewReminder}>+ Add Reminder</button>
+          )}
+          <GlobalSearch customers={customers} pipelineEntries={pipelineEntries} companies={companies} contacts={contacts} />
         </div>
       )}
 
@@ -2064,19 +2014,7 @@ export default function Dashboard() {
           </div>
 
           {/* SEARCH */}
-          <div className="toolbar">
-            <button className="btn btn-icon" onClick={() => setSearchOpen(!searchOpen)}>🔍</button>
 
-            {searchOpen && (
-              <input
-                className="field"
-                placeholder="Search project, company, contact, address, or notes..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{ flex: 1 }}
-              />
-            )}
-          </div>
 
           {/* LIST -- projects and pipeline follow-ups interleaved by due
               date in one continuous list, not split into separate
@@ -2259,10 +2197,6 @@ export default function Dashboard() {
           }),
             ...customers
               .filter(c => c.ownerId === uid && isClosedWithCheckIn(c) && isCheckInDue(c))
-              .filter(c => {
-                const q = searchQuery.trim().toLowerCase();
-                return !q || (c.projectName || "").toLowerCase().includes(q) || (c.company || "").toLowerCase().includes(q);
-              })
               .map(c => ({
                 sortKey: getDateValue(c.nextCheckIn),
                 element: (
@@ -2292,10 +2226,6 @@ export default function Dashboard() {
                 )
               })),
             ...activeReminders
-              .filter(r => {
-                const q = searchQuery.trim().toLowerCase();
-                return !q || (r.subject || "").toLowerCase().includes(q) || (r.notes || "").toLowerCase().includes(q);
-              })
               .map(r => ({ sortKey: fromLocalDateKey(r.date).getTime(), element: renderReminderCard(r) })),
             ...myPipelineEntries.map(p => ({
               sortKey: p.bidDate ? new Date(p.bidDate).getTime() : Infinity,
@@ -2379,20 +2309,7 @@ export default function Dashboard() {
 
       {view === "team" && (
         <>
-          <div className="toolbar">
-            <button className="btn btn-icon" onClick={() => setSearchOpen(!searchOpen)}>🔍</button>
 
-            {searchOpen && (
-              <input
-                className="field"
-                placeholder="Search project, company, contact, address, or notes..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{ flex: 1 }}
-              />
-            )}
-
-          </div>
 
           <FilterBar
             idPrefix="team-filter"
@@ -2405,7 +2322,7 @@ export default function Dashboard() {
           />
 
           {teamCustomers.length === 0 && (
-            <p className="private-note-hint">{anyActive(teamFilters) || searchQuery.trim() ? "No projects match these filters." : "No projects yet."}</p>
+            <p className="private-note-hint">{anyActive(teamFilters) ? "No projects match these filters." : "No projects yet."}</p>
           )}
 
           {teamCustomers.map(c => {

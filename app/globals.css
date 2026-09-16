@@ -1124,9 +1124,69 @@ a {
   margin-bottom: 10px;
 }
 
+.global-search-box {
+  position: relative;
+  display: flex;
+}
+
 .global-search-input {
   width: 220px;
   margin-bottom: 0;
+}
+
+/* Suggestions under the header search: click one to go straight there. */
+.global-search-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: min(420px, 92vw);
+  max-height: 330px;
+  overflow-y: auto;
+  z-index: 30;
+  text-align: left;
+}
+
+.global-search-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.global-search-kind {
+  flex-shrink: 0;
+  width: 92px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.global-search-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.global-search-name {
+  overflow-wrap: anywhere;
+}
+
+.global-search-sub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.global-search-all {
+  border-top: 1px solid var(--color-border);
+  font-weight: 600;
+}
+
+.global-search-empty {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--color-text-muted);
 }
 
 /* The Search button is the word on desktop and just its icon on narrower
@@ -2872,6 +2932,11 @@ a {
     margin: 6px 0 10px;
   }
 
+  .global-search-box {
+    flex: 1;
+    min-width: 0;
+  }
+
   .global-search-input {
     flex: 1;
     width: auto;
@@ -3330,6 +3395,11 @@ a {
     flex: 1 1 100%;
     order: 0;
     margin: 0 0 4px;
+  }
+
+  .global-search-box {
+    flex: 1;
+    min-width: 0;
   }
 
   .global-search-input {
