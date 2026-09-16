@@ -40,8 +40,15 @@ export function PersonSelect({ id, people, value, onChange, placeholder = "Selec
   );
 }
 
-// People on file at a firm, matching the firm by normalized name.
-export const peopleAtFirm = (contacts, firmName) =>
-  (contacts || []).filter(c => sameCompany(c.companyName, firmName));
+// People on file at a firm. Contacts are found by the firm's Directory
+// record when there is one -- so everyone attached to it shows up even if
+// their contact record still carries an older spelling of the firm's name --
+// and by name otherwise (a firm typed in but not saved yet).
+export const peopleAtFirm = (contacts, firmName, companies) => {
+  const firm = (companies || []).find(c => sameCompany(c.name, firmName));
+  return (contacts || []).filter(c =>
+    (firm && c.companyId === firm.id) || sameCompany(c.companyName, firmName)
+  );
+};
 
 export const findPerson = (people, name) => (people || []).find(p => samePerson(p.name, name)) || null;

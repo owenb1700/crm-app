@@ -58,7 +58,7 @@ export default function NewProject() {
   const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
   const [ownerRows, setOwnerRows] = useState([]);
 
-  const contactsForCompany = (name) => peopleAtFirm(contacts, name);
+  const contactsForCompany = (name) => peopleAtFirm(contacts, name, companies);
   const matchingContacts = contactsForCompany(company);
 
   const updateOwnerRow = (index, field, value) => {

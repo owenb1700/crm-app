@@ -1,14 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // A text field that doubles as a searchable dropdown: typing filters the
 // option list live, clicking an option selects it, and typing something
 // that doesn't match anything shows a "+ Enter '<text>' as a new X" row so
-// the value can still be committed as a brand-new entry. Options close via
-// onMouseDown (fires before the input's onBlur) so a click always registers.
+// the value can still be committed as a brand-new entry. The list closes on
+// a press outside it, not on the input's blur, so a tap on an option isn't
+// lost on touchscreens (where blur lands first).
 export default function SearchableSelect({ options, value, onChange, placeholder, newLabel = "contractor" }) {
   const [open, setOpen] = useState(false);
+  const boxRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPressOutside = (e) => {
+      if (!boxRef.current?.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPressOutside);
+    return () => document.removeEventListener("pointerdown", onPressOutside);
+  });
 
   const query = (value || "").trim().toLowerCase();
   const filtered = query
@@ -18,7 +29,7 @@ export default function SearchableSelect({ options, value, onChange, placeholder
   const showCreateRow = query.length > 0 && !exactMatch;
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative" }} ref={boxRef}>
       <input
         className="field"
         autoComplete="off"
@@ -26,7 +37,7 @@ export default function SearchableSelect({ options, value, onChange, placeholder
         value={value}
         onChange={e => onChange(e.target.value)}
         onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onKeyDown={e => { if (e.key === "Escape" || e.key === "Enter") setOpen(false); }}
       />
       {open && (filtered.length > 0 || showCreateRow) && (
         <div
@@ -37,7 +48,7 @@ export default function SearchableSelect({ options, value, onChange, placeholder
             <div
               key={o}
               className="tab-dropdown-item"
-              onMouseDown={() => onChange(o)}
+              onPointerDown={e => { e.preventDefault(); onChange(o); setOpen(false); }}
             >
               {o}
             </div>
@@ -45,7 +56,7 @@ export default function SearchableSelect({ options, value, onChange, placeholder
           {showCreateRow && (
             <div
               className="tab-dropdown-item"
-              onMouseDown={() => onChange(value)}
+              onPointerDown={e => { e.preventDefault(); onChange(value); setOpen(false); }}
             >
               + Enter "{value}" as a new {newLabel}
             </div>

@@ -56,7 +56,7 @@ export default function NewPipelineEntry() {
   const [equipmentRows, setEquipmentRows] = useState([blankProductRow()]);
   const [notes, setNotes] = useState("");
 
-  const contactsForCompany = (name) => peopleAtFirm(contacts, name);
+  const contactsForCompany = (name) => peopleAtFirm(contacts, name, companies);
 
   const handleContactChange = (value) => {
     setContact(value);

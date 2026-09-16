@@ -25,7 +25,7 @@ export default function CompanyContactFields({
 }) {
   // Every firm is searchable (firms of companyCategory listed first), and
   // near-duplicate names are caught -- see MatchingSelect.
-  const matchingContacts = peopleAtFirm(contacts, companyValue);
+  const matchingContacts = peopleAtFirm(contacts, companyValue, companies);
 
   const handleContactChange = (value) => {
     onContactChange(value);

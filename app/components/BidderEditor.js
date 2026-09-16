@@ -12,7 +12,7 @@ import SalespersonSelect from "./SalespersonSelect";
 // Pipeline Detail. One block per bidding firm (type, firm, salesperson),
 // holding as many people from that firm as needed.
 export default function BidderEditor({ idPrefix, bidders, onChange, companies, contacts, users }) {
-  const peopleAt = (firm) => peopleAtFirm(contacts, firm);
+  const peopleAt = (firm) => peopleAtFirm(contacts, firm, companies);
 
   const updateBidder = (bi, patch) => onChange(bidders.map((b, i) => (i === bi ? { ...b, ...patch } : b)));
   const updateContact = (bi, ci, patch) => updateBidder(bi, {

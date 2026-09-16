@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // A type-to-search field for Directory names (firms and people) that
 // steers people toward what's already on file instead of creating a
@@ -15,6 +15,7 @@ import { useState } from "react";
 export default function MatchingSelect({ id, options, value, onChange, placeholder, newLabel = "entry", isSame, isSimilar }) {
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState("");
+  const boxRef = useRef(null);
 
   const list = (options || []).map(o => (typeof o === "string" ? { value: o } : o)).filter(o => o.value);
   const text = value || "";
@@ -32,16 +33,30 @@ export default function MatchingSelect({ id, options, value, onChange, placehold
     setOpen(false);
   };
 
-  const handleBlur = () => {
-    setOpen(false);
-    if (same && same.value !== text) onChange(same.value);
-  };
+  // Closing on the field's own blur would race a tap on the list: on a phone
+  // or iPad the blur fires first and the option is gone before the tap lands.
+  // The list closes on a press outside it instead, and that's also when a
+  // spelling of a name already on file snaps to the existing one.
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPressOutside = (e) => {
+      if (boxRef.current?.contains(e.target)) return;
+      setOpen(false);
+      if (same && same.value !== text) onChange(same.value);
+    };
+    document.addEventListener("pointerdown", onPressOutside);
+    return () => document.removeEventListener("pointerdown", onPressOutside);
+  });
+
+  const showSame = same && !exactValue;
+  const showCreate = query && !same;
+  const hasRows = showSame || similar.length > 0 || filtered.length > 0 || showCreate;
 
   const tagOf = (o) => (o.tag ? <span className="matching-select-tag">{o.tag}</span> : null);
   const showSuggestion = !open && query && !same && similar.length > 0 && dismissed !== text;
 
   return (
-    <div className="matching-select">
+    <div className="matching-select" ref={boxRef}>
       <input
         id={id}
         className="field"
@@ -50,13 +65,19 @@ export default function MatchingSelect({ id, options, value, onChange, placehold
         value={text}
         onChange={e => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
-        onBlur={handleBlur}
+        onKeyDown={e => {
+          if (e.key === "Escape") setOpen(false);
+          if (e.key === "Enter") {
+            setOpen(false);
+            if (same && same.value !== text) onChange(same.value);
+          }
+        }}
       />
 
-      {open && (list.length > 0 || query) && (
+      {open && hasRows && (
         <div className="tab-dropdown-menu-card matching-select-menu" role="listbox">
-          {same && !exactValue && (
-            <div className="tab-dropdown-item matching-select-same" role="option" aria-selected="false" onMouseDown={e => { e.preventDefault(); pick(same.value); }}>
+          {showSame && (
+            <div className="tab-dropdown-item matching-select-same" role="option" aria-selected="false" onPointerDown={e => { e.preventDefault(); pick(same.value); }}>
               Use <strong>{same.value}</strong> (already in the Directory) {tagOf(same)}
             </div>
           )}
@@ -64,19 +85,19 @@ export default function MatchingSelect({ id, options, value, onChange, placehold
             <>
               <div className="matching-select-heading">Similar in the Directory</div>
               {similar.map(o => (
-                <div key={`s-${o.value}`} className="tab-dropdown-item" role="option" aria-selected="false" onMouseDown={e => { e.preventDefault(); pick(o.value); }}>
+                <div key={`s-${o.value}`} className="tab-dropdown-item" role="option" aria-selected="false" onPointerDown={e => { e.preventDefault(); pick(o.value); }}>
                   {o.value} {tagOf(o)}
                 </div>
               ))}
             </>
           )}
           {filtered.slice(0, 60).map(o => (
-            <div key={o.value} className="tab-dropdown-item" role="option" aria-selected={o.value === text} onMouseDown={e => { e.preventDefault(); pick(o.value); }}>
+            <div key={o.value} className="tab-dropdown-item" role="option" aria-selected={o.value === text} onPointerDown={e => { e.preventDefault(); pick(o.value); }}>
               {o.value} {tagOf(o)}
             </div>
           ))}
-          {query && !same && (
-            <div className="tab-dropdown-item matching-select-new" role="option" aria-selected="false" onMouseDown={e => { e.preventDefault(); setDismissed(text); pick(text); }}>
+          {showCreate && (
+            <div className="tab-dropdown-item matching-select-new" role="option" aria-selected="false" onPointerDown={e => { e.preventDefault(); setDismissed(text); pick(text); }}>
               + Add &quot;{text.trim()}&quot; as a new {newLabel}
             </div>
           )}
