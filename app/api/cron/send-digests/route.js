@@ -4,6 +4,7 @@ import { renderEmail } from "../../../../lib/emailTemplate";
 import { buildDigestHtml, schedulesFor } from "../../../../lib/digest";
 import { generateIncidentCode, alertAdmins } from "../../../../lib/adminAlert";
 import { purgeExpiredTrash } from "../../../../lib/deleteRecord";
+import { recordCronRun } from "../../../../lib/cronLog";
 import { syncCompanyKeys } from "../../../../lib/directoryRecords";
 
 // Runs daily (see vercel.json) at 4:00 AM Central. Every user's
@@ -15,6 +16,32 @@ export async function GET(req) {
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Anything that throws out here (Firestore unreachable, credentials
+  // rejected) used to end the run as a bare 500 that nobody saw: no email,
+  // no alert, and Vercel's logs gone within the hour. Now it's recorded and
+  // mailed out with the stack, so the next failure explains itself.
+  try {
+    const result = await runDigests(req);
+    await recordCronRun("send-digests", {
+      sent: result.sent.length,
+      failed: result.failed.length,
+      failures: result.failed,
+      purged: result.purged.length
+    });
+    return Response.json({ ok: true, ...result, sent: result.sent, failed: result.failed });
+  } catch (err) {
+    const code = await alertAdmins({
+      area: "Digest",
+      message: "The daily digest job stopped before any email was sent",
+      detail: `${err.message}\n\n${err.stack || ""}`
+    }).catch(() => null);
+    await recordCronRun("send-digests", { error: err.message, stack: err.stack || null, code });
+    return Response.json({ error: `Digest run failed: ${err.message}`, code }, { status: 502 });
+  }
+}
+
+async function runDigests(req) {
 
   // Anything that's been in the Trash for 30 days is deleted for good.
   let purged = [];
@@ -112,5 +139,5 @@ export async function GET(req) {
     await Promise.all(admins.map(a => sendRawEmail(a.email, `CRM Alert [${alertCode}]: Digest Send Failures`, alertHtml).catch(() => {})));
   }
 
-  return Response.json({ ok: true, dayOfWeek: todayCentral, sent, failed, userCount: users.length, alertCode, purged: purged.length });
+  return { dayOfWeek: todayCentral, sent, failed, userCount: users.length, alertCode, purged };
 }

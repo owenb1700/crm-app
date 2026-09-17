@@ -47,6 +47,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // What the nightly jobs did, kept for 30 days. Written only by the
+    // server (the Admin SDK ignores these rules); admins can read it back
+    // long after Vercel's own logs have expired.
+    match /cronRuns/{runId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
 

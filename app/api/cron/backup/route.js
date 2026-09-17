@@ -1,6 +1,7 @@
 import { getStorage } from "firebase-admin/storage";
 import { getAdminDb, getAdminApp } from "../../../../lib/firebaseAdmin";
 import { alertAdmins } from "../../../../lib/adminAlert";
+import { recordCronRun } from "../../../../lib/cronLog";
 
 // Nightly safety copy of everything in the database, written to Storage as
 // JSON (backups/YYYY-MM-DD/<collection>.json). The Trash only covers whole
@@ -10,7 +11,8 @@ import { alertAdmins } from "../../../../lib/adminAlert";
 
 const COLLECTIONS = [
   "users", "customers", "pipeline", "companies", "contacts", "companyKeys",
-  "products", "towerModels", "reminders", "notifications", "duplicateDismissals", "disabledEmails"
+  "products", "towerModels", "reminders", "notifications", "duplicateDismissals", "disabledEmails",
+  "cronRuns"
 ];
 
 // Subcollections worth keeping: a project's notes and drawings, a pipeline
@@ -74,13 +76,15 @@ export async function GET(req) {
     });
     await Promise.all(stale.map(f => f.delete().catch(() => {})));
 
+    await recordCronRun("backup", { date: stamp, counts, removedOldFiles: stale.length });
     return Response.json({ ok: true, date: stamp, counts, removedOldFiles: stale.length });
   } catch (err) {
     const code = await alertAdmins({
       area: "Backup",
       message: "The nightly database backup failed",
-      detail: err.message
+      detail: `${err.message}\n\n${err.stack || ""}`
     }).catch(() => null);
+    await recordCronRun("backup", { error: err.message, stack: err.stack || null, code });
     return Response.json({ error: `Backup failed: ${err.message}`, code }, { status: 502 });
   }
 }
