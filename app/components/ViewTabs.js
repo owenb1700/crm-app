@@ -85,6 +85,7 @@ export default function ViewTabs({ profile, role, view, onSelectView, onAddRemin
           pipelineEntries={searchData?.pipelineEntries || []}
           companies={searchData?.companies || []}
           contacts={searchData?.contacts || []}
+          error={searchData?.error || ""}
         />
       </div>
     </div>

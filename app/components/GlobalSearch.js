@@ -18,7 +18,7 @@ const LIMIT_TOTAL = 10;
 
 const has = (q, fields) => fields.some(f => String(f || "").toLowerCase().includes(q));
 
-export default function GlobalSearch({ customers = [], pipelineEntries = [], companies = [], contacts = [] }) {
+export default function GlobalSearch({ customers = [], pipelineEntries = [], companies = [], contacts = [], error = "" }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -162,6 +162,8 @@ export default function GlobalSearch({ customers = [], pipelineEntries = [], com
         />
         {open && q && (
           <div className="tab-dropdown-menu-card global-search-menu" role="listbox">
+            {/* Say so rather than quietly searching a smaller set. */}
+            {error && <div className="global-search-empty">Companies and people couldn&apos;t be loaded, so they aren&apos;t included here: {error}</div>}
             {shown.length === 0 && <div className="global-search-empty">No matches yet — press Search to look everywhere.</div>}
             {shown.map(item => (
               <div

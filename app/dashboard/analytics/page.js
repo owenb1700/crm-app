@@ -329,6 +329,7 @@ function AnalyticsPageContent() {
   const [users, setUsers] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
+  const [searchLoadError, setSearchLoadError] = useState("");
   // Coming back from a tile's records keeps whatever was filtered there.
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState(() => decodeFilters(searchParams.get("f")));
@@ -358,6 +359,16 @@ function AnalyticsPageContent() {
 
       setUid(user.uid);
       try {
+        // The profile check and the data load start together: waiting for
+        // the first before asking for the second put an extra round trip in
+        // front of every visit.
+        const dataPromise = Promise.all([
+          getDocs(collection(db, "pipeline")),
+          getDocs(collection(db, "customers")),
+          getDocs(collection(db, "users"))
+        ]);
+        dataPromise.catch(() => {}); // handled below; this just avoids an unhandled rejection
+
         const profileSnap = await getDoc(doc(db, "users", user.uid));
         if (!profileSnap.exists()) {
           router.push("/dashboard");
@@ -377,22 +388,22 @@ function AnalyticsPageContent() {
         setAllowed(true);
         setMyProfile(profile);
 
-        // Companies and contacts aren't charted -- they're what the tab
-        // bar's "Search everything" box looks through, same as on the
-        // dashboard.
-        const [pipelineSnap, customersSnap, usersSnap, companiesSnap, contactsSnap] = await Promise.all([
-          getDocs(collection(db, "pipeline")),
-          getDocs(collection(db, "customers")),
-          getDocs(collection(db, "users")),
-          getDocs(collection(db, "companies")),
-          getDocs(collection(db, "contacts"))
-        ]);
+        const [pipelineSnap, customersSnap, usersSnap] = await dataPromise;
         setEntries(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setProjects(withoutTrashed(customersSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setLoaded(true);
+
+        // The Directory is only here for the tab bar's "Search everything"
+        // box -- it's thousands of records the charts never touch, so it
+        // loads afterwards instead of holding up the page. If it fails the
+        // page still works; the search box says what's missing.
+        Promise.all([getDocs(collection(db, "companies")), getDocs(collection(db, "contacts"))])
+          .then(([companiesSnap, contactsSnap]) => {
+            setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+          })
+          .catch(err => setSearchLoadError(err.message || "The Directory couldn't be loaded."));
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading analytics.");
       }
@@ -525,8 +536,31 @@ function AnalyticsPageContent() {
     );
   }
 
+  // The header and tabs are on screen while the numbers are still being
+  // fetched, so opening Analytics looks like arriving somewhere instead of
+  // staring at a blank page.
+  const pageChrome = (title) => (
+    <div className="dashboard-header">
+      <div className="dashboard-brand">
+        <MobileNav uid={uid} />
+        <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
+        <h1 className="dashboard-title">{title}</h1>
+      </div>
+      <div className="dashboard-header-actions">
+        <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
+        <DashboardHeader uid={uid} />
+      </div>
+    </div>
+  );
+
   if (!loaded) {
-    return <div className="dashboard-page">Loading...</div>;
+    return (
+      <div className="dashboard-page">
+        {pageChrome("Estimating Analytics")}
+        <ViewTabs profile={myProfile} role={myProfile?.role} view="analytics" searchData={{}} />
+        <p className="modal-subtitle" style={{ marginTop: 24 }}>Adding up projects and pipeline entries...</p>
+      </div>
+    );
   }
 
   const anyFilter = Object.values(filters).some(isFilterActive);
@@ -550,23 +584,13 @@ function AnalyticsPageContent() {
 
   return (
     <div className="dashboard-page">
-      <div className="dashboard-header">
-        <div className="dashboard-brand">
-          <MobileNav uid={uid} />
-          <img src="/logo.svg" alt="Bullock Logan" className="dashboard-logo" />
-          <h1 className="dashboard-title">Estimating Analytics</h1>
-        </div>
-        <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
-          <DashboardHeader uid={uid} />
-        </div>
-      </div>
+      {pageChrome("Estimating Analytics")}
 
       <ViewTabs
         profile={myProfile}
         role={myProfile?.role}
         view="analytics"
-        searchData={{ customers: projects, pipelineEntries: entries, companies, contacts }}
+        searchData={{ customers: projects, pipelineEntries: entries, companies, contacts, error: searchLoadError }}
       />
 
       <FilterBar
