@@ -86,7 +86,12 @@ export default function Dashboard() {
   useEffect(() => {
     const openHashView = () => {
       const hash = window.location.hash.slice(1);
-      if (HASH_VIEWS.includes(hash)) setView(hash);
+      if (!HASH_VIEWS.includes(hash)) return;
+      setView(hash);
+      // Take the hash back off the URL once it's been used. Otherwise it
+      // sits there for the rest of the session and the next reload (or
+      // reopening the tab) starts on that tab instead of Home.
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
     };
     openHashView();
     const soon = setTimeout(openHashView, 0);
