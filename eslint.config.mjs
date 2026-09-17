@@ -1,27 +1,32 @@
 import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
+import reactPlugin from "eslint-plugin-react";
 
 // The point of this config is one rule: no-undef. A typo or a component
 // wired up without the data it needs (users={users} with no `users` in
 // scope) compiles fine and only blows up in the browser when someone opens
 // the page. `npm run lint` catches it before a deploy does.
 export default [
+  // Global ignores: build output and anything vendored.
+  { ignores: ["**/.next/**", "**/node_modules/**", "out/**", "public/**", ".claude/**"] },
   {
     files: ["**/*.js", "**/*.jsx", "**/*.mjs"],
-    ignores: [".next/**", "node_modules/**", "out/**"],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "module",
       globals: { ...globals.browser, ...globals.node },
       parserOptions: { ecmaFeatures: { jsx: true } }
     },
-    plugins: { "react-hooks": reactHooks },
+    plugins: { "react-hooks": reactHooks, react: reactPlugin },
     linterOptions: { reportUnusedDisableDirectives: false },
     rules: {
       ...js.configs.recommended.rules,
       "no-undef": "error",
       "react-hooks/rules-of-hooks": "error",
+      // Without these, a component only ever used inside JSX looks unused.
+      "react/jsx-uses-vars": "error",
+      "react/jsx-uses-react": "error",
       // Noise we don't want failing a lint run: these are style, not bugs.
       "no-unused-vars": ["warn", { args: "none", varsIgnorePattern: "^_" }],
       "no-empty": "off",

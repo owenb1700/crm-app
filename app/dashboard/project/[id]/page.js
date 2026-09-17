@@ -110,14 +110,6 @@ export default function ProjectDetail() {
     return date;
   };
 
-  const adjustWeekend = (date) => {
-    const d = new Date(date);
-    const day = d.getDay();
-    if (day === 6) d.setDate(d.getDate() + 2);
-    if (day === 0) d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
-  };
-
   const ownerLabel = (ownerId) => {
     if (ownerId === uid) return "You";
     const u = users.find(u => u.id === ownerId);

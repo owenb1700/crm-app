@@ -84,7 +84,6 @@ async function runDigests(req) {
   const todayCentral = WEEKDAY_INDEX[centralWeekday];
 
   const sent = [];
-  const skipped = [];
   const failed = [];
 
   for (const user of users) {

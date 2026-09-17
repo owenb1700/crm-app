@@ -24,16 +24,12 @@ export default function TowersPage() {
   const [loaded, setLoaded] = useState(false);
 
   const [customers, setCustomers] = useState([]);
-  const [pipelineEntries, setPipelineEntries] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
 
   const loadAll = async () => {
-    const [customersSnap, pipelineSnap] = await Promise.all([
-      getDocs(collection(db, "customers")),
-      getDocs(collection(db, "pipeline"))
-    ]);
+    // Towers come from projects; the pipeline has none installed yet.
+    const customersSnap = await getDocs(collection(db, "customers"));
     setCustomers(withoutTrashed(customersSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    setPipelineEntries(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
     setLoaded(true);
   };
 

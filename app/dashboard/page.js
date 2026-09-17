@@ -1522,10 +1522,6 @@ export default function Dashboard() {
     }
   };
 
-  const myPermissions = role === "admin"
-    ? PERMISSION_DEFS.reduce((acc, p) => ({ ...acc, [p.key]: true }), {})
-    : { ...DEFAULT_PERMISSIONS, ...(myProfile?.permissions || {}) };
-
   // FILTER BAR DEFINITIONS -- options come from the data actually on each
   // page, so a dropdown never offers a value that matches nothing.
   const personOption = (id) => ({ value: id, label: ownerLabel(id) });
