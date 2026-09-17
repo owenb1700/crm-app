@@ -15,6 +15,7 @@ import DashboardHeader from "../../components/DashboardHeader";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../../components/FilterBar";
 import ExportDataModal from "../../components/ExportDataModal";
 import MobileNav from "../../components/MobileNav";
+import ViewTabs from "../../components/ViewTabs";
 import { withoutTrashed } from "../../../lib/trash";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -326,6 +327,8 @@ function AnalyticsPageContent() {
   const [entries, setEntries] = useState([]);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [contacts, setContacts] = useState([]);
   // Coming back from a tile's records keeps whatever was filtered there.
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState(() => decodeFilters(searchParams.get("f")));
@@ -374,14 +377,21 @@ function AnalyticsPageContent() {
         setAllowed(true);
         setMyProfile(profile);
 
-        const [pipelineSnap, customersSnap, usersSnap] = await Promise.all([
+        // Companies and contacts aren't charted -- they're what the tab
+        // bar's "Search everything" box looks through, same as on the
+        // dashboard.
+        const [pipelineSnap, customersSnap, usersSnap, companiesSnap, contactsSnap] = await Promise.all([
           getDocs(collection(db, "pipeline")),
           getDocs(collection(db, "customers")),
-          getDocs(collection(db, "users"))
+          getDocs(collection(db, "users")),
+          getDocs(collection(db, "companies")),
+          getDocs(collection(db, "contacts"))
         ]);
         setEntries(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setProjects(withoutTrashed(customersSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setLoaded(true);
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading analytics.");
@@ -551,6 +561,13 @@ function AnalyticsPageContent() {
           <DashboardHeader uid={uid} />
         </div>
       </div>
+
+      <ViewTabs
+        profile={myProfile}
+        role={myProfile?.role}
+        view="analytics"
+        searchData={{ customers: projects, pipelineEntries: entries, companies, contacts }}
+      />
 
       <FilterBar
         idPrefix="analytics-filter"

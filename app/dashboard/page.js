@@ -46,8 +46,7 @@ import MobileNav from "../components/MobileNav";
 import EditUserModal from "../components/EditUserModal";
 import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, roleLabel, accessSummary } from "../../lib/permissions";
 import { FirmSelect } from "../components/DirectoryPickers";
-import GlobalSearch from "../components/GlobalSearch";
-import RemindersMenu from "../components/RemindersMenu";
+import ViewTabs from "../components/ViewTabs";
 import { hasShare, splitShares } from "../../lib/splits";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -164,7 +163,6 @@ export default function Dashboard() {
 
   // SEARCH
   const [pastProjectsSearch, setPastProjectsSearch] = useState("");
-  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
 
   // ADMIN: create user form
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -1863,88 +1861,14 @@ export default function Dashboard() {
       )}
 
       {view !== "admin" && (
-        <div className="view-tabs">
-          {myPermissions.dashboard && (
-            <>
-              <button
-                className={`tab-btn ${view === "home" ? "tab-btn-active" : ""}`}
-                onClick={() => setView("home")}
-              >
-                Home
-              </button>
-              <button
-                className={`tab-btn ${view === "personal" ? "tab-btn-active" : ""}`}
-                onClick={() => setView("personal")}
-              >
-                My Projects
-              </button>
-            </>
-          )}
-          {myPermissions.pipeline && (
-            <button
-              className={`tab-btn ${view === "pipeline" ? "tab-btn-active" : ""}`}
-              onClick={() => setView("pipeline")}
-            >
-              Pipeline
-            </button>
-          )}
-
-
-          {(myPermissions.directory || myPermissions.towers || myPermissions.products) && (
-            <div className="tab-dropdown">
-              <button className="tab-btn">Directory ▾</button>
-              <div className="tab-dropdown-menu">
-                <div className="tab-dropdown-menu-card">
-                  {myPermissions.directory && (
-                    <>
-                      <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory")}>All Companies</a>
-                      <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Contractor")}>Contractors</a>
-                      <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory?category=Engineering%20Firm")}>Engineering Firms</a>
-                      <a className="tab-dropdown-item" onClick={() => router.push(`/dashboard/directory?category=${encodeURIComponent(OWNER_CATEGORY)}`)}>Owners & Building Engineers</a>
-                    </>
-                  )}
-                  {myPermissions.towers && (
-                    <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory/towers")}>Installed Towers</a>
-                  )}
-                  {myPermissions.products && (
-                    <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory/products")}>Product Options</a>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {canViewAnalytics(myProfile) && (
-            <button className="tab-btn" onClick={() => router.push("/dashboard/analytics")}>
-              Analytics
-            </button>
-          )}
-
-          {myPermissions.team && (
-            <button
-              className={`tab-btn ${view === "team" ? "tab-btn-active" : ""}`}
-              onClick={() => setView("team")}
-            >
-              Team
-            </button>
-          )}
-
-          <button
-            className={`tab-btn ${view === "pastProjects" ? "tab-btn-active" : ""}`}
-            onClick={() => setView("pastProjects")}
-          >
-            Past Projects
-          </button>
-
-          <div className="header-tools">
-            <RemindersMenu
-              className="hide-with-mobile-nav"
-              onAdd={openNewReminder}
-              onSeeAll={() => router.push("/dashboard/reminders")}
-            />
-            <GlobalSearch customers={customers} pipelineEntries={pipelineEntries} companies={companies} contacts={contacts} />
-          </div>
-        </div>
+        <ViewTabs
+          profile={myProfile}
+          role={role}
+          view={view}
+          onSelectView={setView}
+          onAddReminder={openNewReminder}
+          searchData={{ customers, pipelineEntries, companies, contacts }}
+        />
       )}
 
       {view === "home" && (
