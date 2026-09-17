@@ -43,6 +43,8 @@ export default function NewProject() {
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [towerModels, setTowerModels] = useState([]);
+  // Who a credit split can name.
+  const [users, setUsers] = useState([]);
 
   const [projectName, setProjectName] = useState("");
   const [company, setCompany] = useState("");
@@ -139,14 +141,16 @@ export default function NewProject() {
           return;
         }
 
-        const [companiesSnap, contactsSnap, towerModelsSnap] = await Promise.all([
+        const [companiesSnap, contactsSnap, towerModelsSnap, usersSnap] = await Promise.all([
           getDocs(collection(db, "companies")),
           getDocs(collection(db, "contacts")),
-          getDocs(collection(db, "towerModels"))
+          getDocs(collection(db, "towerModels")),
+          getDocs(collection(db, "users"))
         ]);
         setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setTowerModels(towerModelsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setLoaded(true);
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading this page.");
