@@ -557,7 +557,17 @@ function AnalyticsPageContent() {
     return (
       <div className="dashboard-page">
         {pageChrome("Estimating Analytics")}
-        <ViewTabs profile={myProfile} role={myProfile?.role} view="analytics" searchData={{}} />
+        {/* Which tabs someone gets depends on their profile, so the row
+            stays empty (but the same height) until it's loaded -- drawing
+            a partial row first makes the tabs jump sideways when the rest
+            arrive. */}
+        {myProfile
+          ? <ViewTabs profile={myProfile} role={myProfile.role} view="analytics" searchData={{}} />
+          : (
+            <div className="view-tabs" aria-hidden="true">
+              <button className="tab-btn" style={{ visibility: "hidden" }} tabIndex={-1}>Home</button>
+            </div>
+          )}
         <p className="modal-subtitle" style={{ marginTop: 24 }}>Adding up projects and pipeline entries...</p>
       </div>
     );
