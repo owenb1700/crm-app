@@ -34,17 +34,17 @@ export default function ViewTabs({ profile, role, view, onSelectView, onAddRemin
         <button className={tabClass("pipeline")} onClick={() => open("pipeline")}>Pipeline</button>
       )}
 
-      {canViewAnalytics(profile) && (
-        <button className={tabClass("analytics")} onClick={() => router.push("/dashboard/analytics")}>
-          Analytics
-        </button>
-      )}
-
       {permissions.team && (
         <button className={tabClass("team")} onClick={() => open("team")}>Team</button>
       )}
 
       <button className={tabClass("pastProjects")} onClick={() => open("pastProjects")}>Past Projects</button>
+
+      {canViewAnalytics(profile) && (
+        <button className={tabClass("analytics")} onClick={() => router.push("/dashboard/analytics")}>
+          Analytics
+        </button>
+      )}
 
       {/* Directory sits last: it's a reference list people dip into, not a
           view of their own work like the tabs to its left. */}
