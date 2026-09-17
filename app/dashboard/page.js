@@ -2301,7 +2301,7 @@ export default function Dashboard() {
             return (
               <div
                 key={c.id}
-                onClick={() => router.push(`/dashboard/project/${c.id}`)}
+                onClick={() => router.push(`/dashboard/project/${c.id}?from=team`)}
                 className={`customer-card ${barClass}`}
                 style={{ cursor: "pointer" }}
               >
@@ -2470,7 +2470,7 @@ export default function Dashboard() {
             <div
               key={c.id}
               className="customer-card"
-              onClick={() => router.push(`/dashboard/project/${c.id}`)}
+              onClick={() => router.push(`/dashboard/project/${c.id}?from=pastProjects`)}
               style={{ cursor: "pointer" }}
             >
               <div className="customer-card-left">
