@@ -144,7 +144,7 @@ export default function RemindersPage() {
       await addDoc(collection(db, "reminders"), {
         userId: uid,
         subject,
-        date: weekdayKey(fromKey(form.date)),
+        date: form.date,
         notes: form.notes.trim() || null,
         ...jobFields(form.job),
         createdAt: new Date().toISOString()
@@ -172,7 +172,7 @@ export default function RemindersPage() {
     try {
       await updateDoc(doc(db, "reminders", editingId), {
         subject,
-        date: weekdayKey(fromKey(editForm.date)),
+        date: editForm.date,
         notes: editForm.notes.trim() || null,
         ...jobFields(editForm.job)
       });

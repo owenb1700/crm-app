@@ -98,14 +98,6 @@ export default function NewProject() {
     setEquipmentRows(prev => prev.filter((_, i) => i !== index));
   };
 
-  const adjustWeekend = (date) => {
-    const d = new Date(date);
-    const day = d.getDay();
-    if (day === 6) d.setDate(d.getDate() + 2);
-    if (day === 0) d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
-  };
-
   useEffect(() => {
     let timer;
 
@@ -241,7 +233,7 @@ export default function NewProject() {
         serialNumber: first.serial || null,
         dateInstalled: first.yearInstalled || null,
         projectAddress: projectAddress || null,
-        nextCheckIn: adjustWeekend(nextDate),
+        nextCheckIn: nextDate,
         lastContact: new Date().toISOString().split("T")[0],
         activityLog: [],
         ownerId: uid,

@@ -3,12 +3,7 @@
 import { useEffect, useState } from "react";
 import { addDoc, collection, deleteDoc, doc, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { localDateKey, weekdayKey } from "../../lib/closedProjects";
-
-const fromKey = (key) => {
-  const [y, m, d] = key.split("-").map(Number);
-  return new Date(y, m - 1, d);
-};
+import { localDateKey } from "../../lib/closedProjects";
 
 // A signed-in user's own alert dates for one pipeline entry. They're stored
 // as that user's private reminders (with pipelineId set), so they show up on
@@ -50,7 +45,7 @@ export default function PipelineMyAlerts({ pipeline, uid }) {
         userId: uid,
         pipelineId: pipeline.id,
         subject: `Pipeline: ${pipeline.title}`,
-        date: weekdayKey(fromKey(date)),
+        date, // saved on the day they picked, weekend included
         notes: note.trim() || null,
         createdAt: new Date().toISOString()
       });

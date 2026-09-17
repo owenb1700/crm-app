@@ -47,6 +47,7 @@ import EditUserModal from "../components/EditUserModal";
 import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, roleLabel, accessSummary } from "../../lib/permissions";
 import { FirmSelect } from "../components/DirectoryPickers";
 import ViewTabs from "../components/ViewTabs";
+import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabels, calendarKeyFor as calendarDayKeyFor } from "../../lib/calendarDays";
 import { hasShare, splitShares } from "../../lib/splits";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -371,10 +372,9 @@ export default function Dashboard() {
     const subject = reminderForm.subject.trim();
     if (!subject) return alert("Enter a subject for this reminder");
 
-    // Weekend dates move to Monday, same as project check-ins -- the
-    // calendar only shows weekdays, so a Saturday reminder would never
-    // appear on it.
-    const date = toLocalDateKey(skipWeekend(fromLocalDateKey(reminderForm.date)));
+    // Saved on whatever day they picked, weekend included -- the calendar
+    // grows a Saturday or Sunday column to show it.
+    const date = toLocalDateKey(fromLocalDateKey(reminderForm.date));
     const notes = reminderForm.notes.trim() || null;
     const [jobKind, jobId] = (reminderForm.job || "").split(":");
     const job = {
@@ -1030,9 +1030,9 @@ export default function Dashboard() {
     };
 
     // Picked dates are read as local calendar dates -- new Date("YYYY-MM-DD")
-    // would parse as UTC midnight and land a day early (then get
-    // weekend-adjusted wrong) for anyone west of UTC.
-    const pickedDate = (key) => toLocalDateKey(skipWeekend(fromLocalDateKey(key)));
+    // would parse as UTC midnight and land a day early for anyone west of
+    // UTC. Whatever day they chose is the day that's saved.
+    const pickedDate = (key) => toLocalDateKey(fromLocalDateKey(key));
 
     if (completedOutcome === "Won") {
       payload.category = "Ongoing Project";
@@ -1285,34 +1285,11 @@ export default function Dashboard() {
     });
   }, [pipelineEntries, pipelineFilters]);
 
-  // HOME CALENDAR: next 4 weeks starting from the Sunday of the current week
-  const calendarDays = useMemo(() => {
-    const pad = n => String(n).padStart(2, "0");
-    const toKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  // HOME CALENDAR: four weeks from the Monday of this week, weekends
+  // included only when something is due on one (see lib/calendarDays.js).
+  const calendarWeeks = useMemo(() => buildCalendarWeeks(new Date()), []);
 
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const dow = start.getDay(); // 0 = Sun ... 6 = Sat
-    const diffToMonday = dow === 0 ? -6 : 1 - dow;
-    start.setDate(start.getDate() + diffToMonday);
 
-    const todayKey = toKey(new Date());
-
-    const days = [];
-    const cursor = new Date(start);
-    while (days.length < 20) {
-      const cursorDow = cursor.getDay();
-      if (cursorDow !== 0 && cursorDow !== 6) {
-        const key = toKey(cursor);
-        days.push({ date: new Date(cursor), key, isToday: key === todayKey });
-      }
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    return days;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const weekKeys = useMemo(() => calendarDays.slice(0, 5).map(d => d.key), [calendarDays]);
 
   // Reminders attached to a job that's been deleted (in the Trash) stay
   // hidden until the job is restored.
@@ -1408,15 +1385,9 @@ export default function Dashboard() {
     await action(item);
   };
 
-  // Which calendar day an alert sits on. The calendar only has weekdays
-  // from this week on, so nothing is left off it: anything overdue shows on
-  // today, and a Saturday/Sunday date shows on the Monday after.
-  const calendarKeyFor = (c) => {
-    const due = String(formatDate(c.nextCheckIn) || "").slice(0, 10);
-    if (!due) return "";
-    const todayKey = toLocalDateKey(new Date());
-    return toLocalDateKey(skipWeekend(fromLocalDateKey(due < todayKey ? todayKey : due)));
-  };
+  // Which calendar day an alert sits on (lib/calendarDays.js): its own
+  // day, weekend included, with anything overdue pulled onto today.
+  const calendarKeyFor = (c) => calendarDayKeyFor(formatDate(c.nextCheckIn));
   const isOverdueItem = (c) => {
     const due = String(formatDate(c.nextCheckIn) || "").slice(0, 10);
     return !!due && due < toLocalDateKey(new Date());
@@ -1432,6 +1403,18 @@ export default function Dashboard() {
     });
     return map;
   }, [myCalendarProjects]);
+
+  const weekendColumns = useMemo(
+    () => weekendColumnsFor(calendarWeeks, key => (projectsByDay[key] || []).length > 0),
+    [calendarWeeks, projectsByDay]
+  );
+  const calendarDays = useMemo(() => visibleCalendarDays(calendarWeeks, weekendColumns), [calendarWeeks, weekendColumns]);
+  const calendarColumnLabels = useMemo(() => columnLabels(weekendColumns), [weekendColumns]);
+
+  const weekKeys = useMemo(
+    () => calendarDays.slice(0, calendarColumnLabels.length).map(d => d.key),
+    [calendarDays, calendarColumnLabels]
+  );
 
   const panelProjects = useMemo(() => {
     if (selectedCalendarDay) {
@@ -1870,13 +1853,19 @@ export default function Dashboard() {
       {view === "home" && (
         <div className="home-layout">
           <div className="calendar-container">
-            <div className="calendar-weekday-header">
-              {["Mon", "Tue", "Wed", "Thu", "Fri"].map(d => (
+            <div
+              className="calendar-weekday-header"
+              style={{ gridTemplateColumns: `repeat(${calendarColumnLabels.length}, 1fr)` }}
+            >
+              {calendarColumnLabels.map(d => (
                 <div key={d} className="calendar-weekday">{d}</div>
               ))}
             </div>
 
-            <div className="calendar-grid">
+            <div
+              className="calendar-grid"
+              style={{ gridTemplateColumns: `repeat(${calendarColumnLabels.length}, 1fr)` }}
+            >
               {calendarDays.map(({ date, key, isToday }) => {
                 const dayProjects = projectsByDay[key] || [];
                 const isSelected = selectedCalendarDay === key;

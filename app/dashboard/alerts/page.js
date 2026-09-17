@@ -16,14 +16,6 @@ const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
 };
 
-const adjustWeekend = (date) => {
-  const d = new Date(date);
-  const day = d.getDay();
-  if (day === 6) d.setDate(d.getDate() + 2);
-  if (day === 0) d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
-};
-
 const toDateInputValue = (date) => {
   if (!date) return "";
   if (date?.seconds) return new Date(date.seconds * 1000).toISOString().split("T")[0];
@@ -177,9 +169,8 @@ export default function AllAlerts() {
     setSavingId(alert.key);
     try {
       const collectionName = alert.kind === "project" ? "customers" : "pipeline";
-      // Bid dates are the real bid day, so they're saved exactly as picked;
-      // check-ins move off weekends like everywhere else.
-      const adjusted = alert.field === "bidDate" ? newDate : adjustWeekend(newDate + "T12:00:00");
+      // Saved exactly as picked, weekend days included.
+      const adjusted = newDate;
       await updateDoc(doc(db, collectionName, alert.id), { [alert.field || "nextCheckIn"]: adjusted });
 
       setAlerts(prev => prev

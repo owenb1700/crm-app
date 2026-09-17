@@ -519,7 +519,7 @@ export default function PipelineDetail() {
         towerManufacturer: first.manufacturer || pipeline.towerManufacturer || null,
         modelNumber: first.model || pipeline.modelNumber || null,
         serialNumber: null,
-        nextCheckIn: adjustWeekend(convertNextDate + "T12:00:00"),
+        nextCheckIn: convertNextDate,
         lastContact: now.split("T")[0],
         activityLog: [{ type: "converted", outcome: "From won pipeline entry", notes: `Converted by ${myName}`, timestamp: now }],
         ownerId: convertData.salespersonId,
