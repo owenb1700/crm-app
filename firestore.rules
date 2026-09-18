@@ -19,6 +19,15 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // The "Enter Projects for Other People" permission. Admins always have
+    // it; everyone else needs it granted in Admin Settings.
+    function canEnterForOthers() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', {}).get('enterForOthers', false) == true);
+    }
+
     function customerData(customerId) {
       return get(/databases/$(database)/documents/customers/$(customerId)).data;
     }
@@ -90,7 +99,12 @@ service cloud.firestore {
       allow read: if isActive();
       allow create: if isActive() && (
         request.resource.data.ownerId == request.auth.uid ||
-        isConvertingOwnPipeline(request.resource.data)
+        isConvertingOwnPipeline(request.resource.data) ||
+        // Filed on someone else's behalf: allowed only with the permission,
+        // and only if whoever entered it stays on the project as a
+        // collaborator -- so it's never a way to put data somewhere you
+        // can't see it afterwards.
+        (canEnterForOthers() && request.auth.uid in request.resource.data.get('collaboratorIds', []))
       );
       allow delete: if isActive() &&
         (resource.data.ownerId == request.auth.uid || isAdmin());

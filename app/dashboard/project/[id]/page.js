@@ -757,6 +757,13 @@ export default function ProjectDetail() {
                 <dt>Sector</dt><dd>{customer.buildingSector || "—"}</dd>
                 <dt>Value</dt><dd>{customer.projectValue || "—"}</dd>
                 <dt>Credit Split</dt><dd>{normalizeSplits(customer.splits).length ? describeSplit(customer.splits, ownerLabel) : "Not split"}</dd>
+                {/* Only when someone filed this for the salesperson it
+                    belongs to -- otherwise there's nothing to explain. */}
+                {customer.enteredBy && (
+                  <>
+                    <dt>Entered by</dt><dd>{ownerLabel(customer.enteredBy)}</dd>
+                  </>
+                )}
                 <dt>Work Type</dt><dd>{customer.workType || "—"}</dd>
               </dl>
             </div>

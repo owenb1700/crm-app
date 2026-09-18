@@ -16,6 +16,8 @@ import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
 import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "../../../components/DirectoryPickers";
 import CreditSplitEditor from "../../../components/CreditSplitEditor";
+import SalespersonSelect from "../../../components/SalespersonSelect";
+import { canEnterForOthers } from "../../../../lib/permissions";
 import { normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -45,6 +47,15 @@ export default function NewProject() {
   const [towerModels, setTowerModels] = useState([]);
   // Who a credit split can name.
   const [users, setUsers] = useState([]);
+  const [myProfile, setMyProfile] = useState(null);
+  // Blank means "mine". Only shown to people who may enter for others.
+  const [salespersonId, setSalespersonId] = useState("");
+
+  const myName = () => {
+    const me = users.find(u => u.id === uid) || myProfile;
+    if (!me) return "a teammate";
+    return me.firstName && me.lastName ? `${me.firstName} ${me.lastName}` : (me.email || "a teammate");
+  };
 
   const [projectName, setProjectName] = useState("");
   const [company, setCompany] = useState("");
@@ -126,6 +137,7 @@ export default function NewProject() {
           router.push("/dashboard");
           return;
         }
+        setMyProfile(profileSnap.data());
         if (profileSnap.data().disabled) {
           clearSession();
           await signOut(auth);
@@ -213,6 +225,10 @@ export default function NewProject() {
       const equipment = equipmentRows.filter(r => r.type || r.manufacturer || r.model || r.serial || r.yearInstalled);
       const first = equipment[0] || {};
       const owners = cleanOwnerRows(ownerRows);
+      // Filed for someone else only when that's allowed and someone else
+      // was actually picked.
+      const ownerId = (canEnterForOthers(myProfile) && salespersonId) ? salespersonId : uid;
+      const enteredForSomeoneElse = ownerId !== uid;
 
       const ref = await addDoc(collection(db, "customers"), {
         projectName,
@@ -235,11 +251,17 @@ export default function NewProject() {
         projectAddress: projectAddress || null,
         nextCheckIn: nextDate,
         lastContact: new Date().toISOString().split("T")[0],
-        activityLog: [],
-        ownerId: uid,
+        activityLog: enteredForSomeoneElse
+          ? [{ type: "entered", outcome: `Entered by ${myName()}`, notes: null, timestamp: new Date().toISOString() }]
+          : [],
+        ownerId,
+        enteredBy: ownerId === uid ? null : uid,
         splits: normalizeSplits(splits),
-        // Everyone on the split works the project, like a collaborator.
-        collaboratorIds: withSplitMembers([], splits, uid),
+        // Everyone on the split works the project, like a collaborator --
+        // and so does whoever entered it for someone else, which is what
+        // makes this behave like a collaboration they didn't have to ask
+        // for.
+        collaboratorIds: withSplitMembers(ownerId === uid ? [] : [uid], splits, ownerId),
         createdAt: new Date().toISOString()
       });
 
@@ -258,6 +280,19 @@ export default function NewProject() {
           .filter(row => row.manufacturer || row.model)
           .map(row => ensureTowerModel({ towerModels, manufacturer: row.manufacturer, model: row.model, uid }))
       );
+
+      // Tell the salesperson it's theirs -- otherwise it just appears in
+      // their list one day with no explanation.
+      if (enteredForSomeoneElse) {
+        await addDoc(collection(db, "notifications"), {
+          userId: ownerId,
+          type: "assigned",
+          message: `${myName()} added the project "${projectName}" for you`,
+          link: `/dashboard/project/${ref.id}`,
+          read: false,
+          createdAt: new Date().toISOString()
+        }).catch(() => {});
+      }
 
       router.push(`/dashboard/project/${ref.id}`);
     } finally {
@@ -333,6 +368,16 @@ export default function NewProject() {
 
           <input className="field" autoComplete="off" placeholder="Project Value" value={projectValue} onChange={e => setProjectValue(e.target.value)} />
           <WorkTypeSelect id="new-project-work-type" value={workType} onChange={setWorkType} />
+
+          {canEnterForOthers(myProfile) && (
+            <SalespersonSelect
+              id="new-project-salesperson"
+              label="Salesperson (whose project is this?)"
+              users={users.filter(u => !u.disabled && u.role !== "estimating")}
+              value={salespersonId || uid || ""}
+              onChange={setSalespersonId}
+            />
+          )}
 
           <div style={{ gridColumn: "1 / -1" }}>
             <label className="field-label">Credit Split (optional)</label>
