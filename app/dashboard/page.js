@@ -44,7 +44,7 @@ import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
 import MobileNav from "../components/MobileNav";
 import EditUserModal from "../components/EditUserModal";
-import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, roleLabel, accessSummary } from "../../lib/permissions";
+import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, defaultPermissionsFor, roleLabel, accessSummary } from "../../lib/permissions";
 import { FirmSelect } from "../components/DirectoryPickers";
 import ViewTabs from "../components/ViewTabs";
 import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabels, calendarKeyFor as calendarDayKeyFor } from "../../lib/calendarDays";
@@ -175,7 +175,7 @@ export default function Dashboard() {
   const [newUserRole, setNewUserRole] = useState("member");
   const [newUserFirstName, setNewUserFirstName] = useState("");
   const [newUserLastName, setNewUserLastName] = useState("");
-  const [newUserPermissions, setNewUserPermissions] = useState(DEFAULT_PERMISSIONS);
+  const [newUserPermissions, setNewUserPermissions] = useState(defaultPermissionsFor("member"));
   const [showAddUser, setShowAddUser] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [editUserTarget, setEditUserTarget] = useState(null);
@@ -1441,6 +1441,7 @@ export default function Dashboard() {
   const resetNewUserForm = () => {
     setNewUserEmail("");
     setNewUserRole("member");
+    setNewUserPermissions(defaultPermissionsFor("member"));
     setNewUserFirstName("");
     setNewUserLastName("");
     setNewUserPermissions(DEFAULT_PERMISSIONS);
@@ -2678,7 +2679,17 @@ export default function Dashboard() {
             />
 
             <label className="field-label" htmlFor="new-user-role">Role</label>
-            <select id="new-user-role" className="field" value={newUserRole} onChange={e => setNewUserRole(e.target.value)}>
+            <select
+              id="new-user-role"
+              className="field"
+              value={newUserRole}
+              onChange={e => {
+                setNewUserRole(e.target.value);
+                // Start from what's usual for the role; every box stays
+                // editable from here.
+                setNewUserPermissions(defaultPermissionsFor(e.target.value));
+              }}
+            >
               <option value="member">Salesperson</option>
               <option value="estimating">Estimating Department</option>
               <option value="admin">Admin</option>
@@ -2686,17 +2697,16 @@ export default function Dashboard() {
 
             <label className="field-label" style={{ marginTop: 8 }}>Permissions</label>
             {PERMISSION_DEFS.map(p => {
-              const always = (p.alwaysForRoles || []).includes(newUserRole);
+              const typical = (p.defaultForRoles || []).includes(newUserRole);
               return (
-                <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: always ? "default" : "pointer" }}>
+                <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer" }}>
                   <input
                     type="checkbox"
-                    disabled={always}
-                    checked={always || !!newUserPermissions[p.key]}
+                    checked={!!newUserPermissions[p.key]}
                     onChange={() => setNewUserPermissions(prev => ({ ...prev, [p.key]: !prev[p.key] }))}
                   />
                   {p.label}
-                  {always && <span className="private-note-hint" style={{ margin: 0 }}>(always on for this role)</span>}
+                  {typical && <span className="private-note-hint" style={{ margin: 0 }}>(usual for this role)</span>}
                 </label>
               );
             })}

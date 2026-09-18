@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
-import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, ROLE_OPTIONS, roleLabel } from "../../lib/permissions";
+import { PERMISSION_DEFS, ROLE_OPTIONS, roleLabel, effectivePermissions } from "../../lib/permissions";
 import ConfirmDialog from "./ConfirmDialog";
 
 const nameOf = (u) => (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email);
@@ -13,7 +13,7 @@ const nameOf = (u) => (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}
 // changes, which (like deactivating, reactivating, and deleting) asks for
 // confirmation first. The window only closes through its own buttons.
 export default function EditUserModal({ user, ownedCounts, onClose, onChanged, onExport }) {
-  const startPerms = { ...DEFAULT_PERMISSIONS, ...(user.permissions || {}) };
+  const startPerms = effectivePermissions(user.role || "member", user.permissions);
   const [role, setRole] = useState(user.role || "member");
   const [perms, setPerms] = useState(startPerms);
   const [confirm, setConfirm] = useState(null); // { kind, ... }
@@ -21,11 +21,11 @@ export default function EditUserModal({ user, ownedCounts, onClose, onChanged, o
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const alwaysOn = (p) => (p.alwaysForRoles || []).includes(role);
+  const typicalFor = (p) => (p.defaultForRoles || []).includes(role);
 
   const roleChanged = role !== (user.role || "member");
   const permChanges = PERMISSION_DEFS
-    .filter(p => !alwaysOn(p) && role !== "admin")
+    .filter(() => role !== "admin")
     .filter(p => !!perms[p.key] !== !!startPerms[p.key])
     .map(p => ({ label: p.label, on: !!perms[p.key] }));
   const hasChanges = roleChanged || permChanges.length > 0;
@@ -118,24 +118,20 @@ export default function EditUserModal({ user, ownedCounts, onClose, onChanged, o
             <p className="private-note-hint" style={{ marginTop: 0 }}>Admins have access to everything.</p>
           ) : (
             <div className="edit-user-perms">
-              {PERMISSION_DEFS.map(p => {
-                const always = alwaysOn(p);
-                return (
-                  <label key={p.key} className="settings-check" htmlFor={`edit-user-perm-${p.key}`}>
-                    <input
-                      id={`edit-user-perm-${p.key}`}
-                      type="checkbox"
-                      disabled={always}
-                      checked={always || !!perms[p.key]}
-                      onChange={() => setPerms(prev => ({ ...prev, [p.key]: !prev[p.key] }))}
-                    />
-                    <span>
-                      {p.label}
-                      {always && <span className="private-note-hint" style={{ margin: "0 0 0 6px" }}>(always on for {roleLabel(role)})</span>}
-                    </span>
-                  </label>
-                );
-              })}
+              {PERMISSION_DEFS.map(p => (
+                <label key={p.key} className="settings-check" htmlFor={`edit-user-perm-${p.key}`}>
+                  <input
+                    id={`edit-user-perm-${p.key}`}
+                    type="checkbox"
+                    checked={!!perms[p.key]}
+                    onChange={() => setPerms(prev => ({ ...prev, [p.key]: !prev[p.key] }))}
+                  />
+                  <span>
+                    {p.label}
+                    {typicalFor(p) && <span className="private-note-hint" style={{ margin: "0 0 0 6px" }}>(usual for {roleLabel(role)})</span>}
+                  </span>
+                </label>
+              ))}
             </div>
           )}
 

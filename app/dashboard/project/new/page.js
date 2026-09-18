@@ -372,7 +372,7 @@ export default function NewProject() {
           {canEnterForOthers(myProfile) && (
             <SalespersonSelect
               id="new-project-salesperson"
-              label="Salesperson (whose project is this?)"
+              label="Salesperson if entering for someone else (whose project is this?)"
               users={users.filter(u => !u.disabled && u.role !== "estimating")}
               value={salespersonId || uid || ""}
               onChange={setSalespersonId}
