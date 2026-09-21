@@ -16,6 +16,7 @@ import MobileNav from "../../components/MobileNav";
 import ViewTabs from "../../components/ViewTabs";
 import ExportButtons from "../../components/ExportButtons";
 import MoneyInput from "../../components/MoneyInput";
+import AddressAutocomplete from "../../components/AddressAutocomplete";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -213,10 +214,10 @@ function PartsPageContent() {
     format,
     filename: `parts${anyFilter ? "-filtered" : ""}-${csvDateStamp()}`,
     sheetName: "Parts",
-    headers: ["Part", "Stage", "Firm type", "Firm", "Contact", "Email", "Phone", "Contractors", "Value", "Needed by", "Notes", "Entered by", "Added", "Last updated by", "Changes logged"],
+    headers: ["Part", "Stage", "Firm type", "Firm", "Contact", "Email", "Phone", "Contractors", "Project address", "Value", "Needed by", "Notes", "Entered by", "Added", "Last updated by", "Changes logged"],
     rows: shown.map(p => [
       p.item, p.stage, p.companyCategory, p.company, p.contact, p.email, p.phone,
-      describeContractors(p.contractors),
+      describeContractors(p.contractors), p.projectAddress || "",
       p.value, p.neededBy, p.notes, nameOf(p.ownerId),
       String(p.createdAt || "").slice(0, 10), nameOf(p.updatedBy), (p.log || []).length
     ])
@@ -308,6 +309,17 @@ function PartsPageContent() {
         <div>
           <label className="field-label" htmlFor={`${idPrefix}-phone`}>Phone</label>
           <input id={`${idPrefix}-phone`} className="field" autoComplete="off" value={values.phone} onChange={e => setValues(prev => ({ ...prev, phone: e.target.value }))} />
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label className="field-label" htmlFor={`${idPrefix}-address`}>Project address</label>
+          <AddressAutocomplete
+            id={`${idPrefix}-address`}
+            name={`${idPrefix}-address`}
+            placeholder="Where is this going?"
+            value={values.projectAddress}
+            onChange={v => setValues(prev => ({ ...prev, projectAddress: v }))}
+          />
         </div>
 
         <div>
@@ -488,6 +500,7 @@ function PartsPageContent() {
                     {p.contact && <> · {p.contact}</>}
                   </div>
                   {(p.email || p.phone) && <div className="customer-meta">{[p.email, p.phone].filter(Boolean).join(" · ")}</div>}
+                  {p.projectAddress && <div className="customer-meta" style={{ marginTop: 4 }}>{p.projectAddress}</div>}
                   {describeContractors(p.contractors) && (
                     <div className="customer-meta" style={{ marginTop: 4 }}>Contractors: {describeContractors(p.contractors)}</div>
                   )}

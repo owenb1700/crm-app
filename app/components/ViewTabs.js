@@ -64,6 +64,7 @@ export default function ViewTabs({ profile, role, view, onSelectView, onAddRemin
                   <a className="tab-dropdown-item" onClick={() => router.push(`/dashboard/directory?category=${encodeURIComponent(OWNER_CATEGORY)}`)}>Owners &amp; Building Engineers</a>
                 </>
               )}
+              <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory/addresses")}>Project Addresses</a>
               {permissions.towers && (
                 <a className="tab-dropdown-item" onClick={() => router.push("/dashboard/directory/towers")}>Installed Towers</a>
               )}
@@ -88,6 +89,7 @@ export default function ViewTabs({ profile, role, view, onSelectView, onAddRemin
           pipelineEntries={searchData?.pipelineEntries || []}
           companies={searchData?.companies || []}
           contacts={searchData?.contacts || []}
+          parts={searchData?.parts || []}
           error={searchData?.error || ""}
         />
       </div>

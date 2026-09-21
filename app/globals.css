@@ -1140,6 +1140,23 @@ a {
   margin-bottom: 0;
 }
 
+/* Simple stacked list of names (firms/people on an address page). */
+.plain-list {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.firm-tag-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 10px;
+}
+
 /* Dollar amounts: a $ inside the box on the left, so nobody types one. */
 .money-field {
   position: relative;

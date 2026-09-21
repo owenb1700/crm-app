@@ -7,6 +7,7 @@ import { db } from "../../lib/firebase";
 import { equipmentRowsFrom } from "../../lib/equipment";
 import { bidderContactNames } from "../../lib/bidders";
 import { withoutTrashed } from "../../lib/trash";
+import { collectAddresses, matchesAddressSearch, addressKey } from "../../lib/addresses";
 
 // The header's "Search everything" box: typing lists the closest matches
 // across projects, pipeline entries, the Directory, towers, and products --
@@ -18,7 +19,7 @@ const LIMIT_TOTAL = 10;
 
 const has = (q, fields) => fields.some(f => String(f || "").toLowerCase().includes(q));
 
-export default function GlobalSearch({ customers = [], pipelineEntries = [], companies = [], contacts = [], error = "" }) {
+export default function GlobalSearch({ customers = [], pipelineEntries = [], companies = [], contacts = [], parts = [], error = "" }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -85,6 +86,16 @@ export default function GlobalSearch({ customers = [], pipelineEntries = [], com
         href: `/dashboard/pipeline/${p.id}`
       })
     );
+    // One suggestion per building, leading to everything worked on there.
+    push(
+      collectAddresses({ projects: withoutTrashed(customers), pipeline: withoutTrashed(pipelineEntries), parts })
+        .filter(b => matchesAddressSearch(b, q)),
+      b => ({
+        key: `address-${b.key}`, kind: "Address", name: b.label,
+        sub: `${b.total} ${b.total === 1 ? "job" : "jobs"} on file`,
+        href: `/dashboard/directory/address/${addressKey(b.label)}`
+      })
+    );
     push(
       companies.filter(c => has(q, [c.name, c.phone, c.address, c.website])),
       c => ({ key: `company-${c.id}`, kind: c.category || "Company", name: c.name, sub: c.address || "", href: `/dashboard/directory/company/${c.id}` })
@@ -94,7 +105,7 @@ export default function GlobalSearch({ customers = [], pipelineEntries = [], com
       p => ({
         key: `person-${p.id}`, kind: "Person", name: p.name,
         sub: [p.title, p.companyName].filter(Boolean).join(" · "),
-        href: p.companyId ? `/dashboard/directory/company/${p.companyId}` : "/dashboard/directory"
+        href: `/dashboard/directory/person/${p.id}`
       })
     );
     push(

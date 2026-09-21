@@ -140,6 +140,7 @@ export default function Dashboard() {
   const [savingReminder, setSavingReminder] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
+  const [parts, setParts] = useState([]);
   const [towerModels, setTowerModels] = useState([]);
   const [rebuildingDirectory, setRebuildingDirectory] = useState(false);
 
@@ -337,12 +338,16 @@ export default function Dashboard() {
   };
 
   const loadDirectory = async () => {
-    const [companiesSnap, contactsSnap] = await Promise.all([
+    // Parts come along for "Search everything" -- an address typed on a
+    // parts order should be findable from here like any other.
+    const [companiesSnap, contactsSnap, partsSnap] = await Promise.all([
       getDocs(collection(db, "companies")),
-      getDocs(collection(db, "contacts"))
+      getDocs(collection(db, "contacts")),
+      getDocs(collection(db, "parts"))
     ]);
     setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setParts(partsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
   };
 
   // Reminder dates are plain "YYYY-MM-DD" strings in the user's own local
@@ -1905,7 +1910,7 @@ export default function Dashboard() {
           view={view}
           onSelectView={setView}
           onAddReminder={openNewReminder}
-          searchData={{ customers, pipelineEntries, companies, contacts }}
+          searchData={{ customers, pipelineEntries, companies, contacts, parts }}
         />
       )}
 
