@@ -132,22 +132,25 @@ export default function PipelineMyAlerts({ pipeline, uid, users = [] }) {
         <button className="btn btn-primary" disabled={saving} onClick={add}>{saving ? "Adding…" : "Add Alert"}</button>
       </div>
 
-      {team.length > 0 && (
-        <label className="settings-check" htmlFor={`my-alert-all-${pipeline.id}`} style={{ marginTop: 8 }}>
-          <input
-            id={`my-alert-all-${pipeline.id}`}
-            type="checkbox"
-            checked={remindAll}
-            onChange={e => setRemindAll(e.target.checked)}
-          />
-          <span>
-            Remind everyone on this entry
-            <span className="private-note-hint" style={{ margin: "0 0 0 6px" }}>
-              {describeTeam(team, personName)} — salespeople, the point person, anyone tracking it, and the reps on the bidding firms
-            </span>
+      {/* Always here, so it's findable even on an entry that currently has
+          nobody else on it. */}
+      <label className="settings-check" htmlFor={`my-alert-all-${pipeline.id}`} style={{ marginTop: 8 }}>
+        <input
+          id={`my-alert-all-${pipeline.id}`}
+          type="checkbox"
+          disabled={team.length === 0}
+          checked={remindAll && team.length > 0}
+          onChange={e => setRemindAll(e.target.checked)}
+        />
+        <span>
+          Remind everyone on this entry
+          <span className="private-note-hint" style={{ margin: "0 0 0 6px" }}>
+            {team.length
+              ? `${describeTeam(team, personName)} — everyone this entry is assigned to or shared with, plus the reps on the bidding firms`
+              : "nobody else is on this entry yet"}
           </span>
-        </label>
-      )}
+        </span>
+      </label>
 
       {notice && <p className="private-note-hint">{notice}</p>}
       {error && <p className="settings-status is-error">{error}</p>}
