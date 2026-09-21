@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { doc, getDoc, getDocs, collection, addDoc } from "firebase/firestore";
-import { COMPANY_CATEGORIES, CATEGORY_TITLES } from "../../../lib/directory";
+import { firmHasTag, firmTagLabel, firmTagOptions, COMPANY_CATEGORIES, CATEGORY_TITLES } from "../../../lib/directory";
 import DashboardHeader from "../../components/DashboardHeader";
 import AddressAutocomplete from "../../components/AddressAutocomplete";
 import MobileNav from "../../components/MobileNav";
@@ -35,6 +35,8 @@ function DirectoryPageContent() {
   const [pipelineEntries, setPipelineEntries] = useState([]);
 
   const [searchQuery, setSearchQuery] = useState("");
+  // Service / Construction for contractors, building type for owners.
+  const [tagFilter, setTagFilter] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
@@ -170,7 +172,9 @@ function DirectoryPageContent() {
   // company -- so the best match always lands on top instead of just
   // wherever it falls alphabetically.
   const q = searchQuery.trim().toLowerCase();
-  const byCategory = companies.filter(c => categoryFilter === "all" || c.category === categoryFilter);
+  const byCategory = companies
+    .filter(c => categoryFilter === "all" || c.category === categoryFilter)
+    .filter(c => firmHasTag(c, tagFilter));
 
   const results = q
     ? byCategory
@@ -235,6 +239,20 @@ function DirectoryPageContent() {
           onChange={e => setSearchQuery(e.target.value)}
           style={{ flex: 1, marginBottom: 0 }}
         />
+        {/* Only meaningful once a category is chosen -- "Does: Service"
+            and "Healthcare" belong to different kinds of firm. */}
+        {categoryFilter !== "all" && (
+          <select
+            className="field"
+            aria-label={firmTagLabel(categoryFilter)}
+            style={{ maxWidth: 200, marginBottom: 0 }}
+            value={tagFilter}
+            onChange={e => setTagFilter(e.target.value)}
+          >
+            <option value="">{firmTagLabel(categoryFilter)}: any</option>
+            {firmTagOptions(categoryFilter).map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
         {isAdmin && (
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/duplicates")}>
             Find Duplicates{duplicateCount ? ` (${duplicateCount})` : ""}

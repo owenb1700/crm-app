@@ -15,7 +15,7 @@ import {
   updateDoc,
   deleteDoc
 } from "firebase/firestore";
-import { COMPANY_CATEGORIES, propagateContactUpdate, directoryAction } from "../../../../../lib/directory";
+import { COMPANY_CATEGORIES, propagateContactUpdate, directoryAction, firmTagsOf, firmTagLabel } from "../../../../../lib/directory";
 import DashboardHeader from "../../../../components/DashboardHeader";
 import AddressAutocomplete from "../../../../components/AddressAutocomplete";
 import MobileNav from "../../../../components/MobileNav";
@@ -24,6 +24,7 @@ import { companyKeyOf, sameCompany, samePerson, findSimilarPeople, findSimilarCo
 import { companyConflicts, personConflicts, describeConflicts, reviewSignature, emailsOf, phonesOf, companyValues, FIELD_LABELS } from "../../../../../lib/directoryConflicts";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
 import SalespersonSelect from "../../../../components/SalespersonSelect";
+import FirmTagPicker from "../../../../components/FirmTagPicker";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -218,7 +219,9 @@ export default function CompanyDetail() {
       address: company.address || "",
       website: company.website || "",
       notes: company.notes || "",
-      salespersonId: company.salespersonId || ""
+      salespersonId: company.salespersonId || "",
+      workTypes: Array.isArray(company.workTypes) ? company.workTypes : [],
+      sectors: Array.isArray(company.sectors) ? company.sectors : []
     });
     setIsEditing(true);
   };
@@ -257,7 +260,11 @@ export default function CompanyDetail() {
         address: editData.address || null,
         website: editData.website || null,
         notes: editData.notes || null,
-        salespersonId: editData.salespersonId || null
+        salespersonId: editData.salespersonId || null,
+        // Kept apart so switching a firm's category doesn't wipe what was
+        // ticked under the other one.
+        workTypes: editData.workTypes || [],
+        sectors: editData.sectors || []
       });
       if (renamed) await directoryAction("renameCompany", { companyId, name });
       setIsEditing(false);
@@ -514,6 +521,15 @@ export default function CompanyDetail() {
               {COMPANY_CATEGORIES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
             </select>
 
+            <FirmTagPicker
+              idPrefix="company-tag"
+              category={editData.category}
+              value={editData.category === "Contractor" ? editData.workTypes : editData.sectors}
+              onChange={tags => setEditData(prev => (
+                prev.category === "Contractor" ? { ...prev, workTypes: tags } : { ...prev, sectors: tags }
+              ))}
+            />
+
             <SalespersonSelect
               id="company-salesperson"
               users={users}
@@ -548,6 +564,7 @@ export default function CompanyDetail() {
               const u = users.find(x => x.id === company.salespersonId);
               return u ? (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email) : "—";
             })()}</p>
+            <p><strong>{firmTagLabel(company.category)}:</strong> {firmTagsOf(company).join(", ") || "—"}</p>
             <p><strong>Phone:</strong> {formatPhone(company.phone) || "—"}</p>
             <p><strong>Address:</strong> {company.address || "—"}</p>
             <p><strong>Website:</strong> {company.website || "—"}</p>
