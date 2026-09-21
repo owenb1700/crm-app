@@ -49,7 +49,7 @@ import { FirmSelect } from "../components/DirectoryPickers";
 import ViewTabs from "../components/ViewTabs";
 import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabels, calendarKeyFor as calendarDayKeyFor } from "../../lib/calendarDays";
 import { hasShare, splitShares } from "../../lib/splits";
-import { exportProjectView, exportPipelineView } from "../../lib/viewExport";
+import { exportDashboardView } from "../../lib/viewExport";
 import ExportButtons from "../components/ExportButtons";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -1130,20 +1130,43 @@ export default function Dashboard() {
     showToast("Note entry deleted");
   };
 
-  // Downloads of the list as it stands, filters included (lib/viewExport.js).
-  const exportMyProjects = (format) => exportProjectView({
-    rows: filteredCustomers,
+  // Downloads of the page as it stands -- projects, pipeline entries and
+  // reminders alike, filters included (lib/viewExport.js).
+  const reminderJobName = (r) => {
+    if (r.projectId) {
+      const c = customers.find(x => x.id === r.projectId);
+      return c ? `Project: ${c.projectName || c.company}` : "";
+    }
+    if (r.pipelineId) {
+      const p = pipelineEntries.find(x => x.id === r.pipelineId);
+      return p ? `Pipeline: ${p.title}` : "";
+    }
+    return "";
+  };
+
+  const exportMyProjects = (format) => exportDashboardView({
+    page: "projects",
+    projects: filteredCustomers,
+    pipelineEntries: myPipelineEntries,
+    reminders: activeReminders,
     users,
     viewer: { id: uid, ...(myProfile || {}) },
     format,
-    filtered: anyActive(personalFilters)
+    filtered: anyActive(personalFilters),
+    jobNameOf: reminderJobName
   });
-  const exportMyPipeline = (format) => exportPipelineView({
-    rows: filteredPipeline,
+
+  const exportMyPipeline = (format) => exportDashboardView({
+    page: "pipeline",
+    pipelineEntries: filteredPipeline,
+    // Estimating sees their reminders above the pipeline list; everyone
+    // else's Pipeline tab has no reminder section to export.
+    reminders: role === "estimating" && view === "personal" ? activeReminders : [],
     users,
     viewer: { id: uid, ...(myProfile || {}) },
     format,
-    filtered: anyActive(pipelineFilters)
+    filtered: anyActive(pipelineFilters),
+    jobNameOf: reminderJobName
   });
 
   const filteredCustomers = useMemo(() => {
@@ -1978,7 +2001,7 @@ export default function Dashboard() {
             >
               Filters{anyActive(personalFilters) ? ` (${Object.values(personalFilters).filter(isFilterActive).length})` : ""}
             </button>
-            <ExportButtons label="these projects" buttonText="Export list" onExport={exportMyProjects} disabled={!filteredCustomers.length} />
+            <ExportButtons label="this page" buttonText="Export page" onExport={exportMyProjects} disabled={!filteredCustomers.length && !myPipelineEntries.length && !activeReminders.length} />
             <button className="btn btn-primary list-toolbar-add" onClick={() => router.push("/dashboard/project/new")}>ADD PROJECT</button>
           </div>
 
@@ -2399,7 +2422,7 @@ export default function Dashboard() {
             >
               Filters{anyActive(pipelineFilters) ? ` (${Object.values(pipelineFilters).filter(isFilterActive).length})` : ""}
             </button>
-            <ExportButtons label="these entries" buttonText="Export list" onExport={exportMyPipeline} disabled={!filteredPipeline.length} />
+            <ExportButtons label="this page" buttonText="Export page" onExport={exportMyPipeline} disabled={!filteredPipeline.length} />
             <button className="btn btn-primary list-toolbar-add" onClick={() => router.push("/dashboard/pipeline/new")}>ADD PIPELINE ENTRY</button>
           </div>
 
