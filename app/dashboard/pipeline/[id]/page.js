@@ -31,6 +31,7 @@ import { blankProductRow, productRowsFrom, productRowsForStorage, isTowerRow } f
 import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import DashboardHeader from "../../../components/DashboardHeader";
+import MoneyInput from "../../../components/MoneyInput";
 import MobileNav from "../../../components/MobileNav";
 import { isTrashed } from "../../../../lib/trash";
 import PhotoGallery from "../../../components/PhotoGallery";
@@ -738,7 +739,7 @@ export default function PipelineDetail() {
 
               <div>
                 <h4 className="field-label">Estimated Value</h4>
-                <input className="field" name="pd-value" autoComplete="off" value={editData.value} onChange={e => setEditData({ ...editData, value: e.target.value })} />
+                <MoneyInput name="pd-value" value={editData.value} onChange={v => setEditData(prev => ({ ...prev, value: v }))} />
               </div>
               <WorkTypeSelect id="pipeline-detail-work-type" value={editData.workType} onChange={v => setEditData({ ...editData, workType: v })} />
               <CompanyContactFields

@@ -15,6 +15,7 @@ import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import ProductOptionsEditor from "../../../components/ProductOptionsEditor";
 import { blankProductRow, productRowsForStorage, isTowerRow } from "../../../../lib/equipment";
 import DashboardHeader from "../../../components/DashboardHeader";
+import MoneyInput from "../../../components/MoneyInput";
 import MobileNav from "../../../components/MobileNav";
 import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "../../../components/DirectoryPickers";
 import CreditSplitEditor from "../../../components/CreditSplitEditor";
@@ -298,7 +299,7 @@ export default function NewPipelineEntry() {
 
             <div>
               <label className="field-label">Estimated Value</label>
-              <input className="field" autoComplete="off" value={value} onChange={e => setValue(e.target.value)} />
+              <MoneyInput id="new-pipeline-value" value={value} onChange={setValue} />
             </div>
             <WorkTypeSelect id="new-pipeline-work-type" value={workType} onChange={setWorkType} />
 

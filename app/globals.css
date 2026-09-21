@@ -1140,6 +1140,27 @@ a {
   margin-bottom: 0;
 }
 
+/* Dollar amounts: a $ inside the box on the left, so nobody types one. */
+.money-field {
+  position: relative;
+  display: block;
+}
+
+.money-prefix {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.money-input {
+  padding-left: 26px;
+}
+
 /* Percentage input with a % sitting just outside the box. */
 .percent-field {
   display: flex;

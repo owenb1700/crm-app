@@ -15,6 +15,7 @@ import DashboardHeader from "../../components/DashboardHeader";
 import MobileNav from "../../components/MobileNav";
 import ViewTabs from "../../components/ViewTabs";
 import ExportButtons from "../../components/ExportButtons";
+import MoneyInput from "../../components/MoneyInput";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -279,13 +280,11 @@ function PartsPageContent() {
         </div>
         <div>
           <label className="field-label" htmlFor={`${idPrefix}-value`}>Value</label>
-          <input
+          <MoneyInput
             id={`${idPrefix}-value`}
-            className="field"
-            autoComplete="off"
-            placeholder="e.g. $4,200"
+            placeholder="e.g. 4,200"
             value={values.value}
-            onChange={e => setValues(prev => ({ ...prev, value: e.target.value }))}
+            onChange={v => setValues(prev => ({ ...prev, value: v }))}
           />
         </div>
 

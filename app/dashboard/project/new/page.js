@@ -13,6 +13,7 @@ import { ensureTowerModel } from "../../../../lib/towerModels";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import DashboardHeader from "../../../components/DashboardHeader";
+import MoneyInput from "../../../components/MoneyInput";
 import MobileNav from "../../../components/MobileNav";
 import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "../../../components/DirectoryPickers";
 import CreditSplitEditor from "../../../components/CreditSplitEditor";
@@ -369,7 +370,10 @@ export default function NewProject() {
             {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
 
-          <input className="field" autoComplete="off" placeholder="Project Value" value={projectValue} onChange={e => setProjectValue(e.target.value)} />
+          <div>
+            <label className="field-label" htmlFor="new-project-value">Project Value</label>
+            <MoneyInput id="new-project-value" value={projectValue} onChange={setProjectValue} />
+          </div>
           <WorkTypeSelect id="new-project-work-type" value={workType} onChange={setWorkType} />
 
           {canEnterForOthers(myProfile) && (

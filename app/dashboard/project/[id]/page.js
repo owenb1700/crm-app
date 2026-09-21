@@ -29,6 +29,7 @@ import { equipmentRowsFrom as sharedEquipmentRowsFrom } from "../../../../lib/eq
 import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import DashboardHeader from "../../../components/DashboardHeader";
+import MoneyInput from "../../../components/MoneyInput";
 import MobileNav from "../../../components/MobileNav";
 import ProjectMyReminders from "../../../components/ProjectMyReminders";
 import { isTrashed } from "../../../../lib/trash";
@@ -635,7 +636,7 @@ export default function ProjectDetail() {
               </div>
               <div>
                 <label className="field-label" htmlFor="project-detail-value">Project Value</label>
-                <input id="project-detail-value" className="field" name="detail-projectValue" autoComplete="off" value={editData.projectValue} onChange={e => setEditData({ ...editData, projectValue: e.target.value })} />
+                <MoneyInput id="project-detail-value" name="detail-projectValue" value={editData.projectValue} onChange={v => setEditData(prev => ({ ...prev, projectValue: v }))} />
               </div>
               <WorkTypeSelect id="project-detail-work-type" value={editData.workType} onChange={v => setEditData(prev => ({ ...prev, workType: v }))} />
             </div>
