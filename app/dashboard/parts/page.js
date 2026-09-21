@@ -6,7 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../../lib/firebase";
 import { COMPANY_CATEGORIES, ensureCompanyAndContactBatch } from "../../../lib/directory";
-import { PART_STAGES, blankPart, partPayload, partError, filterParts, sortParts, partsTotal } from "../../../lib/parts";
+import { PART_STAGES, blankPart, blankContractor, partPayload, partError, filterParts, sortParts, partsTotal, partChanges, logEntry, describeContractors } from "../../../lib/parts";
 import { formatMoney } from "../../../lib/analytics";
 import { personName } from "../../../lib/people";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
@@ -132,12 +132,18 @@ function PartsPageContent() {
         ownerId: uid,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        updatedBy: uid
+        updatedBy: uid,
+        // Everything that happens to a parts entry is kept on it. No one
+        // is emailed or alerted -- parts stay out of everyone's alerts.
+        log: [logEntry({ kind: "created", by: uid, byName: nameOf(uid) })]
       });
       // A firm or person typed here joins the Directory, so parts work
       // builds the same contact list as everything else.
       await ensureCompanyAndContactBatch(
-        [{ companyName: payload.company, category: payload.companyCategory, contactName: payload.contact, email: payload.email, phone: payload.phone }],
+        [
+          { companyName: payload.company, category: payload.companyCategory, contactName: payload.contact, email: payload.email, phone: payload.phone },
+          ...payload.contractors.map(c => ({ companyName: c.company, category: "Contractor", contactName: c.contact }))
+        ],
         { companies, contacts, uid }
       );
       setForm(blankPart());
@@ -163,14 +169,20 @@ function PartsPageContent() {
     setSaving(true);
     setError("");
     try {
+      const before = parts.find(x => x.id === editingId) || {};
       const payload = partPayload(editForm);
+      const changes = partChanges(before, payload);
       await updateDoc(doc(db, "parts", editingId), {
         ...payload,
         updatedAt: new Date().toISOString(),
-        updatedBy: uid
+        updatedBy: uid,
+        log: [...(before.log || []), logEntry({ kind: "updated", changes, by: uid, byName: nameOf(uid) })]
       });
       await ensureCompanyAndContactBatch(
-        [{ companyName: payload.company, category: payload.companyCategory, contactName: payload.contact, email: payload.email, phone: payload.phone }],
+        [
+          { companyName: payload.company, category: payload.companyCategory, contactName: payload.contact, email: payload.email, phone: payload.phone },
+          ...payload.contractors.map(c => ({ companyName: c.company, category: "Contractor", contactName: c.contact }))
+        ],
         { companies, contacts, uid }
       );
       setEditingId(null);
@@ -201,11 +213,12 @@ function PartsPageContent() {
     format,
     filename: `parts${anyFilter ? "-filtered" : ""}-${csvDateStamp()}`,
     sheetName: "Parts",
-    headers: ["Part", "Stage", "Firm type", "Firm", "Contact", "Email", "Phone", "Value", "Needed by", "Notes", "Entered by", "Added", "Last updated by"],
+    headers: ["Part", "Stage", "Firm type", "Firm", "Contact", "Email", "Phone", "Contractors", "Value", "Needed by", "Notes", "Entered by", "Added", "Last updated by", "Changes logged"],
     rows: shown.map(p => [
       p.item, p.stage, p.companyCategory, p.company, p.contact, p.email, p.phone,
+      describeContractors(p.contractors),
       p.value, p.neededBy, p.notes, nameOf(p.ownerId),
-      String(p.createdAt || "").slice(0, 10), nameOf(p.updatedBy)
+      String(p.createdAt || "").slice(0, 10), nameOf(p.updatedBy), (p.log || []).length
     ])
   });
 
@@ -301,6 +314,58 @@ function PartsPageContent() {
           <label className="field-label" htmlFor={`${idPrefix}-needed`}>Needed by</label>
           <input id={`${idPrefix}-needed`} className="field" type="date" value={values.neededBy} onChange={e => setValues(prev => ({ ...prev, neededBy: e.target.value }))} />
         </div>
+      </div>
+
+      <div style={{ marginTop: 6 }}>
+        <label className="field-label">Contractors on this job (optional)</label>
+        <p className="private-note-hint" style={{ marginTop: -4 }}>
+          Whoever is doing the work, if that&apos;s not who the request came from. They&apos;re added to the Directory like any other firm.
+        </p>
+        {(values.contractors || []).map((row, i) => (
+          <div key={i} className="form-grid-2" style={{ alignItems: "end", marginBottom: 6 }}>
+            <div>
+              <label className="field-label" htmlFor={`${idPrefix}-contractor-${i}`}>Contractor</label>
+              <FirmSelect
+                id={`${idPrefix}-contractor-${i}`}
+                companies={companies}
+                category="Contractor"
+                value={row.company}
+                onChange={v => setValues(prev => ({
+                  ...prev,
+                  contractors: (prev.contractors || []).map((r, x) => (x === i ? { ...r, company: v } : r))
+                }))}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "end" }}>
+              <div style={{ flex: 1 }}>
+                <label className="field-label" htmlFor={`${idPrefix}-contractor-contact-${i}`}>Their contact</label>
+                <PersonSelect
+                  id={`${idPrefix}-contractor-contact-${i}`}
+                  people={peopleAtFirm(contacts, row.company, companies)}
+                  value={row.contact}
+                  onChange={v => setValues(prev => ({
+                    ...prev,
+                    contractors: (prev.contractors || []).map((r, x) => (x === i ? { ...r, contact: v } : r))
+                  }))}
+                />
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setValues(prev => ({ ...prev, contractors: (prev.contractors || []).filter((_, x) => x !== i) }))}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => setValues(prev => ({ ...prev, contractors: [...(prev.contractors || []), blankContractor()] }))}
+        >
+          + Add contractor
+        </button>
       </div>
 
       <label className="field-label" htmlFor={`${idPrefix}-notes`}>Notes</label>
@@ -423,7 +488,26 @@ function PartsPageContent() {
                     {p.contact && <> · {p.contact}</>}
                   </div>
                   {(p.email || p.phone) && <div className="customer-meta">{[p.email, p.phone].filter(Boolean).join(" · ")}</div>}
+                  {describeContractors(p.contractors) && (
+                    <div className="customer-meta" style={{ marginTop: 4 }}>Contractors: {describeContractors(p.contractors)}</div>
+                  )}
                   {p.notes && <div className="customer-meta" style={{ marginTop: 4 }}>{p.notes}</div>}
+                  {(p.log || []).length > 0 && (
+                    <details style={{ marginTop: 6 }}>
+                      <summary className="notes-history-date" style={{ cursor: "pointer" }}>
+                        History ({p.log.length})
+                      </summary>
+                      {[...p.log].reverse().map((entry, i) => (
+                        <div key={`${entry.at}-${i}`} className="notes-history-date" style={{ marginTop: 4 }}>
+                          {String(entry.at).slice(0, 10)} · {entry.byName || nameOf(entry.by) || "someone"}
+                          {entry.kind === "created" && " created this entry"}
+                          {entry.kind === "updated" && (entry.changes?.length
+                            ? <> changed {entry.changes.join("; ")}</>
+                            : " saved it with no changes")}
+                        </div>
+                      ))}
+                    </details>
+                  )}
                   <div className="notes-history-date" style={{ marginTop: 6 }}>
                     Entered by {nameOf(p.ownerId) || "someone"}
                     {p.updatedBy && p.updatedBy !== p.ownerId && <> · last edited by {nameOf(p.updatedBy)}</>}
