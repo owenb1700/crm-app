@@ -19,34 +19,51 @@ const LIMIT_TOTAL = 10;
 
 const has = (q, fields) => fields.some(f => String(f || "").toLowerCase().includes(q));
 
-export default function GlobalSearch({ customers = [], pipelineEntries = [], companies = [], contacts = [], parts = [], error = "" }) {
+export default function GlobalSearch({
+  customers: customersProp = [], pipelineEntries: pipelineProp = [], companies: companiesProp = [],
+  contacts: contactsProp = [], parts: partsProp = [], error = ""
+}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [extra, setExtra] = useState(null); // { products, towerModels }
   const boxRef = useRef(null);
 
+  // Whatever the page didn't hand over is fetched the first time the box
+  // is opened, so "Search everything" means the same thing on every page
+  // -- Parts and the Directory pages don't carry projects around with them.
   useEffect(() => {
     if (!open || extra) return;
     let cancelled = false;
+    const load = async (name, have) => (have.length
+      ? have
+      : (await getDocs(collection(db, name))).docs.map(d => ({ id: d.id, ...d.data() })));
     (async () => {
       try {
-        const [productsSnap, modelsSnap] = await Promise.all([
-          getDocs(collection(db, "products")),
-          getDocs(collection(db, "towerModels"))
+        const [products, towerModels, customers, pipelineEntries, companies, contacts, parts] = await Promise.all([
+          load("products", []),
+          load("towerModels", []),
+          load("customers", customersProp),
+          load("pipeline", pipelineProp),
+          load("companies", companiesProp),
+          load("contacts", contactsProp),
+          load("parts", partsProp)
         ]);
         if (cancelled) return;
-        setExtra({
-          products: productsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          towerModels: modelsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-        });
+        setExtra({ products, towerModels, customers, pipelineEntries, companies, contacts, parts });
       } catch {
         // Suggestions just stay limited to what the page already has.
         if (!cancelled) setExtra({ products: [], towerModels: [] });
       }
     })();
     return () => { cancelled = true; };
-  }, [open, extra]);
+  }, [open, extra, customersProp, pipelineProp, companiesProp, contactsProp, partsProp]);
+
+  const customers = extra?.customers?.length ? extra.customers : customersProp;
+  const pipelineEntries = extra?.pipelineEntries?.length ? extra.pipelineEntries : pipelineProp;
+  const companies = extra?.companies?.length ? extra.companies : companiesProp;
+  const contacts = extra?.contacts?.length ? extra.contacts : contactsProp;
+  const parts = extra?.parts?.length ? extra.parts : partsProp;
 
   useEffect(() => {
     if (!open) return undefined;

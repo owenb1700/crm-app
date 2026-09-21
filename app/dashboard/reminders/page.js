@@ -188,7 +188,7 @@ export default function RemindersPage() {
 
   const followUp = async (r) => {
     const next = fromKey(r.date);
-    next.setDate(next.getDate() + 14);
+    next.setDate(next.getDate() + 7);
     const date = weekdayKey(next);
     try {
       await updateDoc(doc(db, "reminders", r.id), { date });

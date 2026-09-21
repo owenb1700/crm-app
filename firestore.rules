@@ -147,6 +147,20 @@ service cloud.firestore {
         allow create: if isActive() && isConvertingOwnPipeline(customerData(customerId));
       }
 
+      // Project notes, one document each. Whoever owns or collaborates on
+      // the project can read them and add their own; only the person who
+      // wrote a note can delete it, and nobody can edit one after the
+      // fact -- not a collaborator, not the owner, not an admin.
+      match /notes/{noteId} {
+        allow read: if isActive() &&
+          (isOwner(customerId) || isCollaborator(customerId) || isAdmin());
+        allow create: if isActive() &&
+          (isOwner(customerId) || isCollaborator(customerId)) &&
+          request.resource.data.by == request.auth.uid;
+        allow update: if false;
+        allow delete: if isActive() && resource.data.by == request.auth.uid;
+      }
+
       // A teammate can request to collaborate on an entry they don't own.
       // Only the owner (or the requester themselves, to cancel) can
       // approve/deny by updating or deleting the request.

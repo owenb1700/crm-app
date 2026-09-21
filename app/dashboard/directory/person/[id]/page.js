@@ -148,8 +148,14 @@ function PersonPageContent() {
   const deleteNote = async () => {
     setSavingNote(true);
     try {
-      await deleteDoc(doc(db, "contacts", contactId, "notes", confirmingNote.id));
-      setPersonNotes(prev => prev.filter(n => n.id !== confirmingNote.id));
+      if (confirmingNote.legacyIndex !== undefined) {
+        const history = (person.notesHistory || []).filter((_, i) => i !== confirmingNote.legacyIndex);
+        await updateDoc(doc(db, "contacts", contactId), { notesHistory: history });
+        setPerson(prev => ({ ...prev, notesHistory: history }));
+      } else {
+        await deleteDoc(doc(db, "contacts", contactId, "notes", confirmingNote.id));
+        setPersonNotes(prev => prev.filter(n => n.id !== confirmingNote.id));
+      }
       setConfirmingNote(null);
     } catch (err) {
       setLoadError(`Couldn't delete that note: ${err.message}`);
@@ -185,6 +191,13 @@ function PersonPageContent() {
   const emails = valuesOf(person, "emails", "email");
   const phones = valuesOf(person, "phones", "phone");
   const notes = [...personNotes].reverse();
+  // Anything written into the contact before notes became documents.
+  const legacyNotes = [
+    ...(person.notesHistory || []),
+    ...(person.notes && !(person.notesHistory || []).some(h => h.text === person.notes) && !personNotes.some(n => n.text === person.notes)
+      ? [{ text: person.notes }]
+      : [])
+  ];
 
   return (
     <div className="dashboard-page">
@@ -231,15 +244,23 @@ function PersonPageContent() {
             {savingNote ? "Saving…" : "Add note"}
           </button>
 
-          {notes.length === 0 && !person.notes && (
+          {notes.length === 0 && legacyNotes.length === 0 && (
             <p className="private-note-hint" style={{ marginTop: 10 }}>No notes yet.</p>
           )}
-          {/* Notes written before the log existed have no author or date. */}
-          {notes.length === 0 && person.notes && (
-            <div className="notes-history-item" style={{ marginTop: 10 }}>
-              <div style={{ whiteSpace: "pre-wrap" }}>{person.notes}</div>
+          {/* Notes from before they moved into their own documents. */}
+          {legacyNotes.map((n, i) => (
+            <div key={`legacy-${i}`} className="notes-history-item notes-history-row" style={{ marginTop: 10 }}>
+              <div>
+                <div style={{ whiteSpace: "pre-wrap" }}>{n.text}</div>
+                <div className="notes-history-date">
+                  {n.byName || nameOf(n.by) || "earlier note"}{n.at ? ` · ${String(n.at).slice(0, 10)}` : ""}
+                </div>
+              </div>
+              {n.by === uid && (
+                <button className="btn btn-secondary" onClick={() => setConfirmingNote({ ...n, legacyIndex: i })}>Delete</button>
+              )}
             </div>
-          )}
+          ))}
           {notes.map((n, i) => (
             <div key={n.id || `${n.at}-${i}`} className="notes-history-item notes-history-row" style={{ marginTop: 10 }}>
               <div>

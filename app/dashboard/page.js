@@ -442,7 +442,7 @@ export default function Dashboard() {
 
   const followUpReminder = async (r) => {
     const next = fromLocalDateKey(r.date);
-    next.setDate(next.getDate() + 14);
+    next.setDate(next.getDate() + 7);
     const date = toLocalDateKey(skipWeekend(next));
     try {
       await updateDoc(doc(db, "reminders", r.id), { date });
