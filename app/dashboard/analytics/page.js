@@ -6,7 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { BUILDING_SECTORS, WORK_TYPES } from "../../../lib/directory";
-import { canViewAnalytics, summarizeMixed, summarizeProjects, combinedBreakdown, byPersonWeighted, breakdown, breakdownMulti, manufacturersOf, bidForecast, outcomesByMonth, formatMoney, parseMoney, statusOf } from "../../../lib/analytics";
+import { canViewAnalytics, canViewOthersStats, summarizeMixed, summarizeProjects, combinedBreakdown, byPersonWeighted, breakdown, breakdownMulti, manufacturersOf, bidForecast, outcomesByMonth, formatMoney, parseMoney, statusOf } from "../../../lib/analytics";
 import { hasShare, splitShares } from "../../../lib/splits";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
 import { bidRecords, decodeFilters, encodeFilters, repairRecords, volumeRecords } from "../../../lib/analyticsFilters";
@@ -423,6 +423,9 @@ function AnalyticsPageContent() {
   // Only people who actually sell are tracked as salespeople: admins and
   // the Estimating Department still see everything here, but their own
   // entries and projects are never credited to them as sales numbers.
+  // Without "View Other People's Stats" the page is still yours to use --
+  // it just holds your own work.
+  const seesEveryone = canViewOthersStats(myProfile);
   const isSalesperson = (u) => !u.disabled && u.role !== "admin" && u.role !== "estimating";
   const salesUsers = useMemo(() => users.filter(isSalesperson), [users]);
   const salesIds = useMemo(() => new Set(salesUsers.map(u => u.id)), [salesUsers]);
@@ -436,24 +439,34 @@ function AnalyticsPageContent() {
   // A project is credited to its owner (the salesperson it was assigned to).
   const projectSalespersonOf = (p) => p.ownerId;
 
-  const filtered = useMemo(() => (filters.show === "projects" ? [] : entries)
+  // Mine: entries I'm the salesperson/owner of, or hold a share in.
+  const mineEntries = useMemo(
+    () => (seesEveryone ? entries : entries.filter(e => salespersonOf(e) === uid || e.ownerId === uid || hasShare(e, uid))),
+    [entries, seesEveryone, uid]
+  );
+  const mineProjects = useMemo(
+    () => (seesEveryone ? projects : projects.filter(p => p.ownerId === uid || hasShare(p, uid))),
+    [projects, seesEveryone, uid]
+  );
+
+  const filtered = useMemo(() => (filters.show === "projects" ? [] : mineEntries)
     .filter(e => !filters.sector || e.buildingSector === filters.sector)
     .filter(e => !filters.workType || e.workType === filters.workType)
     .filter(e => !filters.person || salespersonOf(e) === filters.person || hasShare(e, filters.person))
     .filter(e => !filters.stage || e.stage === filters.stage)
     .filter(e => matchesDateFilter(e.createdAt, filters.created)),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [entries, filters]);
+  [mineEntries, filters]);
 
   // Stage is a pipeline-only idea, so picking one leaves projects out.
-  const filteredProjects = useMemo(() => (filters.show === "pipeline" || filters.stage ? [] : projects)
+  const filteredProjects = useMemo(() => (filters.show === "pipeline" || filters.stage ? [] : mineProjects)
     .filter(p => !filters.sector || p.buildingSector === filters.sector)
     .filter(p => !filters.workType || p.workType === filters.workType)
     .filter(p => !filters.person || projectSalespersonOf(p) === filters.person || hasShare(p, filters.person))
     .filter(p => !filters.status || p.category === filters.status)
     .filter(p => matchesDateFilter(p.createdAt, filters.created)),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [projects, filters]);
+  [mineProjects, filters]);
 
 
 
@@ -507,7 +520,9 @@ function AnalyticsPageContent() {
     { key: "sector", label: "Sector", type: "select", options: BUILDING_SECTORS.map(v => ({ value: v, label: v })) },
     { key: "workType", label: "Work type", type: "select", options: WORK_TYPES.map(v => ({ value: v, label: v })) },
     // Every salesperson is listed, whether or not they have anything yet.
-    { key: "person", label: "Salesperson", type: "select", options: salesUsers.map(u => ({ value: u.id, label: personLabel(u.id) })).sort((a, b) => a.label.localeCompare(b.label)) },
+    ...(seesEveryone
+      ? [{ key: "person", label: "Salesperson", type: "select", options: salesUsers.map(u => ({ value: u.id, label: personLabel(u.id) })).sort((a, b) => a.label.localeCompare(b.label)) }]
+      : []),
     { key: "stage", label: "Stage (pipeline)", type: "select", options: optionsFrom(entries.map(e => e.stage)) },
     { key: "status", label: "Status (projects)", type: "select", options: optionsFrom(projects.map(p => p.category)) }
   ];
@@ -556,7 +571,7 @@ function AnalyticsPageContent() {
   if (!loaded) {
     return (
       <div className="dashboard-page">
-        {pageChrome("Estimating Analytics")}
+        {pageChrome("Analytics")}
         {/* Which tabs someone gets depends on their profile, so the row
             stays empty (but the same height) until it's loaded -- drawing
             a partial row first makes the tabs jump sideways when the rest
@@ -594,7 +609,7 @@ function AnalyticsPageContent() {
 
   return (
     <div className="dashboard-page">
-      {pageChrome("Estimating Analytics")}
+      {pageChrome(seesEveryone ? "Estimating Analytics" : "My Analytics")}
 
       <ViewTabs
         profile={myProfile}
@@ -716,7 +731,7 @@ function AnalyticsPageContent() {
 
       <OutcomesChart buckets={months} />
 
-      {(myProfile?.role === "estimating" || myProfile?.role === "admin") && (
+      {seesEveryone && (myProfile?.role === "estimating" || myProfile?.role === "admin") && (
         <div className="analytics-card">
           <h3 className="analytics-card-title">Export a person's data</h3>
           <p className="analytics-card-sub">
@@ -754,6 +769,7 @@ function AnalyticsPageContent() {
         sub="New installation, replacement, or repair, across pipeline entries and projects."
         rows={byWorkType}
       />
+      {seesEveryone && (
       <CombinedTable
         title="By salesperson"
         nameHeader="Salesperson"
@@ -761,6 +777,7 @@ function AnalyticsPageContent() {
         sub="Pipeline entries count for the assigned salesperson (or whoever created them); projects count for their owner. A shared job is listed for everyone working it, with its value divided by each person's share. Admins and the Estimating Department aren't tracked as salespeople -- their share shows under Unassigned / non-sales."
         rows={byPerson}
       />
+      )}
       <BreakdownTable title="By sector (pipeline)" nameHeader="Sector" filename="by-sector" sub="Entries missing a sector show as Not set." rows={bySector} />
       <BreakdownTable title="By engineering firm (pipeline)" nameHeader="Engineering firm" filename="by-engineering-firm" sub="The engineering firm on each pipeline entry." rows={byFirm} />
       <BreakdownTable

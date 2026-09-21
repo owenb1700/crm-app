@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { auth, db } from "../../../../lib/firebase";
-import { canViewAnalytics, formatMoney, parseMoney, statusOf } from "../../../../lib/analytics";
+import { canViewAnalytics, canViewOthersStats, formatMoney, parseMoney, statusOf } from "../../../../lib/analytics";
+import { hasShare } from "../../../../lib/splits";
 import { METRICS, decodeFilters, filterEntries, filterProjects, salespersonOfEntry, salespersonOfProject } from "../../../../lib/analyticsFilters";
 import { downloadTable, csvDateStamp } from "../../../../lib/csv";
 import { withoutTrashed } from "../../../../lib/trash";
@@ -27,6 +28,7 @@ function AnalyticsDetailsContent() {
   const metric = METRICS[metricKey] || METRICS.total;
 
   const [uid, setUid] = useState(null);
+  const [myProfile, setMyProfile] = useState(null);
   const [allowed, setAllowed] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [entries, setEntries] = useState([]);
@@ -60,6 +62,7 @@ function AnalyticsDetailsContent() {
           return;
         }
         setAllowed(true);
+        setMyProfile(profile);
         const [pipelineSnap, customersSnap, usersSnap] = await Promise.all([
           getDocs(collection(db, "pipeline")),
           getDocs(collection(db, "customers")),
@@ -116,9 +119,17 @@ function AnalyticsDetailsContent() {
 
   // A tile can hold pipeline entries, projects, or both; each record carries
   // which it is so one table can list them together.
+  const seesEveryone = canViewOthersStats(myProfile);
+  const mineEntries = seesEveryone
+    ? entries
+    : entries.filter(e => (e.salespersonId || e.ownerId) === uid || e.ownerId === uid || hasShare(e, uid));
+  const mineProjects = seesEveryone
+    ? projects
+    : projects.filter(p => p.ownerId === uid || hasShare(p, uid));
+
   const picked = metric.records({
-    entries: filterEntries(entries, filters),
-    projects: filterProjects(projects, filters)
+    entries: filterEntries(mineEntries, filters),
+    projects: filterProjects(mineProjects, filters)
   });
   const records = [
     ...picked.entries.map(e => ({
