@@ -392,8 +392,10 @@ export default function ProjectDetail() {
     await loadProject(uid, role);
   };
 
+  // Only the person who wrote a note can remove it, and it's gone for
+  // good -- no record of the deletion is kept.
   const deleteHistoryEntry = async (index) => {
-    if (!window.confirm("Delete this note entry? This can't be undone.")) return;
+    if (!window.confirm("Delete this note? It's gone for good -- no copy is kept.")) return;
 
     const existing = notesData || { notesHistory: [] };
     const newHistory = (existing.notesHistory || []).filter((_, i) => i !== index);
@@ -921,8 +923,8 @@ export default function ProjectDetail() {
                     <div>{h.text}</div>
                     <div className="notes-history-date">{h.authorName || "Unknown"} · {h.date}</div>
                   </div>
-                  {canEditNotes && (
-                    <button className="btn btn-danger" onClick={() => deleteHistoryEntry(i)}>Delete</button>
+                  {h.authorId === uid && (
+                    <button className="btn btn-secondary" onClick={() => deleteHistoryEntry(i)}>Delete</button>
                   )}
                 </div>
               ))}

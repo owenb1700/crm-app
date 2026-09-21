@@ -212,16 +212,14 @@ service cloud.firestore {
         allow read, write: if isActive() && request.auth.uid == userId;
       }
 
-      // "Team notes": everyone working the entry reads and adds. Notes are
-      // appended, never edited, so the thread stays a record of what was
-      // known when -- nothing here is ever deleted, including after the
-      // entry is won, lost, or converted into a project.
-      match /teamNotes/{doc} {
+      // "Team notes": everyone working the entry reads and adds, one
+      // document per note. A note is never edited -- and only the person
+      // who wrote it can delete it, nobody else, admins included.
+      match /teamNotes/{noteId} {
         allow read: if isActive();
-        allow create: if isActive();
-        allow update: if isActive() &&
-          request.resource.data.entries.size() >= resource.data.entries.size();
-        allow delete: if false;
+        allow create: if isActive() && request.resource.data.by == request.auth.uid;
+        allow update: if false;
+        allow delete: if isActive() && resource.data.by == request.auth.uid;
       }
 
       // Photos: like the entry itself, the whole team can see and add them.
@@ -268,6 +266,15 @@ service cloud.firestore {
       allow read: if isActive();
       allow create, update: if isActive();
       allow delete: if isAdmin();
+
+      // Notes about this person: anyone can add one, only its author can
+      // remove it.
+      match /notes/{noteId} {
+        allow read: if isActive();
+        allow create: if isActive() && request.resource.data.by == request.auth.uid;
+        allow update: if false;
+        allow delete: if isActive() && resource.data.by == request.auth.uid;
+      }
     }
 
     // Tower models (manufacturer + model number) with their shared PDF

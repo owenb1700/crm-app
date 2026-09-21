@@ -3,13 +3,14 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../../../../lib/firebase";
 import { withoutTrashed } from "../../../../../lib/trash";
 import { historyForPerson, countsByKind } from "../../../../../lib/personHistory";
 import { personName } from "../../../../../lib/people";
 import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
+import ConfirmDialog from "../../../../components/ConfirmDialog";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -42,6 +43,8 @@ function PersonPageContent() {
 
   const [noteDraft, setNoteDraft] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+  const [personNotes, setPersonNotes] = useState([]);
+  const [confirmingNote, setConfirmingNote] = useState(null);
 
   useEffect(() => {
     let timer;
@@ -79,6 +82,12 @@ function PersonPageContent() {
         }
         const record = { id: personSnap.id, ...personSnap.data() };
         setPerson(record);
+
+        const notesSnap = await getDocs(collection(db, "contacts", contactId, "notes"));
+        setPersonNotes(
+          notesSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => String(a.at || "").localeCompare(String(b.at || "")))
+        );
 
         const [companySnap, projectsSnap, pipelineSnap, partsSnap, usersSnap] = await Promise.all([
           record.companyId ? getDoc(doc(db, "companies", record.companyId)) : Promise.resolve(null),
@@ -121,12 +130,29 @@ function PersonPageContent() {
     setSavingNote(true);
     try {
       const entry = { text, by: uid, byName: nameOf(uid), at: new Date().toISOString() };
-      const history = [...(person.notesHistory || []), entry];
-      await updateDoc(doc(db, "contacts", contactId), { notes: text, notesHistory: history });
-      setPerson(prev => ({ ...prev, notes: text, notesHistory: history }));
+      const ref = await addDoc(collection(db, "contacts", contactId, "notes"), entry);
+      setPersonNotes(prev => [...prev, { id: ref.id, ...entry }]);
+      // Kept on the contact too, so the Directory list still shows the
+      // latest note at a glance.
+      await updateDoc(doc(db, "contacts", contactId), { notes: text }).catch(() => {});
       setNoteDraft("");
     } catch (err) {
       setLoadError(`Couldn't save that note: ${err.message}`);
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  // Your own notes only -- the rule checks the author, so this is not the
+  // only thing standing between someone and a teammate's note.
+  const deleteNote = async () => {
+    setSavingNote(true);
+    try {
+      await deleteDoc(doc(db, "contacts", contactId, "notes", confirmingNote.id));
+      setPersonNotes(prev => prev.filter(n => n.id !== confirmingNote.id));
+      setConfirmingNote(null);
+    } catch (err) {
+      setLoadError(`Couldn't delete that note: ${err.message}`);
     } finally {
       setSavingNote(false);
     }
@@ -158,7 +184,7 @@ function PersonPageContent() {
 
   const emails = valuesOf(person, "emails", "email");
   const phones = valuesOf(person, "phones", "phone");
-  const notes = [...(person.notesHistory || [])].reverse();
+  const notes = [...personNotes].reverse();
 
   return (
     <div className="dashboard-page">
@@ -215,14 +241,32 @@ function PersonPageContent() {
             </div>
           )}
           {notes.map((n, i) => (
-            <div key={`${n.at}-${i}`} className="notes-history-item" style={{ marginTop: 10 }}>
-              <div style={{ whiteSpace: "pre-wrap" }}>{n.text}</div>
-              <div className="notes-history-date">
-                {n.byName || nameOf(n.by)} · {String(n.at || "").slice(0, 10)}
+            <div key={n.id || `${n.at}-${i}`} className="notes-history-item notes-history-row" style={{ marginTop: 10 }}>
+              <div>
+                <div style={{ whiteSpace: "pre-wrap" }}>{n.text}</div>
+                <div className="notes-history-date">
+                  {n.byName || nameOf(n.by)} · {String(n.at || "").slice(0, 10)}
+                </div>
               </div>
+              {n.by === uid && (
+                <button className="btn btn-secondary" onClick={() => setConfirmingNote(n)}>Delete</button>
+              )}
             </div>
           ))}
         </div>
+
+        {confirmingNote && (
+          <ConfirmDialog
+            title="Delete this note?"
+            confirmLabel="Delete"
+            danger
+            busy={savingNote}
+            onConfirm={deleteNote}
+            onCancel={() => setConfirmingNote(null)}
+          >
+            <p className="modal-subtitle">It&apos;s gone for good — no copy is kept.</p>
+          </ConfirmDialog>
+        )}
 
         <div className="project-section detail-span-full">
           <h4 className="field-label">Work with {person.name}</h4>
