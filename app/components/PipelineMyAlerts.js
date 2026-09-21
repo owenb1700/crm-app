@@ -92,7 +92,7 @@ export default function PipelineMyAlerts({ pipeline, uid, users = [] }) {
       <h4 className="field-label">My Alerts</h4>
       <p className="private-note-hint" style={{ marginBottom: 10 }}>
         Add your own alert dates for this entry, before or after the bid date{pipeline.bidDate ? ` (${pipeline.bidDate})` : ""}.
-        Only you see these, on your calendar, My Projects, and digest emails. Reminders you attach to this entry from + Add Reminder show here too.
+        These are yours -- they show on your calendar, My Projects and digest emails, and nobody else sees them unless you tick &quot;Remind everyone on this entry&quot; below. Reminders you attach to this entry from + Add Reminder show here too.
       </p>
 
       {loadError && <p className="settings-status is-error">⚠ Couldn't load your alerts: {loadError}</p>}

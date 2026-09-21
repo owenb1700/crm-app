@@ -81,7 +81,7 @@ export default function ProjectMyReminders({ projectId, uid }) {
           </div>
           {r.notes && <div className="notes-history-date" style={{ whiteSpace: "pre-wrap" }}>{r.notes}</div>}
           <div className="job-reminder-actions">
-            <button className="btn btn-secondary" onClick={() => followUp(r)}>Follow Up (2 Weeks)</button>
+            <button className="btn btn-secondary" onClick={() => followUp(r)}>Follow Up (1 Week)</button>
             <button className="btn btn-primary" onClick={() => complete(r)}>Complete</button>
           </div>
         </div>

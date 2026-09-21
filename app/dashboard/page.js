@@ -1669,7 +1669,7 @@ export default function Dashboard() {
             )}
             {c._kind === "reminder" && (
               <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
-                <button className="btn btn-secondary" onClick={() => followUpReminder(c)}>Follow Up (2 Weeks)</button>
+                <button className="btn btn-secondary" onClick={() => followUpReminder(c)}>Follow Up (1 Week)</button>
                 <button className="btn btn-primary" onClick={() => completeReminder(c)}>Complete</button>
               </div>
             )}
@@ -1717,7 +1717,7 @@ export default function Dashboard() {
           {r.notes ? <div style={{ whiteSpace: "pre-wrap" }}>{r.notes}</div> : <div className="private-note-hint">No notes</div>}
         </div>
         <div className="customer-card-right" onClick={e => e.stopPropagation()}>
-          <button className="btn btn-secondary" onClick={() => followUpReminder(r)}>Follow Up (2 Weeks)</button>
+          <button className="btn btn-secondary" onClick={() => followUpReminder(r)}>Follow Up (1 Week)</button>
           <button className="btn btn-primary" onClick={() => completeReminder(r)}>Complete</button>
           <button className="btn btn-secondary" onClick={() => openEditReminder(r)}>Edit</button>
         </div>
@@ -2957,7 +2957,7 @@ export default function Dashboard() {
               <div className="calendar-popup-actions">
                 {c._kind === "reminder" && (
                   <>
-                    <button className="btn btn-secondary" onClick={fromPopup(followUpReminder)}>Follow Up (2 Weeks)</button>
+                    <button className="btn btn-secondary" onClick={fromPopup(followUpReminder)}>Follow Up (1 Week)</button>
                     <button className="btn btn-primary" onClick={fromPopup(completeReminder)}>Complete</button>
                     <button className="btn btn-secondary" onClick={fromPopup(openEditReminder)}>Edit</button>
                   </>
@@ -3050,7 +3050,7 @@ export default function Dashboard() {
               </button>
               {reminderForm.id && (
                 <>
-                  <button className="btn btn-secondary" onClick={() => followUpReminder(reminders.find(r => r.id === reminderForm.id))}>Follow Up (2 Weeks)</button>
+                  <button className="btn btn-secondary" onClick={() => followUpReminder(reminders.find(r => r.id === reminderForm.id))}>Follow Up (1 Week)</button>
                   <button className="btn btn-secondary" onClick={() => completeReminder(reminders.find(r => r.id === reminderForm.id))}>Complete</button>
                 </>
               )}

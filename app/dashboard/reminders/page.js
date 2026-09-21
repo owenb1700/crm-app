@@ -267,7 +267,7 @@ export default function RemindersPage() {
           {r.notes && <div className="reminder-row-notes">{r.notes}</div>}
         </div>
         <div className="reminder-row-actions">
-          <button className="btn btn-secondary" onClick={() => followUp(r)}>Follow Up (2 Weeks)</button>
+          <button className="btn btn-secondary" onClick={() => followUp(r)}>Follow Up (1 Week)</button>
           <button className="btn btn-secondary" onClick={() => startEdit(r)}>Edit</button>
           <button className="btn btn-primary" onClick={() => setConfirmComplete(r)}>Complete</button>
         </div>
@@ -336,7 +336,7 @@ export default function RemindersPage() {
           onCancel={() => setConfirmComplete(null)}
           onConfirm={() => complete(confirmComplete)}
         >
-          <p>Completing a reminder deletes it for good. Use Follow Up (2 Weeks) instead to push it out.</p>
+          <p>Completing a reminder deletes it for good. Use Follow Up (1 Week) instead to push it out.</p>
         </ConfirmDialog>
       )}
     </div>
