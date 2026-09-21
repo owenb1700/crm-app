@@ -486,7 +486,7 @@ function PartsPageContent() {
             </span>
           </div>
 
-          {oldPartsProjects.length > 0 && (
+          {role === "admin" && oldPartsProjects.length > 0 && (
             <div className="duplicate-warning" style={{ marginBottom: 16 }}>
               <strong>{oldPartsProjects.length} project{oldPartsProjects.length === 1 ? " is" : "s are"} still filed as Parts in My Projects.</strong>
               <div className="private-note-hint" style={{ marginTop: 4 }}>

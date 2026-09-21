@@ -779,6 +779,20 @@ export default function ProjectDetail() {
                 <dt>Last Contact</dt><dd>{formatDate(customer.lastContact) || "—"}</dd>
                 <dt>Sector</dt><dd>{customer.buildingSector || "—"}</dd>
                 <dt>Value</dt><dd>{customer.projectValue || "—"}</dd>
+                {(customer.sourcePipelineId || legacyBid) && (
+                  <>
+                    <dt>Came from</dt>
+                    <dd>
+                      <button
+                        type="button"
+                        className="link-muted matching-select-link"
+                        onClick={() => router.push(`/dashboard/pipeline/${customer.sourcePipelineId || legacyBid.pipelineId}`)}
+                      >
+                        the pipeline entry it was won from
+                      </button>
+                    </dd>
+                  </>
+                )}
                 <dt>Credit Split</dt><dd>{normalizeSplits(customer.splits).length ? describeSplit(customer.splits, ownerLabel) : "Not split"}</dd>
                 {/* Only when someone filed this for the salesperson it
                     belongs to -- otherwise there's nothing to explain. */}
