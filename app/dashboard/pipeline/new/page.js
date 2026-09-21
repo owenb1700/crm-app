@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../lib/firebase";
 import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
+import { notifyUsers, firmOwnersFor, firmsOnEntry, newSplitMembers } from "../../../../lib/notify";
 import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, firmTypeOf, salespersonAfterFirmChange } from "../../../../lib/directory";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
@@ -229,6 +230,23 @@ export default function NewPipelineEntry() {
         ...bidderDirectoryEntries(cleanBidders, firmTypeOf)
       ];
       await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });
+
+      // Tell the reps whose firms are on this entry, and anyone given a
+      // share of it. A share already makes them a collaborator (see
+      // withSplitMembers above); this is so they hear about it.
+      const owners = firmOwnersFor(firmsOnEntry({ company, biddingCompanies: cleanBidders }), companies);
+      await Promise.all([...owners.entries()]
+        .filter(([personId]) => personId !== uid)
+        .map(([personId, firmName]) => notifyUsers([personId], {
+          type: "firm_on_entry",
+          message: `${firmName} was added to the pipeline entry "${title}"`,
+          link: `/dashboard/pipeline/${ref.id}`
+        })));
+
+      await notifyUsers(
+        newSplitMembers(null, { splits }).filter(id => id !== uid),
+        { type: "split_share", message: `You were given a share of "${title}"`, link: `/dashboard/pipeline/${ref.id}` }
+      );
       await Promise.all(
         equipment.filter(isTowerRow).map(row => ensureTowerModel({ towerModels, manufacturer: row.manufacturer, model: row.model, uid }))
       );

@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../../lib/firebase";
+import { withoutTrashed } from "../../../lib/trash";
 import { COMPANY_CATEGORIES, ensureCompanyAndContactBatch } from "../../../lib/directory";
-import { PART_STAGES, blankPart, blankContractor, partPayload, partError, filterParts, sortParts, partsTotal, partChanges, logEntry, describeContractors } from "../../../lib/parts";
+import { PART_STAGES, partFromProject, isPartsProject, blankPart, blankContractor, partPayload, partError, filterParts, sortParts, partsTotal, partChanges, logEntry, describeContractors } from "../../../lib/parts";
 import { formatMoney } from "../../../lib/analytics";
 import { personName } from "../../../lib/people";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
@@ -50,18 +51,25 @@ function PartsPageContent() {
   const [error, setError] = useState("");
 
   const [filters, setFilters] = useState({ search: "", stage: "", category: "", firm: "", person: "" });
+  // Projects still filed under the old "Parts" status, waiting to be moved.
+  const [oldPartsProjects, setOldPartsProjects] = useState([]);
+  const [moving, setMoving] = useState(false);
 
   const load = async () => {
-    const [partsSnap, usersSnap, companiesSnap, contactsSnap] = await Promise.all([
+    const [partsSnap, usersSnap, companiesSnap, contactsSnap, projectsSnap] = await Promise.all([
       getDocs(collection(db, "parts")),
       getDocs(collection(db, "users")),
       getDocs(collection(db, "companies")),
-      getDocs(collection(db, "contacts"))
+      getDocs(collection(db, "contacts")),
+      getDocs(collection(db, "customers"))
     ]);
     setParts(partsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setOldPartsProjects(
+      withoutTrashed(projectsSnap.docs.map(d => ({ id: d.id, ...d.data() }))).filter(isPartsProject)
+    );
     setLoaded(true);
   };
 
@@ -204,6 +212,32 @@ function PartsPageContent() {
       setNotice("Parts entry deleted");
     } catch (err) {
       setError(`Couldn't delete this parts entry: ${err.message}`);
+    }
+  };
+
+  const moveOldPartsProjects = async () => {
+    setMoving(true);
+    setError("");
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      for (const project of oldPartsProjects) {
+        await addDoc(collection(db, "parts"), partFromProject(project, { by: uid, byName: nameOf(uid) }));
+        const res = await fetch("/api/delete-record", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify({ kind: "project", id: project.id })
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `Couldn't retire "${project.projectName || project.company}"`);
+        }
+      }
+      setNotice(`Moved ${oldPartsProjects.length} ${oldPartsProjects.length === 1 ? "project" : "projects"} into Parts. The originals are in the Trash for 30 days if anything looks wrong.`);
+      await load();
+    } catch (err) {
+      setError(`${err.message}. Anything already moved stayed moved -- run it again to finish the rest.`);
+    } finally {
+      setMoving(false);
     }
   };
 
@@ -451,6 +485,20 @@ function PartsPageContent() {
               </button>
             </span>
           </div>
+
+          {oldPartsProjects.length > 0 && (
+            <div className="duplicate-warning" style={{ marginBottom: 16 }}>
+              <strong>{oldPartsProjects.length} project{oldPartsProjects.length === 1 ? " is" : "s are"} still filed as Parts in My Projects.</strong>
+              <div className="private-note-hint" style={{ marginTop: 4 }}>
+                Moving them makes a parts entry for each — firm, contact, value, address and all — and puts the original project in the Trash, where it can be revived for 30 days.
+              </div>
+              <div className="duplicate-warning-actions">
+                <button className="btn btn-primary" disabled={moving} onClick={moveOldPartsProjects}>
+                  {moving ? "Moving…" : `Move ${oldPartsProjects.length === 1 ? "it" : "them"} into Parts`}
+                </button>
+              </div>
+            </div>
+          )}
 
           {notice && <p className="private-note-hint">{notice}</p>}
           {error && <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ {error}</p>}

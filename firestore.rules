@@ -206,6 +206,24 @@ service cloud.firestore {
           get(/databases/$(database)/documents/pipeline/$(pipelineId)).data.ownerId == request.auth.uid;
       }
 
+      // "My notes": one document per person, and only that person can ever
+      // read or write it -- not the entry's owner, not an admin.
+      match /myNotes/{userId} {
+        allow read, write: if isActive() && request.auth.uid == userId;
+      }
+
+      // "Team notes": everyone working the entry reads and adds. Notes are
+      // appended, never edited, so the thread stays a record of what was
+      // known when -- nothing here is ever deleted, including after the
+      // entry is won, lost, or converted into a project.
+      match /teamNotes/{doc} {
+        allow read: if isActive();
+        allow create: if isActive();
+        allow update: if isActive() &&
+          request.resource.data.entries.size() >= resource.data.entries.size();
+        allow delete: if false;
+      }
+
       // Photos: like the entry itself, the whole team can see and add them.
       // A photo's uploader, the entry's owner, or an admin can change its
       // date/caption or delete it.

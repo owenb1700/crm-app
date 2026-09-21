@@ -17,6 +17,8 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { ensureCompanyAndContactBatch, firmTypeOf, salespersonAfterFirmChange } from "../../../../lib/directory";
+import { notifyUsers, firmOwnersFor, newlyAddedFirms, newSplitMembers } from "../../../../lib/notify";
+import { stateChanges, activityEntry, withActivity } from "../../../../lib/activityLog";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
@@ -24,6 +26,7 @@ import BidderEditor from "../../../components/BidderEditor";
 import { bidderRowsForEditing, biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson, groupBidders, contactsOf } from "../../../../lib/bidders";
 import { buildBidSnapshot } from "../../../../lib/bidHistory";
 import PipelineMyAlerts from "../../../components/PipelineMyAlerts";
+import PipelineNotes from "../../../components/PipelineNotes";
 import DeleteRecordButton from "../../../components/DeleteRecordButton";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import ProductOptionsEditor from "../../../components/ProductOptionsEditor";
@@ -74,7 +77,6 @@ export default function PipelineDetail() {
   const [towerModels, setTowerModels] = useState([]);
   const [products, setProducts] = useState([]);
   const [privateData, setPrivateData] = useState(null);
-  const [modalNotes, setModalNotes] = useState("");
 
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
@@ -107,8 +109,9 @@ export default function PipelineDetail() {
   const adjustWeekend = (date) => {
     const d = new Date(date);
     const day = d.getDay();
-    if (day === 6) d.setDate(d.getDate() + 2);
-    if (day === 0) d.setDate(d.getDate() + 1);
+    // Back to the Friday before, so it lands ahead of the weekend.
+    if (day === 6) d.setDate(d.getDate() - 1);
+    if (day === 0) d.setDate(d.getDate() - 2);
     return d.toISOString().split("T")[0];
   };
 
@@ -152,7 +155,6 @@ export default function PipelineDetail() {
         const privSnap = await getDoc(doc(db, "pipeline", pipelineId, "private", "data"));
         const priv = privSnap.exists() ? privSnap.data() : { notes: "", notesHistory: [], files: [] };
         setPrivateData(priv);
-        setModalNotes(priv.notes || "");
       } catch {
         setPrivateData(null);
       }
@@ -286,6 +288,16 @@ export default function PipelineDetail() {
     payload.modelNumber = payload.equipment[0]?.model || null;
     payload.serialNumber = null;
 
+    const stateEdits = stateChanges(pipeline, payload, "pipeline", ownerLabel);
+    if (stateEdits.length) {
+      payload.activityLog = withActivity(pipeline.activityLog, activityEntry({
+        type: "changed",
+        changes: stateEdits,
+        by: uid,
+        byName: myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown")
+      }));
+    }
+
     await updateDoc(doc(db, "pipeline", pipelineId), payload);
 
     const captureEntries = [
@@ -293,50 +305,28 @@ export default function PipelineDetail() {
       ...bidderDirectoryEntries(payload.biddingCompanies, firmTypeOf)
     ];
     await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });
+
+    // Only firms that weren't on the entry before, so saving an edit
+    // doesn't re-alert everyone about the same firms.
+    const addedFirms = newlyAddedFirms(pipeline, { company: editData.company, biddingCompanies: payload.biddingCompanies });
+    const owners = firmOwnersFor(addedFirms, companies);
+    await Promise.all([...owners.entries()]
+      .filter(([personId]) => personId !== uid)
+      .map(([personId, firmName]) => notifyUsers([personId], {
+        type: "firm_on_entry",
+        message: `${firmName} was added to the pipeline entry "${payload.title || pipeline.title}"`,
+        link: `/dashboard/pipeline/${pipelineId}`
+      })));
+
+    await notifyUsers(
+      newSplitMembers(pipeline, payload).filter(id => id !== uid),
+      { type: "split_share", message: `You were given a share of "${payload.title || pipeline.title}"`, link: `/dashboard/pipeline/${pipelineId}` }
+    );
     await Promise.all(
       payload.equipment.filter(isTowerRow).map(row => ensureTowerModel({ towerModels, manufacturer: row.manufacturer, model: row.model, uid }))
     );
 
     setIsEditing(false);
-    await loadPipelineEntry(uid, role);
-  };
-
-  const saveNotes = async () => {
-    const existing = privateData || { notes: "", notesHistory: [], files: [] };
-    const original = existing.notes || "";
-    const changed = original !== modalNotes;
-    const myName = myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown");
-
-    const ref2 = doc(db, "pipeline", pipelineId, "private", "data");
-
-    const newHistory = changed && original
-      ? [
-          ...(existing.notesHistory || []),
-          { text: original, date: new Date().toISOString(), authorName: myName }
-        ]
-      : existing.notesHistory || [];
-
-    await setDoc(ref2, {
-      ...existing,
-      notes: modalNotes,
-      notesAuthorName: myName,
-      notesHistory: newHistory
-    });
-
-    await loadPipelineEntry(uid, role);
-  };
-
-  const deleteHistoryEntry = async (index) => {
-    if (!window.confirm("Delete this note entry? This can't be undone.")) return;
-
-    const existing = privateData || { notesHistory: [] };
-    const newHistory = (existing.notesHistory || []).filter((_, i) => i !== index);
-
-    await setDoc(doc(db, "pipeline", pipelineId, "private", "data"), {
-      ...existing,
-      notesHistory: newHistory
-    });
-
     await loadPipelineEntry(uid, role);
   };
 
@@ -896,56 +886,15 @@ export default function PipelineDetail() {
             <PipelineMyAlerts pipeline={pipeline} uid={uid} users={users} />
           )}
 
-          <div className="project-section">
-            <h4 className="field-label">Notes</h4>
-
-            {!canSeeNotes && (
-              <p className="private-note-hint">🔒 Notes are private to {ownerLabel(pipeline.ownerId)}.</p>
-            )}
-
-            {canSeeNotes && !canEditPrivate && (
-              <>
-                <p>{privateData?.notes || "(no notes yet)"}</p>
-                {privateData?.notesAuthorName && (
-                  <p className="private-note-hint">Last written by {privateData.notesAuthorName}</p>
-                )}
-              </>
-            )}
-
-            {canEditPrivate && (
-              <>
-                {privateData?.notesAuthorName && (
-                  <p className="private-note-hint">Last written by {privateData.notesAuthorName}</p>
-                )}
-                <textarea
-                  className="field"
-                  name="pd-notes"
-                  autoComplete="off"
-                  style={{ width: "100%", height: 100 }}
-                  value={modalNotes}
-                  onChange={e => setModalNotes(e.target.value)}
-                />
-                <button className="btn btn-primary" onClick={saveNotes}>Save Notes</button>
-              </>
-            )}
-
-            {canSeeNotes && (privateData?.notesHistory || []).length > 0 && (
-              <>
-                <h4 className="field-label" style={{ marginTop: 16 }}>Notes History</h4>
-                {privateData.notesHistory.map((h, i) => (
-                  <div key={i} className="notes-history-item notes-history-row">
-                    <div>
-                      <div>{h.text}</div>
-                      <div className="notes-history-date">{h.authorName || "Unknown"} · {h.date}</div>
-                    </div>
-                    {canEditPrivate && (
-                      <button className="btn btn-danger" onClick={() => deleteHistoryEntry(i)}>Delete</button>
-                    )}
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
+          {uid && (
+            <PipelineNotes
+              pipelineId={pipelineId}
+              uid={uid}
+              myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown")}
+              legacyNotes={canSeeNotes ? privateData?.notes : ""}
+              legacyHistory={canSeeNotes ? privateData?.notesHistory : []}
+            />
+          )}
 
           <div className="project-section">
             <h4 className="field-label">Files (PDF)</h4>

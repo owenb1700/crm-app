@@ -19,6 +19,7 @@ import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "../../../com
 import CreditSplitEditor from "../../../components/CreditSplitEditor";
 import SalespersonSelect from "../../../components/SalespersonSelect";
 import { canEnterForOthers } from "../../../../lib/permissions";
+import { notifyUsers, newSplitMembers } from "../../../../lib/notify";
 import { normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -283,6 +284,11 @@ export default function NewProject() {
         equipment
           .filter(row => row.manufacturer || row.model)
           .map(row => ensureTowerModel({ towerModels, manufacturer: row.manufacturer, model: row.model, uid }))
+      );
+
+      await notifyUsers(
+        newSplitMembers(null, { splits }).filter(id => id !== uid && id !== ownerId),
+        { type: "split_share", message: `You were given a share of "${projectName}"`, link: `/dashboard/project/${ref.id}` }
       );
 
       // Tell the salesperson it's theirs -- otherwise it just appears in

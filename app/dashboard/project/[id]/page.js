@@ -36,6 +36,8 @@ import { isTrashed } from "../../../../lib/trash";
 import PhotoGallery from "../../../components/PhotoGallery";
 import CreditSplitEditor from "../../../components/CreditSplitEditor";
 import { describeSplit, normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
+import { stateChanges, activityEntry, withActivity } from "../../../../lib/activityLog";
+import { notifyUsers, newSplitMembers } from "../../../../lib/notify";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
@@ -326,7 +328,24 @@ export default function ProjectDetail() {
       payload.closedAt = null;
     }
 
+    // Status, outcome, work type or owner changing is worth a line in the
+    // project's history; equipment and contact edits are not.
+    const changes = stateChanges(customer, payload, "project", ownerLabel);
+    if (changes.length) {
+      payload.activityLog = withActivity(customer.activityLog, activityEntry({
+        type: "changed",
+        changes,
+        by: uid,
+        byName: myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown")
+      }));
+    }
+
     await updateDoc(doc(db, "customers", projectId), payload);
+
+    await notifyUsers(
+      newSplitMembers(customer, payload).filter(id => id !== uid),
+      { type: "split_share", message: `You were given a share of "${payload.projectName || customer.projectName || customer.company}"`, link: `/dashboard/project/${projectId}` }
+    );
 
     await ensureCompanyAndContactBatch([
       { companyName: editData.company, category: editData.companyCategory, contactName: editData.contact, email: editData.email, phone: editData.phone },

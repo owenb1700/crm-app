@@ -36,7 +36,7 @@ import UserSettingsModal from "../components/UserSettingsModal";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../components/FilterBar";
 import { canViewAnalytics } from "../../lib/analytics";
 import ClosedCheckInActions from "../components/ClosedCheckInActions";
-import MyScorecard from "../components/MyScorecard";
+import MyScorecard, { scorecardTiles } from "../components/MyScorecard";
 import ExportDataModal from "../components/ExportDataModal";
 import DeleteRecordButton from "../components/DeleteRecordButton";
 import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, yearsFrom, localDateKey } from "../../lib/closedProjects";
@@ -175,6 +175,10 @@ export default function Dashboard() {
 
   // SEARCH
   const [pastProjectsSearch, setPastProjectsSearch] = useState("");
+  // My Projects shows three kinds of card; this narrows to one of them,
+  // for the screen and for the export alike.
+  const [personalType, setPersonalType] = useState(""); // "" | projects | pipeline | reminders
+  const [includeScorecard, setIncludeScorecard] = useState(false);
 
   // ADMIN: create user form
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -230,8 +234,9 @@ export default function Dashboard() {
   const adjustWeekend = (date) => {
     const d = new Date(date);
     const day = d.getDay();
-    if (day === 6) d.setDate(d.getDate() + 2);
-    if (day === 0) d.setDate(d.getDate() + 1);
+    // Back to the Friday before, so it lands ahead of the weekend.
+    if (day === 6) d.setDate(d.getDate() - 1);
+    if (day === 0) d.setDate(d.getDate() - 2);
     return d.toISOString().split("T")[0];
   };
 
@@ -361,8 +366,10 @@ export default function Dashboard() {
   };
   const skipWeekend = (d) => {
     const next = new Date(d);
-    if (next.getDay() === 6) next.setDate(next.getDate() + 2);
-    if (next.getDay() === 0) next.setDate(next.getDate() + 1);
+    // Back to the Friday before, so an automatic follow-up shows up ahead
+    // of the weekend rather than after it.
+    if (next.getDay() === 6) next.setDate(next.getDate() - 1);
+    if (next.getDay() === 0) next.setDate(next.getDate() - 2);
     return next;
   };
 
@@ -1152,11 +1159,14 @@ export default function Dashboard() {
     return "";
   };
 
+  const showsType = (kind) => !personalType || personalType === kind;
+
   const exportMyProjects = (format) => exportDashboardView({
     page: "projects",
-    projects: filteredCustomers,
-    pipelineEntries: myPipelineEntries,
-    reminders: activeReminders,
+    projects: showsType("projects") ? filteredCustomers : [],
+    pipelineEntries: showsType("pipeline") ? myPipelineEntries : [],
+    reminders: showsType("reminders") ? activeReminders : [],
+    summary: includeScorecard ? scorecardTiles({ pipelineEntries, projects: customers, uid }) : [],
     users,
     viewer: { id: uid, ...(myProfile || {}) },
     format,
@@ -2018,6 +2028,27 @@ export default function Dashboard() {
             >
               Filters{anyActive(personalFilters) ? ` (${Object.values(personalFilters).filter(isFilterActive).length})` : ""}
             </button>
+            <select
+              className="field"
+              aria-label="Show"
+              style={{ maxWidth: 190, marginBottom: 0 }}
+              value={personalType}
+              onChange={e => setPersonalType(e.target.value)}
+            >
+              <option value="">Everything</option>
+              <option value="projects">Projects only</option>
+              <option value="pipeline">Pipeline only</option>
+              <option value="reminders">Reminders only</option>
+            </select>
+            <label className="settings-check" htmlFor="include-scorecard" style={{ marginBottom: 0 }}>
+              <input
+                id="include-scorecard"
+                type="checkbox"
+                checked={includeScorecard}
+                onChange={e => setIncludeScorecard(e.target.checked)}
+              />
+              <span className="private-note-hint" style={{ margin: 0 }}>Scorecard totals in export</span>
+            </label>
             <ExportButtons label="this page" buttonText="Export page" onExport={exportMyProjects} disabled={!filteredCustomers.length && !myPipelineEntries.length && !activeReminders.length} />
             <button className="btn btn-primary list-toolbar-add" onClick={() => router.push("/dashboard/project/new")}>ADD PROJECT</button>
           </div>
@@ -2042,7 +2073,7 @@ export default function Dashboard() {
               sections; pipeline entries get a "Pipeline" label instead so
               they're still tellable apart. */}
           {[
-            ...filteredCustomers.map(c => {
+            ...(showsType("projects") ? filteredCustomers : []).map(c => {
             const days = diffDays(c.nextCheckIn);
             const isOwner = c.ownerId === uid;
             const pendingRequests = requestsById[c.id] || [];
@@ -2246,9 +2277,9 @@ export default function Dashboard() {
                   </div>
                 )
               })),
-            ...activeReminders
+            ...(showsType("reminders") ? activeReminders : [])
               .map(r => ({ sortKey: fromLocalDateKey(r.date).getTime(), element: renderReminderCard(r) })),
-            ...myPipelineEntries.map(p => ({
+            ...(showsType("pipeline") ? myPipelineEntries : []).map(p => ({
               sortKey: p.bidDate ? new Date(p.bidDate).getTime() : Infinity,
               element: (
                 <div
