@@ -8,6 +8,7 @@ import { doc, getDoc, getDocs, collection, addDoc } from "firebase/firestore";
 import { firmHasTag, firmTagLabel, firmTagOptions, COMPANY_CATEGORIES, CATEGORY_TITLES } from "../../../lib/directory";
 import DashboardHeader from "../../components/DashboardHeader";
 import AddressAutocomplete from "../../components/AddressAutocomplete";
+import FirmTagPicker from "../../components/FirmTagPicker";
 import MobileNav from "../../components/MobileNav";
 import { withoutTrashed } from "../../../lib/trash";
 import { claimCompany } from "../../../lib/directory";
@@ -37,6 +38,7 @@ function DirectoryPageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   // Service / Construction for contractors, building type for owners.
   const [tagFilter, setTagFilter] = useState("");
+  const [newTags, setNewTags] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
@@ -129,6 +131,7 @@ function DirectoryPageContent() {
     setNewPhone("");
     setNewAddress("");
     setNewCategory(COMPANY_CATEGORIES.includes(categoryFilter) ? categoryFilter : "Contractor");
+    setNewTags([]);
     setAddState(null);
     setShowAddModal(false);
   };
@@ -145,7 +148,7 @@ function DirectoryPageContent() {
 
     setAddState({ saving: true });
     try {
-      const created = await claimCompany({ name, category: newCategory, phone: newPhone.trim(), address: newAddress.trim(), uid });
+      const created = await claimCompany({ name, category: newCategory, phone: newPhone.trim(), address: newAddress.trim(), tags: newTags, uid });
       if (created.alreadyExisted) {
         await loadAll();
         return setAddState({ same: created });
@@ -332,6 +335,11 @@ function DirectoryPageContent() {
             <select className="field" value={newCategory} onChange={e => setNewCategory(e.target.value)}>
               {COMPANY_CATEGORIES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
             </select>
+
+            {/* Ticked here so a new firm arrives already described --
+                Service / Construction for a contractor, building types for
+                an owner or building engineer. */}
+            <FirmTagPicker idPrefix="add-company-tag" category={newCategory} value={newTags} onChange={setNewTags} />
 
             <label className="field-label" htmlFor="add-company-phone">Phone (optional)</label>
             <input id="add-company-phone" className="field" autoComplete="off" value={newPhone} onChange={e => setNewPhone(e.target.value)} />
