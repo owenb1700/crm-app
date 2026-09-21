@@ -7,6 +7,8 @@ import { auth, db } from "../../../../lib/firebase";
 import { doc, getDoc, getDocs, collection } from "firebase/firestore";
 import { equipmentRowsFrom } from "../../../../lib/equipment";
 import DashboardHeader from "../../../components/DashboardHeader";
+import ExportButtons from "../../../components/ExportButtons";
+import { downloadTable, csvDateStamp } from "../../../../lib/csv";
 import MobileNav from "../../../components/MobileNav";
 import { withoutTrashed } from "../../../../lib/trash";
 
@@ -112,6 +114,13 @@ export default function TowersPage() {
 
   const q = searchQuery.trim().toLowerCase();
   const allTowers = Object.values(towersBySerial);
+  const exportTowers = (format) => downloadTable({
+    format,
+    filename: `installed-towers${q ? "-filtered" : ""}-${csvDateStamp()}`,
+    sheetName: "Installed Towers",
+    headers: ["Serial number", "Manufacturer", "Model", "Address", "Jobs on file"],
+    rows: results.map(t => [t.serial, t.manufacturer, t.model, t.address, t.count])
+  });
 
   const results = q
     ? allTowers
@@ -167,6 +176,7 @@ export default function TowersPage() {
           onChange={e => setSearchQuery(e.target.value)}
           style={{ flex: 1, marginBottom: 0 }}
         />
+        <ExportButtons label="this page" buttonText="Export page" onExport={exportTowers} disabled={!results.length} />
       </div>
 
       {results.length === 0 && (

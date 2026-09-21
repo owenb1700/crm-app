@@ -7,6 +7,8 @@ import { auth, db } from "../../../../lib/firebase";
 import { doc, getDoc, getDocs, collection, addDoc } from "firebase/firestore";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import DashboardHeader from "../../../components/DashboardHeader";
+import ExportButtons from "../../../components/ExportButtons";
+import { downloadTable, csvDateStamp } from "../../../../lib/csv";
 import MobileNav from "../../../components/MobileNav";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -164,6 +166,14 @@ export default function ProductsPage() {
         .map(r => r.product)
     : byTypeAndManufacturer.slice().sort((a, b) => a.name.localeCompare(b.name));
 
+  const exportProducts = (format) => downloadTable({
+    format,
+    filename: `product-options${q ? "-filtered" : ""}-${csvDateStamp()}`,
+    sheetName: "Product Options",
+    headers: ["Name", "Type", "Manufacturer", "Model", "GPM", "Temp in", "Temp out", "Design details", "Notes"],
+    rows: results.map(p => [p.name, p.type, p.manufacturer, p.model, p.gpm, p.tempIn, p.tempOut, p.designDetails, p.notes])
+  });
+
   // Nested Manufacturer -> Type -> Model so browsing follows how the
   // catalog is actually organized. Anything missing a value at a given
   // level falls into an "Unspecified" bucket sorted to the end of it.
@@ -241,6 +251,7 @@ export default function ProductsPage() {
           onChange={e => setSearchQuery(e.target.value)}
           style={{ flex: 1, marginBottom: 0 }}
         />
+        <ExportButtons label="this page" buttonText="Export page" onExport={exportProducts} disabled={!results.length} />
         <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>+ Add Product Option</button>
       </div>
 

@@ -9,6 +9,9 @@ import { firmHasTag, firmTagLabel, firmTagOptions, COMPANY_CATEGORIES, CATEGORY_
 import DashboardHeader from "../../components/DashboardHeader";
 import AddressAutocomplete from "../../components/AddressAutocomplete";
 import FirmTagPicker from "../../components/FirmTagPicker";
+import ExportButtons from "../../components/ExportButtons";
+import { downloadTable, csvDateStamp } from "../../../lib/csv";
+import { firmTagsOf } from "../../../lib/directory";
 import MobileNav from "../../components/MobileNav";
 import { withoutTrashed } from "../../../lib/trash";
 import { claimCompany } from "../../../lib/directory";
@@ -202,6 +205,24 @@ function DirectoryPageContent() {
 
   const contactCount = (companyId) => contacts.filter(c => c.companyId === companyId).length;
 
+  // Whatever the page is showing: the category view, the designation
+  // filter and the search box all apply.
+  const narrowed = categoryFilter !== "all" || !!tagFilter || !!searchQuery.trim();
+  const exportCompanies = (format) => downloadTable({
+    format,
+    filename: `directory-companies${narrowed ? "-filtered" : ""}-${csvDateStamp()}`,
+    sheetName: "Companies",
+    headers: ["Company", "Category", "Does / Building types", "Phone", "Address", "Website", "People", "Contacts", "Notes"],
+    rows: results.map(({ company: c }) => [
+      c.name, c.category || "", firmTagsOf(c).join(", "), c.phone || "", c.address || "", c.website || "",
+      contactCount(c.id),
+      contacts.filter(p => p.companyId === c.id)
+        .map(p => [p.name, p.title, (p.emails || [p.email]).filter(Boolean)[0], (p.phones || [p.phone]).filter(Boolean)[0]].filter(Boolean).join(" — "))
+        .join("; "),
+      c.notes || ""
+    ])
+  });
+
   if (loadError) {
     return (
       <div className="dashboard-page">
@@ -261,6 +282,7 @@ function DirectoryPageContent() {
             Find Duplicates{duplicateCount ? ` (${duplicateCount})` : ""}
           </button>
         )}
+        <ExportButtons label="this page" buttonText="Export page" onExport={exportCompanies} disabled={!results.length} />
         <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>+ Add Company</button>
       </div>
 
