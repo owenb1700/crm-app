@@ -44,7 +44,7 @@ import { ensureTowerModel } from "../../lib/towerModels";
 import CompanyContactFields from "../components/CompanyContactFields";
 import MobileNav from "../components/MobileNav";
 import EditUserModal from "../components/EditUserModal";
-import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, defaultPermissionsFor, roleLabel, accessSummary } from "../../lib/permissions";
+import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, defaultPermissionsFor, roleLabel, accessSummary, canEnterForOthers } from "../../lib/permissions";
 import { FirmSelect } from "../components/DirectoryPickers";
 import ViewTabs from "../components/ViewTabs";
 import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabels, calendarKeyFor as calendarDayKeyFor } from "../../lib/calendarDays";
@@ -2441,7 +2441,19 @@ export default function Dashboard() {
               Filters{anyActive(pipelineFilters) ? ` (${Object.values(pipelineFilters).filter(isFilterActive).length})` : ""}
             </button>
             <ExportButtons label="this page" buttonText="Export page" onExport={exportMyPipeline} disabled={!filteredPipeline.length} />
-            <button className="btn btn-primary list-toolbar-add" onClick={() => router.push("/dashboard/pipeline/new")}>ADD PIPELINE ENTRY</button>
+            {/* Estimating's own page is the pipeline list, so someone who
+                files work for the sales team needs the project form here
+                too -- it's the only place they'd look for it. */}
+            <span className="list-toolbar-add" style={{ display: "flex", gap: 10 }}>
+              {view === "personal" && role === "estimating" && canEnterForOthers({ ...(myProfile || {}), role }) && (
+                <button className="btn btn-secondary" onClick={() => router.push("/dashboard/project/new")}>
+                  ADD PROJECT
+                </button>
+              )}
+              <button className="btn btn-primary" onClick={() => router.push("/dashboard/pipeline/new")}>
+                ADD PIPELINE ENTRY
+              </button>
+            </span>
           </div>
 
           {(openFilters.pipeline || anyActive(pipelineFilters)) && (
