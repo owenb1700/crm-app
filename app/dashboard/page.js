@@ -49,6 +49,8 @@ import { FirmSelect } from "../components/DirectoryPickers";
 import ViewTabs from "../components/ViewTabs";
 import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabels, calendarKeyFor as calendarDayKeyFor } from "../../lib/calendarDays";
 import { hasShare, splitShares } from "../../lib/splits";
+import { exportProjectView, exportPipelineView } from "../../lib/viewExport";
+import ExportButtons from "../components/ExportButtons";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -1128,6 +1130,22 @@ export default function Dashboard() {
     showToast("Note entry deleted");
   };
 
+  // Downloads of the list as it stands, filters included (lib/viewExport.js).
+  const exportMyProjects = (format) => exportProjectView({
+    rows: filteredCustomers,
+    users,
+    viewer: { id: uid, ...(myProfile || {}) },
+    format,
+    filtered: anyActive(personalFilters)
+  });
+  const exportMyPipeline = (format) => exportPipelineView({
+    rows: filteredPipeline,
+    users,
+    viewer: { id: uid, ...(myProfile || {}) },
+    format,
+    filtered: anyActive(pipelineFilters)
+  });
+
   const filteredCustomers = useMemo(() => {
     let list = customers.filter(c =>
       (c.ownerId === uid || (c.collaboratorIds || []).includes(uid) || hasShare(c, uid)) &&
@@ -1960,6 +1978,7 @@ export default function Dashboard() {
             >
               Filters{anyActive(personalFilters) ? ` (${Object.values(personalFilters).filter(isFilterActive).length})` : ""}
             </button>
+            <ExportButtons label="these projects" buttonText="Export list" onExport={exportMyProjects} disabled={!filteredCustomers.length} />
             <button className="btn btn-primary list-toolbar-add" onClick={() => router.push("/dashboard/project/new")}>ADD PROJECT</button>
           </div>
 
@@ -2380,6 +2399,7 @@ export default function Dashboard() {
             >
               Filters{anyActive(pipelineFilters) ? ` (${Object.values(pipelineFilters).filter(isFilterActive).length})` : ""}
             </button>
+            <ExportButtons label="these entries" buttonText="Export list" onExport={exportMyPipeline} disabled={!filteredPipeline.length} />
             <button className="btn btn-primary list-toolbar-add" onClick={() => router.push("/dashboard/pipeline/new")}>ADD PIPELINE ENTRY</button>
           </div>
 
