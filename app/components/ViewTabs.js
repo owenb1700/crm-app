@@ -46,6 +46,9 @@ export default function ViewTabs({ profile, role, view, onSelectView, onAddRemin
         </button>
       )}
 
+      {/* Parts is everyone's -- no permission gate. */}
+      <button className={tabClass("parts")} onClick={() => router.push("/dashboard/parts")}>Parts</button>
+
       {/* Directory sits last: it's a reference list people dip into, not a
           view of their own work like the tabs to its left. */}
       {(permissions.directory || permissions.towers || permissions.products) && (

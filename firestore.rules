@@ -64,6 +64,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Parts: small quoted/sold items, shared by the whole team. Anyone
+    // active can add one and anyone can edit one (a teammate updating a
+    // stage is the normal case); only whoever entered it, or an admin, can
+    // delete it.
+    match /parts/{partId} {
+      allow read: if isActive();
+      allow create: if isActive() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isActive() && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if isActive() && (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
 

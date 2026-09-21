@@ -37,7 +37,10 @@ import CreditSplitEditor from "../../../components/CreditSplitEditor";
 import { describeSplit, normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
-const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
+// Parts moved to their own tab (/dashboard/parts), so they're no longer
+// a project status. Projects filed as Parts before the move keep the
+// label until someone changes it.
+const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Project Closed"];
 const BLANK_EQUIPMENT_ROW = { type: "", manufacturer: "", model: "", serial: "", yearInstalled: "" };
 
 const BACK_TARGETS = { personal: "My Projects", team: "Team page", pastProjects: "Past Projects" };

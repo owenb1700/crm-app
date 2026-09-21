@@ -54,7 +54,10 @@ import ExportButtons from "../components/ExportButtons";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
-const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Parts", "Project Closed"];
+// Parts moved to their own tab (/dashboard/parts), so they're no longer
+// a project status. Projects filed as Parts before the move keep the
+// label until someone changes it.
+const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Project Closed"];
 
 
 // A pipeline entry with one of these outcomes is finished and lives in
