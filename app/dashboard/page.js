@@ -1156,6 +1156,15 @@ export default function Dashboard() {
     jobNameOf: reminderJobName
   });
 
+  const exportTeamProjects = (format) => exportDashboardView({
+    page: "team",
+    projects: teamCustomers,
+    users,
+    viewer: { id: uid, ...(myProfile || {}) },
+    format,
+    filtered: anyActive(teamFilters)
+  });
+
   const exportMyPipeline = (format) => exportDashboardView({
     page: "pipeline",
     pipelineEntries: filteredPipeline,
@@ -2315,7 +2324,16 @@ export default function Dashboard() {
 
       {view === "team" && (
         <>
-
+          <div className="list-toolbar">
+            <span className="list-toolbar-add">
+              <ExportButtons
+                label="this page"
+                buttonText="Export page"
+                onExport={exportTeamProjects}
+                disabled={!teamCustomers.length}
+              />
+            </span>
+          </div>
 
           <FilterBar
             idPrefix="team-filter"
