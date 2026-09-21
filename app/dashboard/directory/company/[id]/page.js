@@ -598,7 +598,17 @@ export default function CompanyDetail() {
                 <>
                   <div>
                     <div>
-                      <strong>{p.name}</strong>{p.title ? ` — ${p.title}` : ""}
+                      {/* Their own page: notes, and every job they've been
+                          named on. */}
+                      <button
+                        type="button"
+                        className="link-muted matching-select-link"
+                        style={{ font: "inherit", fontWeight: 700, padding: 0 }}
+                        onClick={() => router.push(`/dashboard/directory/person/${p.id}`)}
+                      >
+                        {p.name}
+                      </button>
+                      {p.title ? ` — ${p.title}` : ""}
                       {personConflicts(p).length > 0 && (
                         <button type="button" className="review-flag review-flag-button" title="Different information is on file -- confirm which is correct" onClick={() => openReview(p)}>
                           ⚠ {describeConflicts(personConflicts(p))} — review
@@ -621,6 +631,7 @@ export default function CompanyDetail() {
                     {p.notes && <div className="notes-history-date" style={{ marginTop: 4 }}>{p.notes}</div>}
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
+                    <button className="btn btn-secondary" onClick={() => router.push(`/dashboard/directory/person/${p.id}`)}>History</button>
                     <button className="btn btn-secondary" onClick={() => startEditPerson(p)}>Edit</button>
                     <button className="btn btn-danger" onClick={() => deletePerson(p.id)}>Delete</button>
                   </div>
