@@ -892,7 +892,7 @@ export default function PipelineDetail() {
           {isEditing && outcomeSection}
 
           {!pipeline.outcome && !pipeline.convertedToProjectId && uid && (
-            <PipelineMyAlerts pipeline={pipeline} uid={uid} />
+            <PipelineMyAlerts pipeline={pipeline} uid={uid} users={users} />
           )}
 
           <div className="project-section">

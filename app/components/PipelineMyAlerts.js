@@ -4,17 +4,24 @@ import { useEffect, useState } from "react";
 import { addDoc, collection, deleteDoc, doc, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { localDateKey } from "../../lib/closedProjects";
+import { remindableTeam, describeTeam } from "../../lib/pipelinePeople";
+import { personName } from "../../lib/people";
 
 // A signed-in user's own alert dates for one pipeline entry. They're stored
 // as that user's private reminders (with pipelineId set), so they show up on
 // that person's calendar, My Projects, and digest -- and nobody else's.
-export default function PipelineMyAlerts({ pipeline, uid }) {
+export default function PipelineMyAlerts({ pipeline, uid, users = [] }) {
   const [alerts, setAlerts] = useState([]);
   const [loadError, setLoadError] = useState("");
   const [date, setDate] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [remindAll, setRemindAll] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  // Everyone on the entry, minus me -- I get the alert either way.
+  const team = remindableTeam(pipeline, users).filter(u => u.id !== uid);
 
   const load = async () => {
     try {
@@ -40,17 +47,27 @@ export default function PipelineMyAlerts({ pipeline, uid }) {
     if (!date) return setError("Pick a date for the alert.");
     setSaving(true);
     setError("");
+    setNotice("");
     try {
-      await addDoc(collection(db, "reminders"), {
-        userId: uid,
+      // Reminders are private per person, so "remind everyone" writes one
+      // each: mine, plus one for everybody working the entry.
+      const recipients = remindAll ? [uid, ...team.map(u => u.id)] : [uid];
+      const stamp = new Date().toISOString();
+      await Promise.all(recipients.map(userId => addDoc(collection(db, "reminders"), {
+        userId,
         pipelineId: pipeline.id,
         subject: `Pipeline: ${pipeline.title}`,
         date, // saved on the day they picked, weekend included
         notes: note.trim() || null,
-        createdAt: new Date().toISOString()
-      });
+        // Says where a reminder someone didn't set came from.
+        setBy: userId === uid ? null : uid,
+        createdAt: stamp
+      })));
       setDate("");
       setNote("");
+      if (remindAll && team.length) {
+        setNotice(`Alert added for you and ${describeTeam(team, personName)}.`);
+      }
       await load();
     } catch (err) {
       setError(`Couldn't add the alert: ${err.message}`);
@@ -114,6 +131,25 @@ export default function PipelineMyAlerts({ pipeline, uid }) {
         </div>
         <button className="btn btn-primary" disabled={saving} onClick={add}>{saving ? "Adding…" : "Add Alert"}</button>
       </div>
+
+      {team.length > 0 && (
+        <label className="settings-check" htmlFor={`my-alert-all-${pipeline.id}`} style={{ marginTop: 8 }}>
+          <input
+            id={`my-alert-all-${pipeline.id}`}
+            type="checkbox"
+            checked={remindAll}
+            onChange={e => setRemindAll(e.target.checked)}
+          />
+          <span>
+            Remind everyone on this entry
+            <span className="private-note-hint" style={{ margin: "0 0 0 6px" }}>
+              {describeTeam(team, personName)} — salespeople, the point person, anyone tracking it, and the reps on the bidding firms
+            </span>
+          </span>
+        </label>
+      )}
+
+      {notice && <p className="private-note-hint">{notice}</p>}
       {error && <p className="settings-status is-error">{error}</p>}
     </div>
   );

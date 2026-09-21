@@ -277,7 +277,18 @@ service cloud.firestore {
     // even admins can read someone else's. Completing one deletes it.
     match /reminders/{reminderId} {
       allow read, delete: if isActive() && resource.data.userId == request.auth.uid;
-      allow create: if isActive() && request.resource.data.userId == request.auth.uid;
+      // Normally you only create your own. The exception is "remind
+      // everyone on this entry": anyone working a pipeline entry can set a
+      // reminder for a teammate on that entry, and it records who set it.
+      // The recipient can delete it like any of their own.
+      allow create: if isActive() && (
+        request.resource.data.userId == request.auth.uid ||
+        (
+          request.resource.data.get('setBy', null) == request.auth.uid &&
+          request.resource.data.get('pipelineId', null) is string &&
+          exists(/databases/$(database)/documents/pipeline/$(request.resource.data.pipelineId))
+        )
+      );
       allow update: if isActive() &&
         resource.data.userId == request.auth.uid &&
         request.resource.data.userId == request.auth.uid;
