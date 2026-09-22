@@ -17,6 +17,7 @@ import ViewTabs from "../../components/ViewTabs";
 import ExportButtons from "../../components/ExportButtons";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import PartForm from "../../components/PartForm";
+import NotesModal from "../../components/NotesModal";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -43,6 +44,9 @@ function PartsPageContent() {
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  // Notes read and written straight from the list, same thread as the
+  // request's own page.
+  const [notesFor, setNotesFor] = useState(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -334,7 +338,14 @@ function PartsPageContent() {
                 {describeContractors(p.contractors) && (
                   <div className="customer-meta" style={{ marginTop: 4 }}>Contractors: {describeContractors(p.contractors)}</div>
                 )}
-                {p.notes && <div className="customer-meta" style={{ marginTop: 4 }}>{p.notes}</div>}
+                <div
+                  className="customer-notes-preview"
+                  style={{ marginTop: 6 }}
+                  onClick={(e) => { e.stopPropagation(); setNotesFor(p); }}
+                  title="Notes"
+                >
+                  {p.notes || <span className="private-note-hint">Add a note…</span>}
+                </div>
                 <div className="notes-history-date" style={{ marginTop: 6 }}>
                   Entered by {nameOf(p.ownerId) || "someone"}
                   {(p.log || []).length > 0 && <> · {p.log.length} change{p.log.length === 1 ? "" : "s"} logged</>}
@@ -343,6 +354,18 @@ function PartsPageContent() {
             </div>
           ))}
         </>
+      )}
+
+      {notesFor && uid && (
+        <NotesModal
+          title={notesFor.item}
+          subtitle={[notesFor.company, notesFor.stage].filter(Boolean).join(" · ")}
+          collectionName="parts"
+          recordId={notesFor.id}
+          uid={uid}
+          myName={nameOf(uid)}
+          onClose={() => setNotesFor(null)}
+        />
       )}
 
       {confirmDelete && (

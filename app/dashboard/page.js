@@ -47,6 +47,7 @@ import EditUserModal from "../components/EditUserModal";
 import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, defaultPermissionsFor, roleLabel, accessSummary, canEnterForOthers } from "../../lib/permissions";
 import { FirmSelect } from "../components/DirectoryPickers";
 import ViewTabs from "../components/ViewTabs";
+import RecordNotes from "../components/RecordNotes";
 import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabels, calendarKeyFor as calendarDayKeyFor } from "../../lib/calendarDays";
 import { hasShare, splitShares } from "../../lib/splits";
 import { exportDashboardView } from "../../lib/viewExport";
@@ -154,7 +155,6 @@ export default function Dashboard() {
 
   // MODAL
   const [selected, setSelected] = useState(null);
-  const [modalNotes, setModalNotes] = useState("");
 
   // COMPLETED
   const [completedTarget, setCompletedTarget] = useState(null);
@@ -1092,43 +1092,9 @@ export default function Dashboard() {
     const noteSnap = await getDoc(doc(db, "customers", c.id, "private", "data"));
     const data = noteSnap.exists() ? noteSnap.data() : { notes: "", notesHistory: [] };
     setNotesById(prev => ({ ...prev, [c.id]: data }));
-    setModalNotes(data.notes || "");
   };
 
   const closeModal = () => setSelected(null);
-
-  const saveModalNotes = async () => {
-    const existing = notesById[selected.id] || { notes: "", notesHistory: [] };
-    const original = existing.notes || "";
-    const changed = original !== modalNotes;
-    const myName = myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown");
-
-    const ref = doc(db, "customers", selected.id, "private", "data");
-
-    const newHistory = changed && original
-      ? [
-          ...(existing.notesHistory || []),
-          {
-            text: original,
-            date: new Date().toISOString(),
-            authorId: existing.notesAuthorId || selected.ownerId,
-            authorName: existing.notesAuthorName || myName
-          }
-        ]
-      : existing.notesHistory || [];
-
-    await setDoc(ref, {
-      notes: modalNotes,
-      notesAuthorId: uid,
-      notesAuthorName: myName,
-      notesHistory: newHistory
-    });
-
-    setSelected(null);
-    setModalNotes("");
-    showToast("Notes updated");
-    loadCustomers(uid, role === "admin");
-  };
 
   const deleteHistoryEntry = async (customerId, index) => {
     if (!window.confirm("Delete this note entry? This can't be undone.")) return;
@@ -2330,30 +2296,20 @@ export default function Dashboard() {
                 <p>{selected.phone}</p>
 
                 <h4 className="field-label">Notes</h4>
-                {notesById[selected.id]?.notesAuthorName && (
-                  <p className="private-note-hint">Last written by {notesById[selected.id].notesAuthorName}</p>
+                {/* The same thread the project's own page shows, so a note
+                    written here isn't a second, separate kind of note. */}
+                {uid && (
+                  <RecordNotes
+                    collectionName="customers"
+                    recordId={selected.id}
+                    uid={uid}
+                    myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown")}
+                    canAdd
+                    legacyNotes={notesById[selected.id]?.notes}
+                    legacyHistory={notesById[selected.id]?.notesHistory}
+                    onDeleteLegacy={(i) => deleteHistoryEntry(selected.id, i)}
+                  />
                 )}
-                <textarea
-                  className="field"
-                  name="modalNotes"
-                  autoComplete="off"
-                  style={{ width: "100%", height: 80 }}
-                  value={modalNotes}
-                  onChange={e => setModalNotes(e.target.value)}
-                />
-
-                <button className="btn btn-primary" onClick={saveModalNotes}>Save Notes</button>
-
-                <h4 className="field-label">History</h4>
-                {(notesById[selected.id]?.notesHistory || []).map((h, i) => (
-                  <div key={i} className="notes-history-item notes-history-row">
-                    <div>
-                      <div>{h.text}</div>
-                      <div className="notes-history-date">{h.authorName || "Unknown"} · {h.date}</div>
-                    </div>
-                    <button className="btn btn-danger" onClick={() => deleteHistoryEntry(selected.id, i)}>Delete</button>
-                  </div>
-                ))}
               </div>
             </div>
           )}
