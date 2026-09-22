@@ -7,7 +7,7 @@ import { addDoc, collection, deleteDoc, doc, getDoc, getDocs } from "firebase/fi
 import { auth, db } from "../../../lib/firebase";
 import { withoutTrashed } from "../../../lib/trash";
 import { COMPANY_CATEGORIES, ensureCompanyAndContactBatch } from "../../../lib/directory";
-import { partFromProject, isPartsProject, blankPart, partPayload, partError, filterParts, sortParts, partsTotal, logEntry, describeContractors, PART_STAGES } from "../../../lib/parts";
+import { partFromProject, isPartsProject, blankPart, partPayload, partError, filterParts, sortParts, partsTotal, logEntry, describeContractors, PART_STAGES, firmTypeLine, needsContractorType } from "../../../lib/parts";
 import { formatMoney, withDollar } from "../../../lib/analytics";
 import { personName } from "../../../lib/people";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
@@ -18,6 +18,8 @@ import ExportButtons from "../../components/ExportButtons";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import PartForm from "../../components/PartForm";
 import NotesModal from "../../components/NotesModal";
+import ContractorTypePrompt from "../../components/ContractorTypePrompt";
+import { saveContractorType } from "../../../lib/firmTypes";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -47,6 +49,8 @@ function PartsPageContent() {
   // Notes read and written straight from the list, same thread as the
   // request's own page.
   const [notesFor, setNotesFor] = useState(null);
+  // The firm we're waiting on a contractor type for, if any.
+  const [askingType, setAskingType] = useState(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -115,9 +119,14 @@ function PartsPageContent() {
 
   const nameOf = (id) => (id ? personName(users.find(u => u.id === id)) : "");
 
-  const save = async () => {
+  const save = async (contractorType = null) => {
     const message = partError(form);
     if (message) return setError(message);
+    const payloadPreview = partPayload(form);
+    if (!contractorType && needsContractorType(payloadPreview, companies)) {
+      setAskingType(payloadPreview.company);
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -141,8 +150,10 @@ function PartsPageContent() {
         ],
         { companies, contacts, uid }
       );
+      if (contractorType) await saveContractorType(payload.company, contractorType);
       setForm(blankPart());
       setAdding(false);
+      setAskingType(null);
       setNotice("Parts entry added");
       await load();
     } catch (err) {
@@ -334,6 +345,7 @@ function PartsPageContent() {
                   {p.company}
                   {p.contact && <> · {p.contact}</>}
                 </div>
+                <div className="customer-meta">{firmTypeLine(p, companies)}</div>
                 {p.projectAddress && <div className="customer-meta" style={{ marginTop: 4 }}>{p.projectAddress}</div>}
                 {describeContractors(p.contractors) && (
                   <div className="customer-meta" style={{ marginTop: 4 }}>Contractors: {describeContractors(p.contractors)}</div>
@@ -354,6 +366,15 @@ function PartsPageContent() {
             </div>
           ))}
         </>
+      )}
+
+      {askingType && (
+        <ContractorTypePrompt
+          firmName={askingType}
+          busy={saving}
+          onChoose={(type) => save(type)}
+          onCancel={() => setAskingType(null)}
+        />
       )}
 
       {notesFor && uid && (

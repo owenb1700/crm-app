@@ -6,7 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, deleteDoc, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../../../lib/firebase";
 import { ensureCompanyAndContactBatch } from "../../../../lib/directory";
-import { blankPart, partPayload, partError, partChanges, logEntry, describeContractors } from "../../../../lib/parts";
+import { blankPart, partPayload, partError, partChanges, logEntry, describeContractors, firmTypeLine, needsContractorType } from "../../../../lib/parts";
 import { withDollar } from "../../../../lib/analytics";
 import { personName } from "../../../../lib/people";
 import DashboardHeader from "../../../components/DashboardHeader";
@@ -14,6 +14,8 @@ import MobileNav from "../../../components/MobileNav";
 import PartForm from "../../../components/PartForm";
 import RecordNotes from "../../../components/RecordNotes";
 import ConfirmDialog from "../../../components/ConfirmDialog";
+import ContractorTypePrompt from "../../../components/ContractorTypePrompt";
+import { saveContractorType } from "../../../../lib/firmTypes";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -42,6 +44,7 @@ function PartPageContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [askingType, setAskingType] = useState(null);
 
   const load = async () => {
     const snap = await getDoc(doc(db, "parts", partId));
@@ -113,9 +116,14 @@ function PartPageContent() {
     setError("");
   };
 
-  const save = async () => {
+  const save = async (contractorType = null) => {
     const message = partError(editForm);
     if (message) return setError(message);
+    const payloadPreview = partPayload(editForm);
+    if (!contractorType && needsContractorType(payloadPreview, companies)) {
+      setAskingType(payloadPreview.company);
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -134,7 +142,9 @@ function PartPageContent() {
         ],
         { companies, contacts, uid }
       );
+      if (contractorType) await saveContractorType(payload.company, contractorType);
       setIsEditing(false);
+      setAskingType(null);
       await load();
     } catch (err) {
       setError(`Couldn't save this parts request: ${err.message}`);
@@ -225,6 +235,7 @@ function PartPageContent() {
               <dt>Stage</dt><dd>{part.stage || "—"}</dd>
               <dt>Value</dt><dd>{withDollar(part.value) || "—"}</dd>
               <dt>{part.companyCategory || "Firm"}</dt><dd>{part.company || "—"}</dd>
+              <dt>Firm type</dt><dd>{firmTypeLine(part, companies) || "—"}</dd>
               <dt>Contact</dt><dd>{part.contact || "—"}</dd>
               <dt>Email</dt><dd>{part.email || "—"}</dd>
               <dt>Phone</dt><dd>{part.phone || "—"}</dd>
@@ -273,6 +284,15 @@ function PartPageContent() {
           )}
         </div>
       </div>
+
+      {askingType && (
+        <ContractorTypePrompt
+          firmName={askingType}
+          busy={saving}
+          onChoose={(type) => save(type)}
+          onCancel={() => setAskingType(null)}
+        />
+      )}
 
       {confirmDelete && (
         <ConfirmDialog
