@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import SortPicker from "../../components/SortPicker";
+import { sortRows } from "../../../lib/sorting";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
@@ -39,6 +41,7 @@ export default function AllAlerts() {
   const [alerts, setAlerts] = useState([]);
   const [search, setSearch] = useState("");
   const [timeFilter, setTimeFilter] = useState("all"); // 'all' | 'upcoming' | 'past'
+  const [sort, setSort] = useState({ key: "due", direction: "asc" });
   const [editedDates, setEditedDates] = useState({});
 
   const loadAlerts = async (currentUid, currentRole) => {
@@ -190,6 +193,12 @@ export default function AllAlerts() {
 
   const now = new Date();
   const q = search.trim().toLowerCase();
+  const ALERT_SORTS = {
+    due: { kind: "date", get: a => a.nextCheckIn, label: "Due date" },
+    name: { kind: "text", get: a => a.name, label: "Name" },
+    company: { kind: "text", get: a => a.company, label: "Firm" },
+    kind: { kind: "text", get: a => a.kind, label: "Type" }
+  };
   const filtered = alerts
     .filter(a => !q || a.name.toLowerCase().includes(q) || a.company.toLowerCase().includes(q))
     .filter(a => {
@@ -197,6 +206,7 @@ export default function AllAlerts() {
       if (timeFilter === "past") return new Date(a.nextCheckIn) < now;
       return true;
     });
+  const shown = sortRows(filtered, ALERT_SORTS, sort);
 
   if (loadError) {
     return (
@@ -246,13 +256,14 @@ export default function AllAlerts() {
           <option value="upcoming">Upcoming</option>
           <option value="past">Past</option>
         </select>
+        <SortPicker id="alerts-sort" options={ALERT_SORTS} sort={sort} onChange={setSort} />
       </div>
 
-      {filtered.length === 0 && (
+      {shown.length === 0 && (
         <p className="private-note-hint">{alerts.length === 0 ? "No alerts yet." : "No alerts match that search/filter."}</p>
       )}
 
-      {filtered.map(a => {
+      {shown.map(a => {
         const isPast = new Date(a.nextCheckIn) < now;
         return (
         <div key={a.key} className="customer-card">

@@ -8,6 +8,8 @@ import { doc, getDoc, getDocs, collection } from "firebase/firestore";
 import { equipmentRowsFrom } from "../../../../lib/equipment";
 import DashboardHeader from "../../../components/DashboardHeader";
 import ExportButtons from "../../../components/ExportButtons";
+import SortPicker from "../../../components/SortPicker";
+import { sortRows } from "../../../../lib/sorting";
 import { downloadTable, csvDateStamp } from "../../../../lib/csv";
 import MobileNav from "../../../components/MobileNav";
 import { withoutTrashed } from "../../../../lib/trash";
@@ -27,6 +29,7 @@ export default function TowersPage() {
 
   const [customers, setCustomers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sort, setSort] = useState({ key: "serial", direction: "asc" });
 
   const loadAll = async () => {
     // Towers come from projects; the pipeline has none installed yet.
@@ -114,6 +117,14 @@ export default function TowersPage() {
 
   const q = searchQuery.trim().toLowerCase();
   const allTowers = Object.values(towersBySerial);
+  const TOWER_SORTS = {
+    serial: { kind: "text", get: t => t.serial, label: "Serial number" },
+    manufacturer: { kind: "text", get: t => t.manufacturer, label: "Manufacturer" },
+    model: { kind: "text", get: t => t.model, label: "Model" },
+    address: { kind: "text", get: t => t.address, label: "Address" },
+    jobs: { kind: "money", get: t => t.count, label: "Jobs on file" }
+  };
+
   const exportTowers = (format) => downloadTable({
     format,
     filename: `installed-towers${q ? "-filtered" : ""}-${csvDateStamp()}`,
@@ -176,6 +187,7 @@ export default function TowersPage() {
           onChange={e => setSearchQuery(e.target.value)}
           style={{ flex: 1, marginBottom: 0 }}
         />
+        <SortPicker id="towers-sort" options={TOWER_SORTS} sort={sort} onChange={setSort} />
         <ExportButtons label="this page" buttonText="Export page" onExport={exportTowers} disabled={!results.length} />
       </div>
 
@@ -187,7 +199,7 @@ export default function TowersPage() {
         </p>
       )}
 
-      {results.map(t => (
+      {sortRows(results, TOWER_SORTS, sort).map(t => (
         <div
           key={t.serial}
           className="customer-card"

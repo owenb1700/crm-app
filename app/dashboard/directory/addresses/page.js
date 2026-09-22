@@ -11,6 +11,8 @@ import { downloadTable, csvDateStamp } from "../../../../lib/csv";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
 import ExportButtons from "../../../components/ExportButtons";
+import SortPicker from "../../../components/SortPicker";
+import { sortRows } from "../../../../lib/sorting";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -29,6 +31,7 @@ function AddressesPageContent() {
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState({ key: "address", direction: "asc" });
 
   useEffect(() => {
     let timer;
@@ -80,7 +83,16 @@ function AddressesPageContent() {
   }, []);
 
   const buildings = useMemo(() => collectAddresses({ projects, pipeline, parts }), [projects, pipeline, parts]);
-  const shown = useMemo(() => buildings.filter(b => matchesAddressSearch(b, search)), [buildings, search]);
+  const ADDRESS_SORTS = {
+    address: { kind: "text", get: b => b.label, label: "Address" },
+    jobs: { kind: "money", get: b => b.total, label: "How much work" },
+    latest: { kind: "date", get: b => b.latest, label: "Most recent" }
+  };
+  const shown = useMemo(
+    () => sortRows(buildings.filter(b => matchesAddressSearch(b, search)), ADDRESS_SORTS, sort),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [buildings, search, sort]
+  );
 
   const exportAddresses = (format) => downloadTable({
     format,
@@ -125,6 +137,7 @@ function AddressesPageContent() {
           onChange={e => setSearch(e.target.value)}
           style={{ flex: 1, marginBottom: 0 }}
         />
+        <SortPicker id="addresses-sort" options={ADDRESS_SORTS} sort={sort} onChange={setSort} />
         <ExportButtons label="these addresses" buttonText="Export page" onExport={exportAddresses} disabled={!shown.length} />
       </div>
 

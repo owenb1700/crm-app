@@ -1,6 +1,8 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import SortPicker from "../../components/SortPicker";
+import { sortRows } from "../../../lib/sorting";
 import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
@@ -25,6 +27,7 @@ function SearchPageContent() {
   const searchParams = useSearchParams();
 
   const [uid, setUid] = useState(null);
+  const [sort, setSort] = useState({ key: "name", direction: "asc" });
   const [loadError, setLoadError] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -138,6 +141,14 @@ function SearchPageContent() {
 
   const equipmentFields = (record) => equipmentRowsFrom(record).flatMap(r => [r.type, r.manufacturer, r.model, r.serial, r.yearInstalled]);
 
+  // One control orders every group of results: by name, or by when the
+  // record was last due / last touched.
+  const SEARCH_SORTS = {
+    name: { kind: "text", get: r => r.projectName || r.title || r.name || r.item || "", label: "Name" },
+    date: { kind: "date", get: r => r.nextCheckIn || r.bidDate || r.neededBy || r.createdAt || "", label: "Date" }
+  };
+  const ordered = (list) => sortRows(list, SEARCH_SORTS, sort);
+
   const projectResults = q ? customers.filter(c => matches(q, [
     c.projectName, c.company, c.contact, c.email, c.phone, c.projectAddress, ...equipmentFields(c),
     ...(c.owners || []).flatMap(o => [o.company, o.contact])
@@ -218,6 +229,7 @@ function SearchPageContent() {
           <span className="search-submit-text">Search</span>
           <span className="search-submit-icon" aria-hidden="true">🔍</span>
         </button>
+        <SortPicker id="search-sort" options={SEARCH_SORTS} sort={sort} onChange={setSort} />
       </form>
 
       {!q && <p className="private-note-hint">Type something above and hit search.</p>}
@@ -225,7 +237,7 @@ function SearchPageContent() {
 
       <Section
         title="Projects"
-        items={projectResults}
+        items={ordered(projectResults)}
         render={c => (
           <div key={c.id} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/project/${c.id}`)}>
             <div className="customer-card-left">
@@ -241,7 +253,7 @@ function SearchPageContent() {
 
       <Section
         title="Pipeline"
-        items={pipelineResults}
+        items={ordered(pipelineResults)}
         render={p => (
           <div key={p.id} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/pipeline/${p.id}`)}>
             <div className="customer-card-left">
@@ -257,7 +269,7 @@ function SearchPageContent() {
 
       <Section
         title="Contractors"
-        items={contractorResults}
+        items={ordered(contractorResults)}
         render={c => (
           <div key={c.id} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/directory/company/${c.id}`)}>
             <div className="customer-card-left">
@@ -270,7 +282,7 @@ function SearchPageContent() {
 
       <Section
         title="Engineering Firms"
-        items={engineeringResults}
+        items={ordered(engineeringResults)}
         render={c => (
           <div key={c.id} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/directory/company/${c.id}`)}>
             <div className="customer-card-left">
@@ -283,7 +295,7 @@ function SearchPageContent() {
 
       <Section
         title="Owners & Building Engineers"
-        items={ownerResults}
+        items={ordered(ownerResults)}
         render={c => (
           <div key={c.id} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/directory/company/${c.id}`)}>
             <div className="customer-card-left">
@@ -296,7 +308,7 @@ function SearchPageContent() {
 
       <Section
         title="Other Companies"
-        items={otherCompanyResults}
+        items={ordered(otherCompanyResults)}
         render={c => (
           <div key={c.id} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/directory/company/${c.id}`)}>
             <div className="customer-card-left">
@@ -309,7 +321,7 @@ function SearchPageContent() {
 
       <Section
         title="People"
-        items={peopleResults}
+        items={ordered(peopleResults)}
         render={p => (
           <div key={p.id} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/directory/company/${p.companyId}`)}>
             <div className="customer-card-left">
@@ -326,7 +338,7 @@ function SearchPageContent() {
 
       <Section
         title="Installed Towers"
-        items={towerResults}
+        items={ordered(towerResults)}
         render={t => (
           <div key={t.serial} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/directory/tower/${encodeURIComponent(t.serial)}`)}>
             <div className="customer-card-left">
@@ -342,7 +354,7 @@ function SearchPageContent() {
 
       <Section
         title="Tower Models"
-        items={towerModelResults}
+        items={ordered(towerModelResults)}
         render={m => (
           <div key={m.id} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/directory/tower-model/${m.id}`)}>
             <div className="customer-card-left">
@@ -354,7 +366,7 @@ function SearchPageContent() {
 
       <Section
         title="Product Options"
-        items={productResults}
+        items={ordered(productResults)}
         render={p => (
           <div key={p.id} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/directory/product/${p.id}`)}>
             <div className="customer-card-left">

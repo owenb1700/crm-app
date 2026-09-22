@@ -185,6 +185,7 @@ export default function Dashboard() {
   const [personalSort, setPersonalSort] = useState({ key: "due", direction: "asc" });
   const [pipelineSort, setPipelineSort] = useState({ key: "bid", direction: "asc" });
   const [teamSort, setTeamSort] = useState({ key: "due", direction: "asc" });
+  const [pastSort, setPastSort] = useState({ key: "closed", direction: "desc" });
 
   // ADMIN: create user form
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -1141,6 +1142,23 @@ export default function Dashboard() {
     status: { kind: "text", get: c => c.category, label: "Status" },
     created: { kind: "date", get: c => c.createdAt, label: "Date added" }
   };
+  // Past Projects shows closed projects and resolved pipeline entries in
+  // two lists. Same keys for both, so one picker orders them together.
+  const PAST_SORTS = {
+    closed: { kind: "date", get: c => closedDateOf(c), label: "Date closed" },
+    name: { kind: "text", get: c => c.projectName || c.company, label: "Name" },
+    firm: { kind: "text", get: c => c.company, label: "Firm" },
+    value: { kind: "money", get: c => c.projectValue, label: "Value" },
+    status: { kind: "text", get: c => c.closedOutcome || c.category, label: "Outcome" }
+  };
+  const PAST_PIPELINE_SORTS = {
+    closed: { kind: "date", get: p => p.resolvedAt, label: "Date closed" },
+    name: { kind: "text", get: p => p.title, label: "Name" },
+    firm: { kind: "text", get: p => p.company, label: "Firm" },
+    value: { kind: "money", get: p => p.value, label: "Value" },
+    status: { kind: "text", get: p => p.outcome, label: "Outcome" }
+  };
+
   const PIPELINE_SORTS = {
     bid: { kind: "date", get: p => p.bidDate, label: "Bid date" },
     name: { kind: "text", get: p => p.title, label: "Name" },
@@ -1266,12 +1284,9 @@ export default function Dashboard() {
         lostInfoOf(c).winner.toLowerCase().includes(q)
       );
     }
-    return list.sort((a, b) =>
-      getDateValue(closedDateOf(b)) - getDateValue(closedDateOf(a)) ||
-      (a.projectName || "").localeCompare(b.projectName || "")
-    );
+    return sortRows(list, PAST_SORTS, pastSort);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customers, pastProjectsSearch, pastFilters]);
+  }, [customers, pastProjectsSearch, pastFilters, pastSort]);
 
   const pastPipelineList = useMemo(() => {
     let list = pipelineEntries.filter(p => RESOLVED_PIPELINE_OUTCOMES.includes(p.outcome));
@@ -1298,8 +1313,9 @@ export default function Dashboard() {
         (p.lostTo || "").toLowerCase().includes(q)
       );
     }
-    return list.sort((a, b) => (b.resolvedAt || "").localeCompare(a.resolvedAt || ""));
-  }, [pipelineEntries, pastProjectsSearch, pastFilters]);
+    return sortRows(list, PAST_PIPELINE_SORTS, pastSort);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pipelineEntries, pastProjectsSearch, pastFilters, pastSort]);
 
   const teamCustomers = useMemo(() => {
     let list = [...customers];
@@ -2526,6 +2542,7 @@ export default function Dashboard() {
               onChange={e => setPastProjectsSearch(e.target.value)}
               style={{ flex: 1, marginBottom: 0 }}
             />
+            <SortPicker id="past-sort" options={PAST_SORTS} sort={pastSort} onChange={setPastSort} />
           </div>
 
           <FilterBar

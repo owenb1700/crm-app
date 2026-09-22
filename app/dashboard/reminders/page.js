@@ -11,6 +11,8 @@ import DashboardHeader from "../../components/DashboardHeader";
 import MobileNav from "../../components/MobileNav";
 import JobPicker from "../../components/JobPicker";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import SortPicker from "../../components/SortPicker";
+import { sortRows } from "../../../lib/sorting";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -40,6 +42,7 @@ export default function RemindersPage() {
   const [saving, setSaving] = useState(false);
   const [confirmComplete, setConfirmComplete] = useState(null);
   const [notice, setNotice] = useState("");
+  const [sort, setSort] = useState({ key: "date", direction: "asc" });
   const [error, setError] = useState("");
 
   const load = async (currentUid) => {
@@ -224,8 +227,13 @@ export default function RemindersPage() {
   if (!loaded) return <div className="dashboard-page">Loading...</div>;
 
   const today = localDateKey(new Date());
-  const overdue = reminders.filter(r => String(r.date) < today);
-  const upcoming = reminders.filter(r => String(r.date) >= today);
+  const REMINDER_SORTS = {
+    date: { kind: "date", get: r => r.date, label: "Due date" },
+    subject: { kind: "text", get: r => r.subject, label: "Subject" },
+    added: { kind: "date", get: r => r.createdAt, label: "Date added" }
+  };
+  const overdue = sortRows(reminders.filter(r => String(r.date) < today), REMINDER_SORTS, sort);
+  const upcoming = sortRows(reminders.filter(r => String(r.date) >= today), REMINDER_SORTS, sort);
 
   const renderReminder = (r) => {
     const job = jobOf(r);
@@ -284,6 +292,7 @@ export default function RemindersPage() {
           <h1 className="dashboard-title">My Reminders</h1>
         </div>
         <div className="dashboard-header-actions">
+          <SortPicker id="reminders-sort" options={REMINDER_SORTS} sort={sort} onChange={setSort} />
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
           <DashboardHeader uid={uid} />
         </div>

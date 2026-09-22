@@ -8,6 +8,8 @@ import { doc, getDoc, getDocs, collection, addDoc } from "firebase/firestore";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import DashboardHeader from "../../../components/DashboardHeader";
 import ExportButtons from "../../../components/ExportButtons";
+import SortPicker from "../../../components/SortPicker";
+import { sortRows } from "../../../../lib/sorting";
 import { downloadTable, csvDateStamp } from "../../../../lib/csv";
 import MobileNav from "../../../components/MobileNav";
 
@@ -26,6 +28,7 @@ export default function ProductsPage() {
 
   const [products, setProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sort, setSort] = useState({ key: "name", direction: "asc" });
   const [typeFilters, setTypeFilters] = useState(new Set());
   const [manufacturerFilters, setManufacturerFilters] = useState(new Set());
 
@@ -166,6 +169,13 @@ export default function ProductsPage() {
         .map(r => r.product)
     : byTypeAndManufacturer.slice().sort((a, b) => a.name.localeCompare(b.name));
 
+  const PRODUCT_SORTS = {
+    name: { kind: "text", get: p => p.name, label: "Name" },
+    type: { kind: "text", get: p => p.type, label: "Type" },
+    manufacturer: { kind: "text", get: p => p.manufacturer, label: "Manufacturer" },
+    model: { kind: "text", get: p => p.model, label: "Model" }
+  };
+
   const exportProducts = (format) => downloadTable({
     format,
     filename: `product-options${q ? "-filtered" : ""}-${csvDateStamp()}`,
@@ -188,7 +198,7 @@ export default function ProductsPage() {
   const NO_MODEL = "No Model Specified";
 
   const manufacturerGroups = new Map();
-  results.forEach(p => {
+  sortRows(results, PRODUCT_SORTS, sort).forEach(p => {
     const mfrKey = p.manufacturer || NO_MANUFACTURER;
     if (!manufacturerGroups.has(mfrKey)) manufacturerGroups.set(mfrKey, new Map());
     const typeGroups = manufacturerGroups.get(mfrKey);
@@ -251,6 +261,7 @@ export default function ProductsPage() {
           onChange={e => setSearchQuery(e.target.value)}
           style={{ flex: 1, marginBottom: 0 }}
         />
+        <SortPicker id="products-sort" options={PRODUCT_SORTS} sort={sort} onChange={setSort} />
         <ExportButtons label="this page" buttonText="Export page" onExport={exportProducts} disabled={!results.length} />
         <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>+ Add Product Option</button>
       </div>

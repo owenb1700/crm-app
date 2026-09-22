@@ -10,6 +10,8 @@ import DashboardHeader from "../../components/DashboardHeader";
 import AddressAutocomplete from "../../components/AddressAutocomplete";
 import FirmTagPicker from "../../components/FirmTagPicker";
 import ExportButtons from "../../components/ExportButtons";
+import SortPicker from "../../components/SortPicker";
+import { sortRows } from "../../../lib/sorting";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
 import { firmTagsOf } from "../../../lib/directory";
 import MobileNav from "../../components/MobileNav";
@@ -45,6 +47,7 @@ function DirectoryPageContent() {
   const [newTags, setNewTags] = useState([]);
   // 900+ firms is too many to paint at once; the rest come on request.
   const [showing, setShowing] = useState(PAGE_SIZE);
+  const [sort, setSort] = useState({ key: "name", direction: "asc" });
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
@@ -214,8 +217,17 @@ function DirectoryPageContent() {
 
   const contactCount = (companyId) => contacts.filter(c => c.companyId === companyId).length;
 
-  const visible = results.slice(0, showing);
-  const moreCount = results.length - visible.length;
+  const COMPANY_SORTS = {
+    name: { kind: "text", get: r => r.company.name, label: "Name" },
+    category: { kind: "text", get: r => r.company.category, label: "Category" },
+    people: { kind: "text", get: r => String(contactCount(r.company.id)).padStart(5, "0"), label: "People on file" },
+    added: { kind: "date", get: r => r.company.createdAt, label: "Date added" }
+  };
+  // Searching ranks by how well the name matches, so it keeps that order;
+  // otherwise the chosen sort applies.
+  const ordered = q ? results : sortRows(results, COMPANY_SORTS, sort);
+  const visible = ordered.slice(0, showing);
+  const moreCount = ordered.length - visible.length;
 
   // Whatever the page is showing: the category view, the designation
   // filter and the search box all apply.
@@ -294,6 +306,7 @@ function DirectoryPageContent() {
             Find Duplicates{duplicateCount ? ` (${duplicateCount})` : ""}
           </button>
         )}
+        {!q && <SortPicker id="directory-sort" options={COMPANY_SORTS} sort={sort} onChange={setSort} />}
         <ExportButtons label="this page" buttonText="Export page" onExport={exportCompanies} disabled={!results.length} />
         <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>+ Add Company</button>
       </div>
