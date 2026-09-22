@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { doc, getDoc, getDocs, collection, addDoc } from "firebase/firestore";
-import { firmHasTag, firmTagLabel, firmTagOptions, COMPANY_CATEGORIES, CATEGORY_TITLES } from "../../../lib/directory";
+import { firmHasTag, firmTagOptions, COMPANY_CATEGORIES, CATEGORY_TITLES } from "../../../lib/directory";
 import DashboardHeader from "../../components/DashboardHeader";
 import AddressAutocomplete from "../../components/AddressAutocomplete";
 import FirmTagPicker from "../../components/FirmTagPicker";
@@ -268,12 +268,12 @@ function DirectoryPageContent() {
         {categoryFilter !== "all" && (
           <select
             className="field"
-            aria-label={firmTagLabel(categoryFilter)}
+            aria-label="Type"
             style={{ maxWidth: 200, marginBottom: 0 }}
             value={tagFilter}
             onChange={e => setTagFilter(e.target.value)}
           >
-            <option value="">{firmTagLabel(categoryFilter)}: any</option>
+            <option value="">Type: ALL</option>
             {firmTagOptions(categoryFilter).map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         )}
