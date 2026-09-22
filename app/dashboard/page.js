@@ -36,7 +36,7 @@ import UserSettingsModal from "../components/UserSettingsModal";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../components/FilterBar";
 import { canViewAnalytics, withDollar } from "../../lib/analytics";
 import ClosedCheckInActions from "../components/ClosedCheckInActions";
-import MyScorecard, { scorecardTiles } from "../components/MyScorecard";
+import MyScorecard from "../components/MyScorecard";
 import ExportDataModal from "../components/ExportDataModal";
 import DeleteRecordButton from "../components/DeleteRecordButton";
 import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, yearsFrom, localDateKey } from "../../lib/closedProjects";
@@ -178,7 +178,6 @@ export default function Dashboard() {
   // My Projects shows three kinds of card; this narrows to one of them,
   // for the screen and for the export alike.
   const [personalType, setPersonalType] = useState(""); // "" | projects | pipeline | reminders
-  const [includeScorecard, setIncludeScorecard] = useState(false);
 
   // ADMIN: create user form
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -1132,7 +1131,6 @@ export default function Dashboard() {
     projects: showsType("projects") ? filteredCustomers : [],
     pipelineEntries: showsType("pipeline") ? myPipelineEntries : [],
     reminders: showsType("reminders") ? activeReminders : [],
-    summary: includeScorecard ? scorecardTiles({ pipelineEntries, projects: customers, uid }) : [],
     users,
     viewer: { id: uid, ...(myProfile || {}) },
     format,
@@ -2006,15 +2004,6 @@ export default function Dashboard() {
               <option value="pipeline">Pipeline only</option>
               <option value="reminders">Reminders only</option>
             </select>
-            <label className="settings-check" htmlFor="include-scorecard" style={{ marginBottom: 0 }}>
-              <input
-                id="include-scorecard"
-                type="checkbox"
-                checked={includeScorecard}
-                onChange={e => setIncludeScorecard(e.target.checked)}
-              />
-              <span className="private-note-hint" style={{ margin: 0 }}>Scorecard totals in export</span>
-            </label>
             <ExportButtons label="this page" buttonText="Export page" onExport={exportMyProjects} disabled={!filteredCustomers.length && !myPipelineEntries.length && !activeReminders.length} />
             <button className="btn btn-primary list-toolbar-add" onClick={() => router.push("/dashboard/project/new")}>ADD PROJECT</button>
           </div>

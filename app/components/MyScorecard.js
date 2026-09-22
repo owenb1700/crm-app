@@ -13,12 +13,12 @@ const pct = (n) => (n === null || n === undefined ? "—" : `${Math.round(n * 10
 // the signed-in user's own numbers.
 
 // A shared job counts for someone by their share of it.
-export const shareOfFor = (uid) => (record, fallbackId) =>
+const shareOfFor = (uid) => (record, fallbackId) =>
   (splitShares(record, fallbackId).find(s => s.userId === uid)?.weight || 0);
 
 // The Scorecard numbers, as label/value pairs. "year" counts what was
 // created since January 1st; "all" counts everything.
-export function scorecardTiles({ pipelineEntries = [], projects = [], uid, range = "year" }) {
+function scorecardTiles({ pipelineEntries = [], projects = [], uid, range = "year" }) {
   const shareOf = shareOfFor(uid);
   const mine = pipelineEntries.filter(e => shareOf(e, e.salespersonId || e.ownerId) > 0);
   const myProjects = projects.filter(c => shareOf(c, c.ownerId) > 0);
