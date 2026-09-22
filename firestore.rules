@@ -73,6 +73,15 @@ service cloud.firestore {
       allow create: if isActive() && request.resource.data.ownerId == request.auth.uid;
       allow update: if isActive() && request.resource.data.ownerId == resource.data.ownerId;
       allow delete: if isActive() && (resource.data.ownerId == request.auth.uid || isAdmin());
+
+      // Notes on a parts request, same as everywhere else: anyone can add
+      // one, a note is never edited, and only its author can delete it.
+      match /notes/{noteId} {
+        allow read: if isActive();
+        allow create: if isActive() && request.resource.data.by == request.auth.uid;
+        allow update: if false;
+        allow delete: if isActive() && resource.data.by == request.auth.uid;
+      }
     }
 
     match /users/{userId} {

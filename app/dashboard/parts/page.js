@@ -3,22 +3,20 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs } from "firebase/firestore";
 import { auth, db } from "../../../lib/firebase";
 import { withoutTrashed } from "../../../lib/trash";
 import { COMPANY_CATEGORIES, ensureCompanyAndContactBatch } from "../../../lib/directory";
-import { PART_STAGES, partFromProject, isPartsProject, blankPart, blankContractor, partPayload, partError, filterParts, sortParts, partsTotal, partChanges, logEntry, describeContractors } from "../../../lib/parts";
+import { partFromProject, isPartsProject, blankPart, partPayload, partError, filterParts, sortParts, partsTotal, logEntry, describeContractors, PART_STAGES } from "../../../lib/parts";
 import { formatMoney, withDollar } from "../../../lib/analytics";
 import { personName } from "../../../lib/people";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
-import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "../../components/DirectoryPickers";
 import DashboardHeader from "../../components/DashboardHeader";
 import MobileNav from "../../components/MobileNav";
 import ViewTabs from "../../components/ViewTabs";
 import ExportButtons from "../../components/ExportButtons";
-import MoneyInput from "../../components/MoneyInput";
-import AddressAutocomplete from "../../components/AddressAutocomplete";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import PartForm from "../../components/PartForm";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -43,8 +41,6 @@ function PartsPageContent() {
 
   const [form, setForm] = useState(blankPart());
   const [adding, setAdding] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState(blankPart());
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [notice, setNotice] = useState("");
@@ -115,20 +111,6 @@ function PartsPageContent() {
 
   const nameOf = (id) => (id ? personName(users.find(u => u.id === id)) : "");
 
-  // Picking a person at the firm fills in their email and phone, the same
-  // way the project and pipeline forms do.
-  const applyContact = (setter, value) => {
-    setter(prev => {
-      const person = findPerson(peopleAtFirm(contacts, prev.company, companies), value);
-      return {
-        ...prev,
-        contact: value,
-        email: person?.email || prev.email,
-        phone: person?.phone || prev.phone
-      };
-    });
-  };
-
   const save = async () => {
     const message = partError(form);
     if (message) return setError(message);
@@ -158,44 +140,6 @@ function PartsPageContent() {
       setForm(blankPart());
       setAdding(false);
       setNotice("Parts entry added");
-      await load();
-    } catch (err) {
-      setError(`Couldn't save this parts entry: ${err.message}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const startEdit = (p) => {
-    setEditingId(p.id);
-    setEditForm({ ...blankPart(), ...p });
-    setError("");
-  };
-
-  const saveEdit = async () => {
-    const message = partError(editForm);
-    if (message) return setError(message);
-    setSaving(true);
-    setError("");
-    try {
-      const before = parts.find(x => x.id === editingId) || {};
-      const payload = partPayload(editForm);
-      const changes = partChanges(before, payload);
-      await updateDoc(doc(db, "parts", editingId), {
-        ...payload,
-        updatedAt: new Date().toISOString(),
-        updatedBy: uid,
-        log: [...(before.log || []), logEntry({ kind: "updated", changes, by: uid, byName: nameOf(uid) })]
-      });
-      await ensureCompanyAndContactBatch(
-        [
-          { companyName: payload.company, category: payload.companyCategory, contactName: payload.contact, email: payload.email, phone: payload.phone },
-          ...payload.contractors.map(c => ({ companyName: c.company, category: "Contractor", contactName: c.contact }))
-        ],
-        { companies, contacts, uid }
-      );
-      setEditingId(null);
-      setNotice("Parts entry updated");
       await load();
     } catch (err) {
       setError(`Couldn't save this parts entry: ${err.message}`);
@@ -268,162 +212,6 @@ function PartsPageContent() {
       </div>
     );
   }
-
-  const partForm = (values, setValues, idPrefix) => (
-    <>
-      <div className="form-grid-2">
-        <div>
-          <label className="field-label" htmlFor={`${idPrefix}-item`}>Part</label>
-          <input
-            id={`${idPrefix}-item`}
-            className="field"
-            autoComplete="off"
-            placeholder="e.g. Replacement fan motor"
-            value={values.item}
-            onChange={e => setValues(prev => ({ ...prev, item: e.target.value }))}
-          />
-        </div>
-        <div>
-          <label className="field-label" htmlFor={`${idPrefix}-stage`}>Stage</label>
-          <select
-            id={`${idPrefix}-stage`}
-            className="field"
-            value={values.stage}
-            onChange={e => setValues(prev => ({ ...prev, stage: e.target.value }))}
-          >
-            {PART_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label className="field-label" htmlFor={`${idPrefix}-type`}>Firm type</label>
-          <select
-            id={`${idPrefix}-type`}
-            className="field"
-            value={values.companyCategory}
-            onChange={e => setValues(prev => ({ ...prev, companyCategory: e.target.value }))}
-          >
-            {COMPANY_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="field-label" htmlFor={`${idPrefix}-firm`}>{values.companyCategory}</label>
-          <FirmSelect
-            id={`${idPrefix}-firm`}
-            companies={companies}
-            category={values.companyCategory}
-            value={values.company}
-            onChange={v => setValues(prev => ({ ...prev, company: v }))}
-          />
-        </div>
-
-        <div>
-          <label className="field-label" htmlFor={`${idPrefix}-contact`}>Contact</label>
-          <PersonSelect
-            id={`${idPrefix}-contact`}
-            people={peopleAtFirm(contacts, values.company, companies)}
-            value={values.contact}
-            onChange={v => applyContact(setValues, v)}
-          />
-        </div>
-        <div>
-          <label className="field-label" htmlFor={`${idPrefix}-value`}>Value</label>
-          <MoneyInput
-            id={`${idPrefix}-value`}
-            placeholder="e.g. 4,200"
-            value={values.value}
-            onChange={v => setValues(prev => ({ ...prev, value: v }))}
-          />
-        </div>
-
-        <div>
-          <label className="field-label" htmlFor={`${idPrefix}-email`}>Email</label>
-          <input id={`${idPrefix}-email`} className="field" autoComplete="off" value={values.email} onChange={e => setValues(prev => ({ ...prev, email: e.target.value }))} />
-        </div>
-        <div>
-          <label className="field-label" htmlFor={`${idPrefix}-phone`}>Phone</label>
-          <input id={`${idPrefix}-phone`} className="field" autoComplete="off" value={values.phone} onChange={e => setValues(prev => ({ ...prev, phone: e.target.value }))} />
-        </div>
-
-        <div style={{ gridColumn: "1 / -1" }}>
-          <label className="field-label" htmlFor={`${idPrefix}-address`}>Project address</label>
-          <AddressAutocomplete
-            id={`${idPrefix}-address`}
-            name={`${idPrefix}-address`}
-            placeholder="Where is this going?"
-            value={values.projectAddress}
-            onChange={v => setValues(prev => ({ ...prev, projectAddress: v }))}
-          />
-        </div>
-
-        <div>
-          <label className="field-label" htmlFor={`${idPrefix}-needed`}>Needed by</label>
-          <input id={`${idPrefix}-needed`} className="field" type="date" value={values.neededBy} onChange={e => setValues(prev => ({ ...prev, neededBy: e.target.value }))} />
-        </div>
-      </div>
-
-      <div style={{ marginTop: 6 }}>
-        <label className="field-label">Contractors on this job (optional)</label>
-        <p className="private-note-hint" style={{ marginTop: -4 }}>
-          Whoever is doing the work, if that&apos;s not who the request came from. They&apos;re added to the Directory like any other firm.
-        </p>
-        {(values.contractors || []).map((row, i) => (
-          <div key={i} className="form-grid-2" style={{ alignItems: "end", marginBottom: 6 }}>
-            <div>
-              <label className="field-label" htmlFor={`${idPrefix}-contractor-${i}`}>Contractor</label>
-              <FirmSelect
-                id={`${idPrefix}-contractor-${i}`}
-                companies={companies}
-                category="Contractor"
-                value={row.company}
-                onChange={v => setValues(prev => ({
-                  ...prev,
-                  contractors: (prev.contractors || []).map((r, x) => (x === i ? { ...r, company: v } : r))
-                }))}
-              />
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "end" }}>
-              <div style={{ flex: 1 }}>
-                <label className="field-label" htmlFor={`${idPrefix}-contractor-contact-${i}`}>Their contact</label>
-                <PersonSelect
-                  id={`${idPrefix}-contractor-contact-${i}`}
-                  people={peopleAtFirm(contacts, row.company, companies)}
-                  value={row.contact}
-                  onChange={v => setValues(prev => ({
-                    ...prev,
-                    contractors: (prev.contractors || []).map((r, x) => (x === i ? { ...r, contact: v } : r))
-                  }))}
-                />
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setValues(prev => ({ ...prev, contractors: (prev.contractors || []).filter((_, x) => x !== i) }))}
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        ))}
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => setValues(prev => ({ ...prev, contractors: [...(prev.contractors || []), blankContractor()] }))}
-        >
-          + Add contractor
-        </button>
-      </div>
-
-      <label className="field-label" htmlFor={`${idPrefix}-notes`}>Notes</label>
-      <textarea
-        id={`${idPrefix}-notes`}
-        className="field"
-        style={{ width: "100%", height: 70 }}
-        value={values.notes}
-        onChange={e => setValues(prev => ({ ...prev, notes: e.target.value }))}
-      />
-    </>
-  );
 
   return (
     <div className="dashboard-page">
@@ -506,7 +294,7 @@ function PartsPageContent() {
           {adding && (
             <div className="admin-card" style={{ marginBottom: 20 }}>
               <h3 className="modal-title" style={{ marginTop: 0 }}>New parts entry</h3>
-              {partForm(form, setForm, "new-part")}
+              <PartForm values={form} setValues={setForm} idPrefix="new-part" companies={companies} contacts={contacts} />
               <div className="modal-actions">
                 <button className="btn btn-secondary" onClick={() => { setAdding(false); setForm(blankPart()); setError(""); }}>Cancel</button>
                 <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Add parts entry"}</button>
@@ -525,65 +313,34 @@ function PartsPageContent() {
           )}
 
           {shown.map(p => (
-            editingId === p.id ? (
-              <div key={p.id} className="admin-card" style={{ marginBottom: 12 }}>
-                <h3 className="modal-title" style={{ marginTop: 0 }}>Edit parts entry</h3>
-                {partForm(editForm, setEditForm, `edit-part-${p.id}`)}
-                <div className="modal-actions">
-                  <button className="btn btn-secondary" onClick={() => setEditingId(null)}>Cancel</button>
-                  <button className="btn btn-primary" disabled={saving} onClick={saveEdit}>{saving ? "Saving…" : "Save"}</button>
+            <div
+              key={p.id}
+              className="customer-card"
+              style={{ cursor: "pointer" }}
+              onClick={() => router.push(`/dashboard/parts/${p.id}`)}
+            >
+              <div className="customer-card-left">
+                <div className="customer-name">{p.item}</div>
+                <span className="role-badge" style={{ marginTop: 6 }}>{p.stage}</span>
+                {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
+                {p.neededBy && <div className="customer-dates">Needed by {p.neededBy}</div>}
+              </div>
+              <div className="customer-card-middle">
+                <div className="private-note-hint">
+                  {p.company}
+                  {p.contact && <> · {p.contact}</>}
+                </div>
+                {p.projectAddress && <div className="customer-meta" style={{ marginTop: 4 }}>{p.projectAddress}</div>}
+                {describeContractors(p.contractors) && (
+                  <div className="customer-meta" style={{ marginTop: 4 }}>Contractors: {describeContractors(p.contractors)}</div>
+                )}
+                {p.notes && <div className="customer-meta" style={{ marginTop: 4 }}>{p.notes}</div>}
+                <div className="notes-history-date" style={{ marginTop: 6 }}>
+                  Entered by {nameOf(p.ownerId) || "someone"}
+                  {(p.log || []).length > 0 && <> · {p.log.length} change{p.log.length === 1 ? "" : "s"} logged</>}
                 </div>
               </div>
-            ) : (
-              <div key={p.id} className="customer-card">
-                <div className="customer-card-left">
-                  <div className="customer-name">{p.item}</div>
-                  <span className="role-badge" style={{ marginTop: 6 }}>{p.stage}</span>
-                  {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
-                  {p.neededBy && <div className="customer-dates">Needed by {p.neededBy}</div>}
-                </div>
-                <div className="customer-card-middle">
-                  <div className="private-note-hint">
-                    {p.company}
-                    {p.contact && <> · {p.contact}</>}
-                  </div>
-                  {(p.email || p.phone) && <div className="customer-meta">{[p.email, p.phone].filter(Boolean).join(" · ")}</div>}
-                  {p.projectAddress && <div className="customer-meta" style={{ marginTop: 4 }}>{p.projectAddress}</div>}
-                  {describeContractors(p.contractors) && (
-                    <div className="customer-meta" style={{ marginTop: 4 }}>Contractors: {describeContractors(p.contractors)}</div>
-                  )}
-                  {p.notes && <div className="customer-meta" style={{ marginTop: 4 }}>{p.notes}</div>}
-                  {(p.log || []).length > 0 && (
-                    <details style={{ marginTop: 6 }}>
-                      <summary className="notes-history-date" style={{ cursor: "pointer" }}>
-                        History ({p.log.length})
-                      </summary>
-                      {[...p.log].reverse().map((entry, i) => (
-                        <div key={`${entry.at}-${i}`} className="notes-history-date" style={{ marginTop: 4 }}>
-                          {String(entry.at).slice(0, 10)} · {entry.byName || nameOf(entry.by) || "someone"}
-                          {entry.kind === "created" && " created this entry"}
-                          {entry.kind === "updated" && (entry.changes?.length
-                            ? <> changed {entry.changes.join("; ")}</>
-                            : " saved it with no changes")}
-                        </div>
-                      ))}
-                    </details>
-                  )}
-                  <div className="notes-history-date" style={{ marginTop: 6 }}>
-                    Entered by {nameOf(p.ownerId) || "someone"}
-                    {p.updatedBy && p.updatedBy !== p.ownerId && <> · last edited by {nameOf(p.updatedBy)}</>}
-                  </div>
-                </div>
-                <div className="customer-card-right">
-                  <button className="btn btn-secondary btn-small" onClick={() => startEdit(p)}>Edit</button>
-                  {/* Anyone can edit a parts entry; only whoever entered it
-                      (or an admin) can delete one. */}
-                  {(p.ownerId === uid || role === "admin") && (
-                    <button className="btn btn-secondary btn-small" onClick={() => setConfirmDelete(p)}>Delete</button>
-                  )}
-                </div>
-              </div>
-            )
+            </div>
           ))}
         </>
       )}
