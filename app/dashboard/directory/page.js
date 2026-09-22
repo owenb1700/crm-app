@@ -147,6 +147,12 @@ function DirectoryPageContent() {
   const addCompany = async (force = false) => {
     const name = newName.trim();
     if (!name) return alert("Enter a company name");
+    // A firm goes in described, not as a bare name.
+    if (!newTags.length) {
+      return alert(newCategory === "Contractor"
+        ? "Pick what kind of contractor they are (Service, Construction, or Supply House)."
+        : "Pick what sort of buildings they are.");
+    }
     const same = companies.find(c => sameCompany(c.name, name));
     if (same) return setAddState({ same });
     const similar = findSimilarCompanies(companies, name);

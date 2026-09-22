@@ -7,7 +7,7 @@ import { addDoc, collection, deleteDoc, doc, getDoc, getDocs } from "firebase/fi
 import { auth, db } from "../../../lib/firebase";
 import { withoutTrashed } from "../../../lib/trash";
 import { COMPANY_CATEGORIES, ensureCompanyAndContactBatch } from "../../../lib/directory";
-import { partFromProject, isPartsProject, blankPart, partPayload, partError, filterParts, partsTotal, logEntry, describeContractors, PART_STAGES, firmTypeLine, needsContractorType } from "../../../lib/parts";
+import { partFromProject, isPartsProject, blankPart, partPayload, partError, filterParts, partsTotal, logEntry, describeContractors, PART_STAGES, firmTypeLine } from "../../../lib/parts";
 import { formatMoney, withDollar } from "../../../lib/analytics";
 import { personName } from "../../../lib/people";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
@@ -21,8 +21,9 @@ import NotesModal from "../../components/NotesModal";
 import useUnsavedGuard from "../../components/useUnsavedGuard";
 import SortPicker from "../../components/SortPicker";
 import { sortRows } from "../../../lib/sorting";
-import ContractorTypePrompt from "../../components/ContractorTypePrompt";
-import { saveContractorType } from "../../../lib/firmTypes";
+import FirmDetailsPrompt from "../../components/FirmDetailsPrompt";
+import { saveFirmTags } from "../../../lib/firmTypes";
+import { firmsNeedingDetails } from "../../../lib/newFirms";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -53,7 +54,7 @@ function PartsPageContent() {
   // request's own page.
   const [notesFor, setNotesFor] = useState(null);
   // The firm we're waiting on a contractor type for, if any.
-  const [askingType, setAskingType] = useState(null);
+  const [firmQueue, setFirmQueue] = useState(null);
   const [sort, setSort] = useState({ key: "needed", direction: "asc" });
   // Anything typed into the add box is worth warning about.
   useUnsavedGuard(adding && Object.values(form).some(v => (Array.isArray(v) ? v.length : String(v || "").trim()) && v !== "Quoted" && v !== "Contractor"));
@@ -129,10 +130,11 @@ function PartsPageContent() {
     const message = partError(form);
     if (message) return setError(message);
     const payloadPreview = partPayload(form);
-    if (!contractorType && needsContractorType(payloadPreview, companies)) {
-      setAskingType(payloadPreview.company);
-      return;
-    }
+    const needDetails = contractorType ? [] : firmsNeedingDetails([
+      { name: payloadPreview.company, category: payloadPreview.companyCategory },
+      ...payloadPreview.contractors.map(c => ({ name: c.company, category: "Contractor" }))
+    ], companies);
+    if (needDetails.length) return setFirmQueue(needDetails);
     setSaving(true);
     setError("");
     try {
@@ -156,10 +158,14 @@ function PartsPageContent() {
         ],
         { companies, contacts, uid }
       );
-      if (contractorType) await saveContractorType(payload.company, contractorType);
+      if (contractorType) {
+        await Promise.all(Object.entries(contractorType).map(([name, tags]) => {
+          const category = name === payload.company ? payload.companyCategory : "Contractor";
+          return saveFirmTags(name, category, tags);
+        }));
+      }
       setForm(blankPart());
       setAdding(false);
-      setAskingType(null);
       setNotice("Parts entry added");
       await load();
     } catch (err) {
@@ -388,12 +394,12 @@ function PartsPageContent() {
         </>
       )}
 
-      {askingType && (
-        <ContractorTypePrompt
-          firmName={askingType}
+      {firmQueue && (
+        <FirmDetailsPrompt
+          queue={firmQueue}
           busy={saving}
-          onChoose={(type) => save(type)}
-          onCancel={() => setAskingType(null)}
+          onDone={(tags) => { setFirmQueue(null); save(tags); }}
+          onCancel={() => setFirmQueue(null)}
         />
       )}
 

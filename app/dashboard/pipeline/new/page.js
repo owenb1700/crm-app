@@ -6,6 +6,9 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../lib/firebase";
 import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { notifyUsers, firmOwnersFor, firmsOnEntry, newSplitMembers } from "../../../../lib/notify";
+import { firmsNeedingDetails } from "../../../../lib/newFirms";
+import { saveFirmTags } from "../../../../lib/firmTypes";
+import FirmDetailsPrompt from "../../../components/FirmDetailsPrompt";
 import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, firmTypeOf, salespersonAfterFirmChange } from "../../../../lib/directory";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
@@ -36,6 +39,7 @@ export default function NewPipelineEntry() {
   const [loadError, setLoadError] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [firmQueue, setFirmQueue] = useState(null);
 
   const [users, setUsers] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -163,7 +167,13 @@ export default function NewPipelineEntry() {
     router.push("/dashboard#pipeline");
   };
 
-  const addPipelineEntry = async () => {
+  // The engineering firm and every bidder named on this form.
+  const firmEntries = () => [
+    { name: company, category: "Engineering Firm" },
+    ...biddersForStorage(biddingCompanies).map(b => ({ name: b.company, category: firmTypeOf(b.category) }))
+  ];
+
+  const addPipelineEntry = async (firmTags = null) => {
     if (!title) {
       return alert("Please enter a project/opportunity name");
     }
@@ -182,6 +192,9 @@ export default function NewPipelineEntry() {
     if (missingSalesperson) {
       return alert(`Select a salesperson for bidder "${missingSalesperson.company || "without a firm name"}"`);
     }
+
+    const needDetails = firmTags ? [] : firmsNeedingDetails(firmEntries(), companies);
+    if (needDetails.length) return setFirmQueue(needDetails);
 
     setSaving(true);
     try {
@@ -258,6 +271,13 @@ export default function NewPipelineEntry() {
       } catch {
         // Storage unavailable -- the entry is still saved, just no message.
       }
+      if (firmTags) {
+        await Promise.all(Object.entries(firmTags).map(([name, tags]) => {
+          const entry = firmEntries().find(f => f.name === name);
+          return saveFirmTags(name, entry?.category, tags);
+        }));
+      }
+
       router.replace("/dashboard#pipeline");
     } finally {
       setSaving(false);
@@ -404,6 +424,14 @@ export default function NewPipelineEntry() {
         </div>
       </div>
 
+      {firmQueue && (
+        <FirmDetailsPrompt
+          queue={firmQueue}
+          busy={saving}
+          onDone={(tags) => { setFirmQueue(null); addPipelineEntry(tags); }}
+          onCancel={() => setFirmQueue(null)}
+        />
+      )}
     </div>
   );
 }

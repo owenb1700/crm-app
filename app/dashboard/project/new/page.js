@@ -20,6 +20,9 @@ import CreditSplitEditor from "../../../components/CreditSplitEditor";
 import SalespersonSelect from "../../../components/SalespersonSelect";
 import { canEnterForOthers } from "../../../../lib/permissions";
 import { notifyUsers, newSplitMembers } from "../../../../lib/notify";
+import { firmsNeedingDetails } from "../../../../lib/newFirms";
+import { saveFirmTags } from "../../../../lib/firmTypes";
+import FirmDetailsPrompt from "../../../components/FirmDetailsPrompt";
 import { normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -55,6 +58,7 @@ export default function NewProject() {
   const [myProfile, setMyProfile] = useState(null);
   // Blank means "mine". Only shown to people who may enter for others.
   const [salespersonId, setSalespersonId] = useState("");
+  const [firmQueue, setFirmQueue] = useState(null);
 
   const myName = () => {
     const me = users.find(u => u.id === uid) || myProfile;
@@ -209,7 +213,13 @@ export default function NewProject() {
     router.push("/dashboard#personal");
   };
 
-  const addProject = async () => {
+  // Firms named on this form that the Directory knows nothing about yet.
+  const firmEntries = () => [
+    { name: company, category: companyCategory },
+    ...cleanOwnerRows(ownerRows).map(r => ({ name: r.company, category: OWNER_CATEGORY }))
+  ];
+
+  const addProject = async (firmTags = null) => {
     const missing = [];
     if (!projectName) missing.push("Project Name");
     if (!buildingSector) missing.push("Building Sector");
@@ -220,6 +230,10 @@ export default function NewProject() {
     if (missing.length) {
       return alert(`Please fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
     }
+
+    // A new firm gets described before it's filed away.
+    const needDetails = firmTags ? [] : firmsNeedingDetails(firmEntries(), companies);
+    if (needDetails.length) return setFirmQueue(needDetails);
     const splitProblem = splitError(splits);
     if (splitProblem) {
       return alert(splitProblem);
@@ -302,6 +316,13 @@ export default function NewProject() {
           read: false,
           createdAt: new Date().toISOString()
         }).catch(() => {});
+      }
+
+      if (firmTags) {
+        await Promise.all(Object.entries(firmTags).map(([name, tags]) => {
+          const entry = firmEntries().find(f => f.name === name);
+          return saveFirmTags(name, entry?.category, tags);
+        }));
       }
 
       router.push(`/dashboard/project/${ref.id}`);
@@ -504,6 +525,14 @@ export default function NewProject() {
         </div>
       </div>
 
+      {firmQueue && (
+        <FirmDetailsPrompt
+          queue={firmQueue}
+          busy={saving}
+          onDone={(tags) => { setFirmQueue(null); addProject(tags); }}
+          onCancel={() => setFirmQueue(null)}
+        />
+      )}
     </div>
   );
 }
