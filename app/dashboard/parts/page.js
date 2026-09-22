@@ -8,7 +8,7 @@ import { auth, db } from "../../../lib/firebase";
 import { withoutTrashed } from "../../../lib/trash";
 import { COMPANY_CATEGORIES, ensureCompanyAndContactBatch } from "../../../lib/directory";
 import { PART_STAGES, partFromProject, isPartsProject, blankPart, blankContractor, partPayload, partError, filterParts, sortParts, partsTotal, partChanges, logEntry, describeContractors } from "../../../lib/parts";
-import { formatMoney } from "../../../lib/analytics";
+import { formatMoney, withDollar } from "../../../lib/analytics";
 import { personName } from "../../../lib/people";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
 import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "../../components/DirectoryPickers";
@@ -539,7 +539,7 @@ function PartsPageContent() {
                 <div className="customer-card-left">
                   <div className="customer-name">{p.item}</div>
                   <span className="role-badge" style={{ marginTop: 6 }}>{p.stage}</span>
-                  {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {p.value}</div>}
+                  {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
                   {p.neededBy && <div className="customer-dates">Needed by {p.neededBy}</div>}
                 </div>
                 <div className="customer-card-middle">

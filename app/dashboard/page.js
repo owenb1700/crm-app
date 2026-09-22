@@ -34,7 +34,7 @@ import { RECORDS_CHANGED_EVENT } from "../components/TrashModal";
 import { withoutTrashed, reminderJobIsActive } from "../../lib/trash";
 import UserSettingsModal from "../components/UserSettingsModal";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../components/FilterBar";
-import { canViewAnalytics } from "../../lib/analytics";
+import { canViewAnalytics, withDollar } from "../../lib/analytics";
 import ClosedCheckInActions from "../components/ClosedCheckInActions";
 import MyScorecard, { scorecardTiles } from "../components/MyScorecard";
 import ExportDataModal from "../components/ExportDataModal";
@@ -2155,7 +2155,7 @@ export default function Dashboard() {
 
                       {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
                   {c.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {c.buildingSector}</div>}
-                      {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {c.projectValue}</div>}
+                      {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(c.projectValue)}</div>}
                   {c.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{c.workType}</div>}
 
                       <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
@@ -2292,7 +2292,7 @@ export default function Dashboard() {
                     <div className="customer-name">{p.title}</div>
                     <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>Pipeline · {p.stage}</span>
                     {p.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {p.buildingSector}</div>}
-                    {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {p.value}</div>}
+                    {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
                     {p.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{p.workType}</div>}
                   </div>
                   <div className="customer-card-middle">
@@ -2416,7 +2416,7 @@ export default function Dashboard() {
                   </div>
                   {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
                   {c.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {c.buildingSector}</div>}
-                  {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {c.projectValue}</div>}
+                  {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(c.projectValue)}</div>}
                   {c.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{c.workType}</div>}
                   <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
                   <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>
@@ -2520,7 +2520,7 @@ export default function Dashboard() {
                 {p.contact && <div className="customer-meta">{p.contact}</div>}
                 <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>{p.stage}</span>
                 {p.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {p.buildingSector}</div>}
-                {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {p.value}</div>}
+                {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
                 {p.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{p.workType}</div>}
               </div>
 

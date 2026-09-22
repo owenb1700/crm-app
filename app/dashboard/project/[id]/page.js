@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { withDollar } from "../../../../lib/analytics";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db, storage } from "../../../../lib/firebase";
@@ -748,7 +749,7 @@ export default function ProjectDetail() {
                 <dt>Next Check-In</dt><dd>{formatDate(customer.nextCheckIn) || "—"}</dd>
                 <dt>Last Contact</dt><dd>{formatDate(customer.lastContact) || "—"}</dd>
                 <dt>Sector</dt><dd>{customer.buildingSector || "—"}</dd>
-                <dt>Value</dt><dd>{customer.projectValue || "—"}</dd>
+                <dt>Value</dt><dd>{withDollar(customer.projectValue) || "—"}</dd>
                 {(customer.sourcePipelineId || legacyBid) && (
                   <>
                     <dt>Came from</dt>

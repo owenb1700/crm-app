@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { withDollar } from "../../../../lib/analytics";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db, storage } from "../../../../lib/firebase";
@@ -803,7 +804,7 @@ export default function PipelineDetail() {
                 <h4 className="field-label">Bid & Team</h4>
                 <dl className="detail-list">
                   <dt>Bid Date</dt><dd>{pipeline.bidDate || "—"}</dd>
-                  <dt>Est. Value</dt><dd>{pipeline.value || "—"}</dd>
+                  <dt>Est. Value</dt><dd>{withDollar(pipeline.value) || "—"}</dd>
                   <dt>Work Type</dt><dd>{pipeline.workType || "—"}</dd>
                   <dt>Sector</dt><dd>{pipeline.buildingSector || "—"}</dd>
                   <dt>Salesperson</dt><dd>{pipeline.salespersonId ? ownerLabel(pipeline.salespersonId) : "Unassigned"}</dd>
