@@ -53,7 +53,7 @@ import { hasShare, splitShares } from "../../lib/splits";
 import { exportDashboardView } from "../../lib/viewExport";
 import ExportButtons from "../components/ExportButtons";
 import SortPicker from "../components/SortPicker";
-import { sortRows } from "../../lib/sorting";
+import { sortRows, sortMixed } from "../../lib/sorting";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -2047,7 +2047,7 @@ export default function Dashboard() {
               date in one continuous list, not split into separate
               sections; pipeline entries get a "Pipeline" label instead so
               they're still tellable apart. */}
-          {[
+          {sortMixed([
             ...(showsType("projects") ? filteredCustomers : []).map(c => {
             const days = diffDays(c.nextCheckIn);
             const isOwner = c.ownerId === uid;
@@ -2057,7 +2057,7 @@ export default function Dashboard() {
             if (days <= 0) barClass = "badge-bar-overdue";
             else if (days <= 2) barClass = "badge-bar-soon";
 
-            return { sortKey: getDateValue(c.nextCheckIn), element: (
+            return { sortFields: { date: formatDate(c.nextCheckIn), name: c.projectName || c.company, firm: c.company, value: c.projectValue, status: c.category, created: c.createdAt }, element: (
               <div
                 key={c.id}
                 className={`customer-card ${barClass}`}
@@ -2225,7 +2225,7 @@ export default function Dashboard() {
             ...customers
               .filter(c => c.ownerId === uid && isClosedWithCheckIn(c) && isCheckInDue(c))
               .map(c => ({
-                sortKey: getDateValue(c.nextCheckIn),
+                sortFields: { date: formatDate(c.nextCheckIn), name: c.projectName || c.company, firm: c.company, value: c.projectValue, status: c.category, created: c.createdAt },
                 element: (
                   <div
                     key={`closed-checkin-${c.id}`}
@@ -2253,9 +2253,9 @@ export default function Dashboard() {
                 )
               })),
             ...(showsType("reminders") ? activeReminders : [])
-              .map(r => ({ sortKey: fromLocalDateKey(r.date).getTime(), element: renderReminderCard(r) })),
+              .map(r => ({ sortFields: { date: r.date, name: r.subject, firm: "", value: "", status: "", created: r.createdAt }, element: renderReminderCard(r) })),
             ...(showsType("pipeline") ? myPipelineEntries : []).map(p => ({
-              sortKey: p.bidDate ? new Date(p.bidDate).getTime() : Infinity,
+              sortFields: { date: p.bidDate, name: p.title, firm: p.company, value: p.value, status: p.stage, created: p.createdAt },
               element: (
                 <div
                   key={`pipeline-${p.id}`}
@@ -2277,7 +2277,7 @@ export default function Dashboard() {
                 </div>
               )
             }))
-          ].sort((a, b) => a.sortKey - b.sortKey).map(item => item.element)}
+          ], personalSort).map(item => item.element)}
 
           {remindersError && (
             <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ Couldn't load your reminders: {remindersError}</p>
