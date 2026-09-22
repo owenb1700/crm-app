@@ -14,6 +14,7 @@ import MobileNav from "../../../components/MobileNav";
 import PartForm from "../../../components/PartForm";
 import RecordNotes from "../../../components/RecordNotes";
 import ConfirmDialog from "../../../components/ConfirmDialog";
+import useUnsavedGuard from "../../../components/useUnsavedGuard";
 import ContractorTypePrompt from "../../../components/ContractorTypePrompt";
 import { saveContractorType } from "../../../../lib/firmTypes";
 
@@ -40,6 +41,8 @@ function PartPageContent() {
   const [loaded, setLoaded] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
+  // Closing the tab mid-edit shouldn't lose what's typed.
+  useUnsavedGuard(isEditing);
   const [editForm, setEditForm] = useState(blankPart());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");

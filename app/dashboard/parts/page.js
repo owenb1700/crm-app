@@ -7,7 +7,7 @@ import { addDoc, collection, deleteDoc, doc, getDoc, getDocs } from "firebase/fi
 import { auth, db } from "../../../lib/firebase";
 import { withoutTrashed } from "../../../lib/trash";
 import { COMPANY_CATEGORIES, ensureCompanyAndContactBatch } from "../../../lib/directory";
-import { partFromProject, isPartsProject, blankPart, partPayload, partError, filterParts, sortParts, partsTotal, logEntry, describeContractors, PART_STAGES, firmTypeLine, needsContractorType } from "../../../lib/parts";
+import { partFromProject, isPartsProject, blankPart, partPayload, partError, filterParts, partsTotal, logEntry, describeContractors, PART_STAGES, firmTypeLine, needsContractorType } from "../../../lib/parts";
 import { formatMoney, withDollar } from "../../../lib/analytics";
 import { personName } from "../../../lib/people";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
@@ -18,6 +18,9 @@ import ExportButtons from "../../components/ExportButtons";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import PartForm from "../../components/PartForm";
 import NotesModal from "../../components/NotesModal";
+import useUnsavedGuard from "../../components/useUnsavedGuard";
+import SortPicker from "../../components/SortPicker";
+import { sortRows } from "../../../lib/sorting";
 import ContractorTypePrompt from "../../components/ContractorTypePrompt";
 import { saveContractorType } from "../../../lib/firmTypes";
 
@@ -51,6 +54,9 @@ function PartsPageContent() {
   const [notesFor, setNotesFor] = useState(null);
   // The firm we're waiting on a contractor type for, if any.
   const [askingType, setAskingType] = useState(null);
+  const [sort, setSort] = useState({ key: "needed", direction: "asc" });
+  // Anything typed into the add box is worth warning about.
+  useUnsavedGuard(adding && Object.values(form).some(v => (Array.isArray(v) ? v.length : String(v || "").trim()) && v !== "Quoted" && v !== "Contractor"));
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -200,7 +206,20 @@ function PartsPageContent() {
     }
   };
 
-  const shown = useMemo(() => sortParts(filterParts(parts, filters)), [parts, filters]);
+  const PART_SORTS = {
+    needed: { kind: "date", get: p => p.neededBy, label: "Needed by" },
+    item: { kind: "text", get: p => p.item, label: "Part" },
+    firm: { kind: "text", get: p => p.company, label: "Firm" },
+    value: { kind: "money", get: p => p.value, label: "Value" },
+    stage: { kind: "text", get: p => p.stage, label: "Stage" },
+    added: { kind: "date", get: p => p.createdAt, label: "Date added" }
+  };
+
+  const shown = useMemo(
+    () => sortRows(filterParts(parts, filters), PART_SORTS, sort),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [parts, filters, sort]
+  );
   const anyFilter = Object.values(filters).some(Boolean);
 
   const exportParts = (format) => downloadTable({
@@ -281,6 +300,7 @@ function PartsPageContent() {
               <button className="btn btn-secondary" onClick={() => setFilters({ search: "", stage: "", category: "", firm: "", person: "" })}>Clear</button>
             )}
 
+            <SortPicker id="parts-sort" options={PART_SORTS} sort={sort} onChange={setSort} />
             <span className="list-toolbar-add" style={{ display: "flex", gap: 10 }}>
               <ExportButtons label="this page" buttonText="Export page" onExport={exportParts} disabled={!shown.length} />
               <button className="btn btn-primary" onClick={() => { setAdding(a => !a); setError(""); }}>

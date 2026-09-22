@@ -19,6 +19,7 @@ import { sameCompany, findSimilarCompanies, groupSimilarCompanies, groupSimilarP
 import { companyConflicts, personConflicts } from "../../../lib/directoryConflicts";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
+const PAGE_SIZE = 50;
 
 const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
@@ -42,6 +43,8 @@ function DirectoryPageContent() {
   // Service / Construction for contractors, building type for owners.
   const [tagFilter, setTagFilter] = useState("");
   const [newTags, setNewTags] = useState([]);
+  // 900+ firms is too many to paint at once; the rest come on request.
+  const [showing, setShowing] = useState(PAGE_SIZE);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
@@ -205,6 +208,9 @@ function DirectoryPageContent() {
 
   const contactCount = (companyId) => contacts.filter(c => c.companyId === companyId).length;
 
+  const visible = results.slice(0, showing);
+  const moreCount = results.length - visible.length;
+
   // Whatever the page is showing: the category view, the designation
   // filter and the search box all apply.
   const narrowed = categoryFilter !== "all" || !!tagFilter || !!searchQuery.trim();
@@ -260,7 +266,7 @@ function DirectoryPageContent() {
           className="field"
           placeholder="Search companies or people..."
           value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
+          onChange={e => { setSearchQuery(e.target.value); setShowing(PAGE_SIZE); }}
           style={{ flex: 1, marginBottom: 0 }}
         />
         {/* Only meaningful once a category is chosen -- "Does: Service"
@@ -271,7 +277,7 @@ function DirectoryPageContent() {
             aria-label="Type"
             style={{ maxWidth: 200, marginBottom: 0 }}
             value={tagFilter}
-            onChange={e => setTagFilter(e.target.value)}
+            onChange={e => { setTagFilter(e.target.value); setShowing(PAGE_SIZE); }}
           >
             <option value="">Type: ALL</option>
             {firmTagOptions(categoryFilter).map(t => <option key={t} value={t}>{t}</option>)}
@@ -290,7 +296,13 @@ function DirectoryPageContent() {
         <p className="private-note-hint">No companies found.</p>
       )}
 
-      {results.map(({ company: c, matchedPerson }) => {
+      {results.length > 0 && (
+        <p className="analytics-card-sub" style={{ marginTop: 0 }}>
+          Showing {visible.length} of {results.length}{results.length === 1 ? " company" : " companies"}
+        </p>
+      )}
+
+      {visible.map(({ company: c, matchedPerson }) => {
         const { projectCount, pipelineCount } = jobCounts(c.name);
         return (
           <div
@@ -319,6 +331,16 @@ function DirectoryPageContent() {
           </div>
         );
       })}
+
+      {moreCount > 0 && (
+        <button
+          className="btn btn-secondary btn-block"
+          style={{ marginTop: 12 }}
+          onClick={() => setShowing(n => n + PAGE_SIZE)}
+        >
+          Show {Math.min(moreCount, PAGE_SIZE)} more
+        </button>
+      )}
 
       {showAddModal && (
         <div className="modal-overlay">

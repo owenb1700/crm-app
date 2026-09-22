@@ -28,6 +28,7 @@ export default function GlobalSearch({
   const [open, setOpen] = useState(false);
   const [extra, setExtra] = useState(null); // { products, towerModels }
   const boxRef = useRef(null);
+  const inputRef = useRef(null);
 
   // Whatever the page didn't hand over is fetched the first time the box
   // is opened, so "Search everything" means the same thing on every page
@@ -73,6 +74,22 @@ export default function GlobalSearch({
     document.addEventListener("pointerdown", onPressOutside);
     return () => document.removeEventListener("pointerdown", onPressOutside);
   });
+
+  // "/" or Cmd/Ctrl-K jumps here from anywhere, unless you're already
+  // typing in a box.
+  useEffect(() => {
+    const onKey = (e) => {
+      const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(e.target?.tagName) || e.target?.isContentEditable;
+      const shortcut = (e.key === "/" && !typing) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k");
+      if (!shortcut) return;
+      e.preventDefault();
+      inputRef.current?.focus();
+      inputRef.current?.select();
+      setOpen(true);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   const q = query.trim().toLowerCase();
 
@@ -180,8 +197,10 @@ export default function GlobalSearch({
     >
       <div className="global-search-box">
         <input
+          ref={inputRef}
           className="field global-search-input"
-          placeholder="Search everything..."
+          placeholder="Search everything...  ( / )"
+          aria-keyshortcuts="/ Meta+K Control+K"
           value={query}
           autoComplete="off"
           onChange={e => { setQuery(e.target.value); setOpen(true); }}

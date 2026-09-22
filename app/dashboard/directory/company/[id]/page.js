@@ -20,12 +20,14 @@ import DashboardHeader from "../../../../components/DashboardHeader";
 import AddressAutocomplete from "../../../../components/AddressAutocomplete";
 import MobileNav from "../../../../components/MobileNav";
 import { isTrashed } from "../../../../../lib/trash";
-import { companyKeyOf, sameCompany, samePerson, findSimilarPeople, findSimilarCompanies } from "../../../../../lib/companyMatch";
+import { companyKeyOf, sameCompany, samePerson, findSimilarPeople, findSimilarCompanies, groupSimilarPeople } from "../../../../../lib/companyMatch";
 import { companyConflicts, personConflicts, describeConflicts, reviewSignature, emailsOf, phonesOf, companyValues, FIELD_LABELS } from "../../../../../lib/directoryConflicts";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
 import SalespersonSelect from "../../../../components/SalespersonSelect";
 import FirmTagPicker from "../../../../components/FirmTagPicker";
 import { historyForFirm } from "../../../../../lib/firmHistory";
+import { sortRows } from "../../../../../lib/sorting";
+import SortableHeader from "../../../../components/SortableHeader";
 import { addressKey } from "../../../../../lib/addresses";
 import { withDollar } from "../../../../../lib/analytics";
 
@@ -95,6 +97,7 @@ export default function CompanyDetail() {
   const [company, setCompany] = useState(null);
   const [people, setPeople] = useState([]);
   const [parts, setParts] = useState([]);
+  const [historySort, setHistorySort] = useState({ key: "date", direction: "desc" });
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [pipelineJobs, setPipelineJobs] = useState([]);
@@ -468,6 +471,20 @@ export default function CompanyDetail() {
   }
 
   const history = company ? historyRows(company.name) : [];
+  // Two people at this firm whose names look like the same person. The
+  // pickers warn while you type; this catches what's already on file.
+  const lookalikes = groupSimilarPeople(people);
+  const historyColumns = {
+    name: { kind: "text", get: r => r.name },
+    kind: { kind: "text", get: r => r.kind },
+    role: { kind: "text", get: r => r.role },
+    person: { kind: "text", get: r => r.person },
+    address: { kind: "text", get: r => r.address },
+    status: { kind: "text", get: r => r.status },
+    value: { kind: "money", get: r => r.value },
+    date: { kind: "date", get: r => r.date }
+  };
+  const sortedHistory = sortRows(history, historyColumns, historySort);
 
   if (notFound) {
     return (
@@ -584,6 +601,18 @@ export default function CompanyDetail() {
         )}
 
         <div className="project-section">
+          {lookalikes.length > 0 && (
+            <div className="review-banner" style={{ marginBottom: 10 }}>
+              <span>
+                ⚠ Possible duplicate {lookalikes.length === 1 ? "person" : "people"} here:{" "}
+                {lookalikes.map(g => g.map(p => p.name).join(" / ")).join("; ")}.
+              </span>
+              {isAdmin
+                ? <button type="button" className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/duplicates")}>Merge</button>
+                : <span className="private-note-hint">An admin can merge them.</span>}
+            </div>
+          )}
+
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h4 className="field-label" style={{ margin: 0 }}>People ({people.length})</h4>
             <button className="btn btn-secondary" onClick={() => setShowAddPerson(true)}>+ Add Person</button>
@@ -679,18 +708,18 @@ export default function CompanyDetail() {
               <table className="analytics-table stack-on-phone">
                 <thead>
                   <tr>
-                    <th>What</th>
-                    <th>Type</th>
-                    <th>Their role</th>
-                    <th>Person</th>
-                    <th>Address</th>
-                    <th>Status</th>
-                    <th>Value</th>
-                    <th>Date</th>
+                    <SortableHeader label="What" columnKey="name" sort={historySort} onSort={setHistorySort} />
+                    <SortableHeader label="Type" columnKey="kind" sort={historySort} onSort={setHistorySort} />
+                    <SortableHeader label="Their role" columnKey="role" sort={historySort} onSort={setHistorySort} />
+                    <SortableHeader label="Person" columnKey="person" sort={historySort} onSort={setHistorySort} />
+                    <SortableHeader label="Address" columnKey="address" sort={historySort} onSort={setHistorySort} />
+                    <SortableHeader label="Status" columnKey="status" sort={historySort} onSort={setHistorySort} />
+                    <SortableHeader label="Value" columnKey="value" kind="money" sort={historySort} onSort={setHistorySort} />
+                    <SortableHeader label="Date" columnKey="date" kind="date" sort={historySort} onSort={setHistorySort} />
                   </tr>
                 </thead>
                 <tbody>
-                  {history.map(row => (
+                  {sortedHistory.map(row => (
                     <tr key={`${row.kind}-${row.id}`} style={{ cursor: "pointer" }} onClick={() => router.push(row.href)}>
                       <td data-label="What">{row.name}</td>
                       <td data-label="Type">{row.kind}</td>

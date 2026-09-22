@@ -3882,3 +3882,142 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+/* Sort control for card lists, where there are no headings to click. */
+.sort-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sort-picker .field {
+  max-width: 210px;
+}
+
+.sort-picker .btn {
+  padding: 8px 10px;
+  line-height: 1;
+}
+
+/* Column headings you can click to sort by. */
+.sortable-header {
+  padding: 0;
+}
+
+.sortable-header button {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 10px 8px;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sortable-header button:hover {
+  color: var(--color-primary);
+}
+
+.sortable-header.is-sorted button {
+  color: var(--color-primary);
+}
+
+/* Printing: a project, pipeline entry, parts request or person page
+   handed to someone on a job site. Everything you'd click is dropped --
+   nav, buttons, menus, forms -- leaving the record itself on white. */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  .dashboard-header-actions,
+  .view-tabs,
+  .mobile-nav,
+  .list-toolbar,
+  .toolbar,
+  .filter-bar,
+  .export-menu,
+  .btn,
+  .modal-overlay,
+  .alerts-menu,
+  .avatar-menu,
+  .photo-upload-row,
+  .scorecard-toggle,
+  .notes-tabs,
+  textarea,
+  input,
+  select {
+    display: none !important;
+  }
+
+  /* The record's own content, opened out and un-boxed. */
+  .dashboard-page {
+    padding: 0;
+  }
+
+  .project-page,
+  .detail-grid {
+    display: block;
+  }
+
+  .project-section,
+  .analytics-card,
+  .customer-card,
+  .admin-card {
+    box-shadow: none;
+    border: 1px solid #ddd;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 10px;
+  }
+
+  .dashboard-title {
+    font-size: 20pt;
+  }
+
+  .dashboard-logo {
+    height: 34px;
+  }
+
+  /* Tables keep their lines and repeat their header across pages. */
+  .analytics-table-wrap {
+    overflow: visible;
+  }
+
+  .analytics-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .analytics-table th,
+  .analytics-table td {
+    border: 1px solid #ddd;
+    padding: 4px 6px;
+    font-size: 9pt;
+  }
+
+  .analytics-table thead {
+    display: table-header-group;
+  }
+
+  /* Photos print small so they don't take a page each. */
+  .photo-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .photo-tile img {
+    max-height: 40mm;
+  }
+
+  a[href]::after {
+    content: "";
+  }
+}

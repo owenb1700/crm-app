@@ -28,6 +28,7 @@ import { bidderRowsForEditing, biddersForStorage, bidderDirectoryEntries, bidder
 import { buildBidSnapshot } from "../../../../lib/bidHistory";
 import PipelineMyAlerts from "../../../components/PipelineMyAlerts";
 import PipelineNotes from "../../../components/PipelineNotes";
+import useUnsavedGuard from "../../../components/useUnsavedGuard";
 import DeleteRecordButton from "../../../components/DeleteRecordButton";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import ProductOptionsEditor from "../../../components/ProductOptionsEditor";
@@ -80,6 +81,8 @@ export default function PipelineDetail() {
   const [privateData, setPrivateData] = useState(null);
 
   const [isEditing, setIsEditing] = useState(false);
+  // Closing the tab mid-edit shouldn't lose what's typed.
+  useUnsavedGuard(isEditing);
   const [editData, setEditData] = useState({});
   const [biddingRows, setBiddingRows] = useState([]);
   const [splitRows, setSplitRows] = useState([]);

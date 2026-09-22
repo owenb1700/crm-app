@@ -52,6 +52,8 @@ import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabel
 import { hasShare, splitShares } from "../../lib/splits";
 import { exportDashboardView } from "../../lib/viewExport";
 import ExportButtons from "../components/ExportButtons";
+import SortPicker from "../components/SortPicker";
+import { sortRows } from "../../lib/sorting";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -178,6 +180,11 @@ export default function Dashboard() {
   // My Projects shows three kinds of card; this narrows to one of them,
   // for the screen and for the export alike.
   const [personalType, setPersonalType] = useState(""); // "" | projects | pipeline | reminders
+  // How each list is ordered. Due date first, since that's what people
+  // work from.
+  const [personalSort, setPersonalSort] = useState({ key: "due", direction: "asc" });
+  const [pipelineSort, setPipelineSort] = useState({ key: "bid", direction: "asc" });
+  const [teamSort, setTeamSort] = useState({ key: "due", direction: "asc" });
 
   // ADMIN: create user form
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -1126,6 +1133,23 @@ export default function Dashboard() {
 
   const showsType = (kind) => !personalType || personalType === kind;
 
+  const PROJECT_SORTS = {
+    due: { kind: "date", get: c => formatDate(c.nextCheckIn), label: "Due date" },
+    name: { kind: "text", get: c => c.projectName || c.company, label: "Name" },
+    firm: { kind: "text", get: c => c.company, label: "Contractor / owner" },
+    value: { kind: "money", get: c => c.projectValue, label: "Value" },
+    status: { kind: "text", get: c => c.category, label: "Status" },
+    created: { kind: "date", get: c => c.createdAt, label: "Date added" }
+  };
+  const PIPELINE_SORTS = {
+    bid: { kind: "date", get: p => p.bidDate, label: "Bid date" },
+    name: { kind: "text", get: p => p.title, label: "Name" },
+    firm: { kind: "text", get: p => p.company, label: "Engineering firm" },
+    value: { kind: "money", get: p => p.value, label: "Value" },
+    stage: { kind: "text", get: p => p.stage, label: "Stage" },
+    created: { kind: "date", get: p => p.createdAt, label: "Date added" }
+  };
+
   const exportMyProjects = (format) => exportDashboardView({
     page: "projects",
     projects: showsType("projects") ? filteredCustomers : [],
@@ -1173,10 +1197,9 @@ export default function Dashboard() {
     if (f.status) list = list.filter(c => c.category === f.status);
     list = list.filter(c => matchesDateFilter(c.nextCheckIn, f.due));
 
-    return [...list].sort(
-      (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
-    );
-  }, [customers, uid, personalFilters]);
+    return sortRows(list, PROJECT_SORTS, personalSort);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customers, uid, personalFilters, personalSort]);
 
   // Pipeline entries "on my dashboard" -- owner, assigned salesperson,
   // assigned project point person, or self-tracked. Pulled live from the
@@ -1191,8 +1214,8 @@ export default function Dashboard() {
         (p.trackedByIds || []).includes(uid) ||
         hasShare(p, uid)
       )
-      .filter(p => !p.convertedToProjectId && !p.outcome)
-      .sort((a, b) => (a.bidDate || "").localeCompare(b.bidDate || ""));
+      .filter(p => !p.convertedToProjectId && !p.outcome);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pipelineEntries, uid]);
 
   // PAST PROJECTS: the company-wide archive of finished work -- closed
@@ -1279,9 +1302,7 @@ export default function Dashboard() {
   }, [pipelineEntries, pastProjectsSearch, pastFilters]);
 
   const teamCustomers = useMemo(() => {
-    let list = [...customers].sort(
-      (a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn)
-    );
+    let list = [...customers];
 
     const f = teamFilters;
     if (f.sector) list = list.filter(c => c.buildingSector === f.sector);
@@ -1292,8 +1313,9 @@ export default function Dashboard() {
     if (f.outcome) list = list.filter(c => c.closedOutcome === f.outcome);
     list = list.filter(c => matchesDateFilter(c.nextCheckIn, f.due));
 
-    return list;
-  }, [customers, teamFilters]);
+    return sortRows(list, PROJECT_SORTS, teamSort);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customers, teamFilters, teamSort]);
 
   const ownerLabel = (ownerId) => {
     if (ownerId === uid) return "You";
@@ -1315,12 +1337,9 @@ export default function Dashboard() {
     if (f.stage) list = list.filter(p => p.stage === f.stage);
     list = list.filter(p => matchesDateFilter(p.bidDate, f.bidDate));
 
-    return list.sort((a, b) => {
-      const aDate = a.bidDate || "9999-99-99";
-      const bDate = b.bidDate || "9999-99-99";
-      return aDate.localeCompare(bDate);
-    });
-  }, [pipelineEntries, pipelineFilters]);
+    return sortRows(list, PIPELINE_SORTS, pipelineSort);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pipelineEntries, pipelineFilters, pipelineSort]);
 
   // HOME CALENDAR: four weeks from the Monday of this week, weekends
   // included only when something is due on one (see lib/calendarDays.js).
@@ -1992,6 +2011,7 @@ export default function Dashboard() {
             >
               Filters{anyActive(personalFilters) ? ` (${Object.values(personalFilters).filter(isFilterActive).length})` : ""}
             </button>
+            <SortPicker id="personal-sort" options={PROJECT_SORTS} sort={personalSort} onChange={setPersonalSort} />
             <select
               className="field"
               aria-label="Show"
@@ -2309,6 +2329,7 @@ export default function Dashboard() {
       {view === "team" && (
         <>
           <div className="list-toolbar">
+            <SortPicker id="team-sort" options={PROJECT_SORTS} sort={teamSort} onChange={setTeamSort} />
             <span className="list-toolbar-add">
               <ExportButtons
                 label="this page"
@@ -2424,6 +2445,7 @@ export default function Dashboard() {
             >
               Filters{anyActive(pipelineFilters) ? ` (${Object.values(pipelineFilters).filter(isFilterActive).length})` : ""}
             </button>
+            <SortPicker id="pipeline-sort" options={PIPELINE_SORTS} sort={pipelineSort} onChange={setPipelineSort} />
             <ExportButtons label="this page" buttonText="Export page" onExport={exportMyPipeline} disabled={!filteredPipeline.length} />
             {/* Estimating's own page is the pipeline list, so someone who
                 files work for the sales team needs the project form here

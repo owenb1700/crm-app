@@ -8,6 +8,8 @@ import { auth, db } from "../../../../../lib/firebase";
 import { withoutTrashed } from "../../../../../lib/trash";
 import { workAtAddress, collectAddresses, uniqueNames, normalizeAddress } from "../../../../../lib/addresses";
 import { personName } from "../../../../../lib/people";
+import { sortRows } from "../../../../../lib/sorting";
+import SortableHeader from "../../../../components/SortableHeader";
 import { downloadTable, csvDateStamp } from "../../../../../lib/csv";
 import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
@@ -32,6 +34,7 @@ function AddressPageContent() {
   const [contacts, setContacts] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [historySort, setHistorySort] = useState({ key: "date", direction: "desc" });
 
   useEffect(() => {
     let timer;
@@ -99,6 +102,14 @@ function AddressPageContent() {
     [key, projects, pipeline, parts]
   );
 
+  const historyColumns = {
+    name: { kind: "text", get: r => r.name },
+    kind: { kind: "text", get: r => r.kind },
+    status: { kind: "text", get: r => r.status },
+    value: { kind: "money", get: r => r.value },
+    date: { kind: "date", get: r => r.date },
+    firms: { kind: "text", get: r => (r.firms || []).join(", ") }
+  };
   const firms = uniqueNames(rows, "firms");
   const people = uniqueNames(rows, "people");
   const nameOf = (id) => (id ? personName(users.find(u => u.id === id)) : "");
@@ -182,16 +193,16 @@ function AddressPageContent() {
               <table className="analytics-table stack-on-phone">
                 <thead>
                   <tr>
-                    <th>What</th>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th>Value</th>
-                    <th>Date</th>
-                    <th>Firms</th>
+                    <SortableHeader label="What" columnKey="name" sort={historySort} onSort={setHistorySort} />
+                    <SortableHeader label="Type" columnKey="kind" sort={historySort} onSort={setHistorySort} />
+                    <SortableHeader label="Status" columnKey="status" sort={historySort} onSort={setHistorySort} />
+                    <SortableHeader label="Value" columnKey="value" kind="money" sort={historySort} onSort={setHistorySort} />
+                    <SortableHeader label="Date" columnKey="date" kind="date" sort={historySort} onSort={setHistorySort} />
+                    <SortableHeader label="Firms" columnKey="firms" sort={historySort} onSort={setHistorySort} />
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(row => (
+                  {sortRows(rows, historyColumns, historySort).map(row => (
                     <tr key={`${row.kind}-${row.id}`} style={{ cursor: "pointer" }} onClick={() => router.push(row.href)}>
                       <td data-label="What">{row.name}</td>
                       <td data-label="Type">{row.kind}</td>

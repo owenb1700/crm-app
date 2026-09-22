@@ -34,6 +34,7 @@ import MoneyInput from "../../../components/MoneyInput";
 import MobileNav from "../../../components/MobileNav";
 import ProjectMyReminders from "../../../components/ProjectMyReminders";
 import RecordNotes from "../../../components/RecordNotes";
+import useUnsavedGuard from "../../../components/useUnsavedGuard";
 import { isTrashed } from "../../../../lib/trash";
 import PhotoGallery from "../../../components/PhotoGallery";
 import CreditSplitEditor from "../../../components/CreditSplitEditor";
@@ -95,6 +96,8 @@ export default function ProjectDetail() {
   const [uploadingDrawing, setUploadingDrawing] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
+  // Closing the tab mid-edit shouldn't lose what's typed.
+  useUnsavedGuard(isEditing);
   const [editData, setEditData] = useState({});
   const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
   const [splitRows, setSplitRows] = useState([]);
