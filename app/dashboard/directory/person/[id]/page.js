@@ -8,6 +8,8 @@ import { auth, db } from "../../../../../lib/firebase";
 import { withoutTrashed } from "../../../../../lib/trash";
 import { historyForPerson, countsByKind } from "../../../../../lib/personHistory";
 import { personName } from "../../../../../lib/people";
+import { addressKey } from "../../../../../lib/addresses";
+import { withDollar } from "../../../../../lib/analytics";
 import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
@@ -303,6 +305,7 @@ function PersonPageContent() {
                   <th>What</th>
                   <th>Type</th>
                   <th>Their role</th>
+                  <th>Address</th>
                   <th>Status</th>
                   <th>Value</th>
                   <th>Date</th>
@@ -314,8 +317,13 @@ function PersonPageContent() {
                     <td data-label="What">{row.name}</td>
                     <td data-label="Type">{row.kind}</td>
                     <td data-label="Their role">{row.role}</td>
+                    <td data-label="Address">
+                      {row.address
+                        ? <button type="button" className="link-muted matching-select-link" onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/directory/address/${addressKey(row.address)}`); }}>{row.address}</button>
+                        : "—"}
+                    </td>
                     <td data-label="Status">{row.status || "—"}</td>
-                    <td data-label="Value">{row.value || "—"}</td>
+                    <td data-label="Value">{withDollar(row.value) || "—"}</td>
                     <td data-label="Date">{row.date || "—"}</td>
                   </tr>
                 ))}

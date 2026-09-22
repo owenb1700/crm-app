@@ -25,6 +25,9 @@ import { companyConflicts, personConflicts, describeConflicts, reviewSignature, 
 import ConfirmDialog from "../../../../components/ConfirmDialog";
 import SalespersonSelect from "../../../../components/SalespersonSelect";
 import FirmTagPicker from "../../../../components/FirmTagPicker";
+import { historyForFirm } from "../../../../../lib/firmHistory";
+import { addressKey } from "../../../../../lib/addresses";
+import { withDollar } from "../../../../../lib/analytics";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -91,6 +94,7 @@ export default function CompanyDetail() {
 
   const [company, setCompany] = useState(null);
   const [people, setPeople] = useState([]);
+  const [parts, setParts] = useState([]);
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [pipelineJobs, setPipelineJobs] = useState([]);
@@ -122,6 +126,9 @@ export default function CompanyDetail() {
     return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
   };
 
+  const historyRows = (name) => historyForFirm({ firmName: name, projects, pipeline: pipelineJobs, parts });
+  const personIdFor = (name) => people.find(p => samePerson(p.name, name))?.id;
+
   const loadCompany = async () => {
     const snap = await getDoc(doc(db, "companies", companyId));
     if (!snap.exists()) {
@@ -131,12 +138,14 @@ export default function CompanyDetail() {
     const data = { id: snap.id, ...snap.data() };
     setCompany(data);
 
-    const [peopleSnap, customersSnap, pipelineSnap, usersSnap] = await Promise.all([
+    const [peopleSnap, customersSnap, pipelineSnap, usersSnap, partsSnap] = await Promise.all([
       getDocs(query(collection(db, "contacts"), where("companyId", "==", companyId))),
       getDocs(collection(db, "customers")),
       getDocs(collection(db, "pipeline")),
-      getDocs(collection(db, "users"))
+      getDocs(collection(db, "users")),
+      getDocs(collection(db, "parts"))
     ]);
+    setParts(partsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
     setPeople(peopleSnap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -458,6 +467,8 @@ export default function CompanyDetail() {
     );
   }
 
+  const history = company ? historyRows(company.name) : [];
+
   if (notFound) {
     return (
       <div className="dashboard-page">
@@ -655,26 +666,56 @@ export default function CompanyDetail() {
           )}
         </div>
 
-        <div className="project-section">
-          <h4 className="field-label">Projects ({projects.length})</h4>
-          {projects.length === 0 && <p className="private-note-hint">No projects with this company yet.</p>}
-          {projects.map(p => (
-            <div key={p.id} className="notes-history-item" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/project/${p.id}`)}>
-              <div><strong>{p.projectName || p.company}</strong></div>
-              <div className="notes-history-date">Next: {p.nextCheckIn || "—"}{p.category ? ` · ${p.category}` : ""}</div>
+        <div className="project-section detail-span-full">
+          <h4 className="field-label">Work with {company.name} ({history.length})</h4>
+          <p className="private-note-hint">
+            Every project, pipeline entry and parts request this firm is on -- as the contractor, a building owner,
+            a bidder, or the contractor on someone's parts. Each row says who there was involved and where the job was.
+          </p>
+          {history.length === 0 ? (
+            <p className="private-note-hint">Nothing on file with them yet.</p>
+          ) : (
+            <div className="analytics-table-wrap">
+              <table className="analytics-table stack-on-phone">
+                <thead>
+                  <tr>
+                    <th>What</th>
+                    <th>Type</th>
+                    <th>Their role</th>
+                    <th>Person</th>
+                    <th>Address</th>
+                    <th>Status</th>
+                    <th>Value</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map(row => (
+                    <tr key={`${row.kind}-${row.id}`} style={{ cursor: "pointer" }} onClick={() => router.push(row.href)}>
+                      <td data-label="What">{row.name}</td>
+                      <td data-label="Type">{row.kind}</td>
+                      <td data-label="Their role">{row.role}</td>
+                      <td data-label="Person">
+                        {row.person
+                          ? (personIdFor(row.person)
+                            ? <button type="button" className="link-muted matching-select-link" onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/directory/person/${personIdFor(row.person)}`); }}>{row.person}</button>
+                            : row.person)
+                          : "—"}
+                      </td>
+                      <td data-label="Address">
+                        {row.address
+                          ? <button type="button" className="link-muted matching-select-link" onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/directory/address/${addressKey(row.address)}`); }}>{row.address}</button>
+                          : "—"}
+                      </td>
+                      <td data-label="Status">{row.status || "—"}</td>
+                      <td data-label="Value">{withDollar(row.value) || "—"}</td>
+                      <td data-label="Date">{row.date || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
-        </div>
-
-        <div className="project-section">
-          <h4 className="field-label">Pipeline Entries ({pipelineJobs.length})</h4>
-          {pipelineJobs.length === 0 && <p className="private-note-hint">No pipeline entries with this company yet.</p>}
-          {pipelineJobs.map(p => (
-            <div key={p.id} className="notes-history-item" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/pipeline/${p.id}`)}>
-              <div><strong>{p.title}</strong></div>
-              <div className="notes-history-date">{p.stage}{p.bidDate ? ` · Bid: ${p.bidDate}` : ""}</div>
-            </div>
-          ))}
+          )}
         </div>
       </div>
 
