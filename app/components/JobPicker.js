@@ -3,9 +3,11 @@
 import { useState } from "react";
 
 // Search-as-you-type picker for attaching something to a job. `options` are
-// { key, kind: "project" | "pipeline", id, label, sub }; `value` is the
-// chosen option's key ("" for none).
-export default function JobPicker({ id, options, value, onChange, placeholder = "Search projects and pipeline entries..." }) {
+// { key, kind: "project" | "pipeline" | "part", id, label, sub }; `value`
+// is the chosen option's key ("" for none).
+const KIND_LABEL = { pipeline: "Pipeline", part: "Parts", project: "Project" };
+
+export default function JobPicker({ id, options, value, onChange, placeholder = "Search projects, pipeline entries and parts..." }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -20,7 +22,7 @@ export default function JobPicker({ id, options, value, onChange, placeholder = 
     return (
       <div className="job-picker-chosen">
         <span className={`role-badge ${chosen.kind === "pipeline" ? "role-badge-admin" : ""}`}>
-          {chosen.kind === "pipeline" ? "Pipeline" : "Project"}
+          {KIND_LABEL[chosen.kind] || "Project"}
         </span>
         <span className="job-picker-chosen-name">{chosen.label}</span>
         <button type="button" className="link-muted job-picker-clear" onClick={() => onChange("")}>Remove</button>
@@ -57,7 +59,7 @@ export default function JobPicker({ id, options, value, onChange, placeholder = 
               }}
             >
               <span className={`role-badge ${o.kind === "pipeline" ? "role-badge-admin" : ""}`}>
-                {o.kind === "pipeline" ? "Pipeline" : "Project"}
+                {KIND_LABEL[o.kind] || "Project"}
               </span>
               <span className="job-picker-option-text">
                 <span>{o.label}</span>

@@ -391,7 +391,8 @@ export default function Dashboard() {
     setReminderForm({ subject: "", date: toLocalDateKey(new Date()), notes: "", job: "" });
   };
 
-  const jobKeyOf = (r) => (r.projectId ? `project:${r.projectId}` : r.pipelineId ? `pipeline:${r.pipelineId}` : "");
+  const jobKeyOf = (r) =>
+    (r.projectId ? `project:${r.projectId}` : r.pipelineId ? `pipeline:${r.pipelineId}` : r.partId ? `part:${r.partId}` : "");
 
   const openEditReminder = (r) => {
     setReminderForm({ id: r.id, subject: r.subject || "", date: r.date || toLocalDateKey(new Date()), notes: r.notes || "", job: jobKeyOf(r) });
@@ -408,7 +409,8 @@ export default function Dashboard() {
     const [jobKind, jobId] = (reminderForm.job || "").split(":");
     const job = {
       projectId: jobKind === "project" ? jobId : null,
-      pipelineId: jobKind === "pipeline" ? jobId : null
+      pipelineId: jobKind === "pipeline" ? jobId : null,
+      partId: jobKind === "part" ? jobId : null
     };
 
     setSavingReminder(true);
@@ -1366,8 +1368,8 @@ export default function Dashboard() {
   // Reminders attached to a job that's been deleted (in the Trash) stay
   // hidden until the job is restored.
   const activeReminders = useMemo(
-    () => reminders.filter(r => reminderJobIsActive(r, customers, pipelineEntries)),
-    [reminders, customers, pipelineEntries]
+    () => reminders.filter(r => reminderJobIsActive(r, customers, pipelineEntries, parts)),
+    [reminders, customers, pipelineEntries, parts]
   );
 
   // Restoring something from the Trash refreshes the lists here.
@@ -1423,8 +1425,14 @@ export default function Dashboard() {
         label: p.title || "Untitled pipeline entry",
         sub: [p.stage, p.bidDate && `Bid ${p.bidDate}`, p.company].filter(Boolean).join(" · ")
       }));
-    return [...projects, ...pipeline].sort((a, b) => a.label.localeCompare(b.label));
-  }, [customers, pipelineEntries, role, uid]);
+    // Parts requests are everyone's, so they're all offered.
+    const partJobs = parts.map(p => ({
+      key: `part:${p.id}`, kind: "part", id: p.id,
+      label: p.item || "Parts request",
+      sub: [p.company, p.stage, p.neededBy && `Needed ${p.neededBy}`].filter(Boolean).join(" · ")
+    }));
+    return [...projects, ...pipeline, ...partJobs].sort((a, b) => a.label.localeCompare(b.label));
+  }, [customers, pipelineEntries, parts, role, uid]);
 
   const jobTitleOf = (r) => {
     if (r.projectId) {
@@ -1434,6 +1442,10 @@ export default function Dashboard() {
     if (r.pipelineId) {
       const p = pipelineEntries.find(x => x.id === r.pipelineId);
       return p ? (p.title || "Untitled pipeline entry") : "a pipeline entry";
+    }
+    if (r.partId) {
+      const x = parts.find(o => o.id === r.partId);
+      return x ? (x.item || "Parts request") : "a parts request";
     }
     return "";
   };
@@ -1445,7 +1457,8 @@ export default function Dashboard() {
   const calendarItemLink = (c) => {
     if (c._kind === "reminder") {
       if (c.projectId) return `/dashboard/project/${c.projectId}`;
-      return c.pipelineId ? `/dashboard/pipeline/${c.pipelineId}` : null;
+      if (c.pipelineId) return `/dashboard/pipeline/${c.pipelineId}`;
+      return c.partId ? `/dashboard/parts/${c.partId}` : null;
     }
     return c._kind === "pipeline" || c._kind === "bid" ? `/dashboard/pipeline/${c.id}` : `/dashboard/project/${c.id}`;
   };
@@ -1661,7 +1674,7 @@ export default function Dashboard() {
             ) : c._kind === "reminder" ? (
               <>
                 <span className="role-badge" style={{ marginTop: 4 }}>🔔 Reminder</span>
-                {(c.projectId || c.pipelineId) && <div className="customer-meta" style={{ marginTop: 4 }}>For {jobTitleOf(c)}</div>}
+                {(c.projectId || c.pipelineId || c.partId) && <div className="customer-meta" style={{ marginTop: 4 }}>For {jobTitleOf(c)}</div>}
               </>
             ) : (
               c.category && <span className="role-badge" style={{ marginTop: 4 }}>{c.category}</span>

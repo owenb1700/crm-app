@@ -13,6 +13,7 @@ import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
 import PartForm from "../../../components/PartForm";
 import RecordNotes from "../../../components/RecordNotes";
+import PartMyAlerts from "../../../components/PartMyAlerts";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import useUnsavedGuard from "../../../components/useUnsavedGuard";
 import FirmDetailsPrompt from "../../../components/FirmDetailsPrompt";
@@ -267,6 +268,8 @@ function PartPageContent() {
             <p className="private-note-hint" style={{ whiteSpace: "pre-wrap", marginTop: 10 }}>{part.notes}</p>
           )}
         </div>
+
+        {uid && <PartMyAlerts part={part} uid={uid} />}
 
         <div className="project-section">
           <h4 className="field-label">Notes</h4>

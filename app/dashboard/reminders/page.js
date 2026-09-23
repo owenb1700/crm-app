@@ -34,6 +34,7 @@ export default function RemindersPage() {
   const [reminders, setReminders] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [pipelineEntries, setPipelineEntries] = useState([]);
+  const [parts, setParts] = useState([]);
   const [role, setRole] = useState(null);
 
   const [form, setForm] = useState(blankForm());
@@ -46,11 +47,13 @@ export default function RemindersPage() {
   const [error, setError] = useState("");
 
   const load = async (currentUid) => {
-    const [remindersSnap, customersSnap, pipelineSnap] = await Promise.all([
+    const [remindersSnap, customersSnap, pipelineSnap, partsSnap] = await Promise.all([
       getDocs(query(collection(db, "reminders"), where("userId", "==", currentUid))),
       getDocs(collection(db, "customers")),
-      getDocs(collection(db, "pipeline"))
+      getDocs(collection(db, "pipeline")),
+      getDocs(collection(db, "parts"))
     ]);
+    setParts(partsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setReminders(remindersSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => String(a.date).localeCompare(String(b.date))));
     setCustomers(withoutTrashed(customersSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
     setPipelineEntries(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -117,10 +120,17 @@ export default function RemindersPage() {
         key: `pipeline:${p.id}`, kind: "pipeline", id: p.id,
         label: p.title || "Untitled pipeline entry",
         sub: [p.stage, p.bidDate && `Bid ${p.bidDate}`, p.company].filter(Boolean).join(" · ")
-      }))
+      })),
+    // Parts requests are shared, so every one is offered.
+    ...parts.map(p => ({
+      key: `part:${p.id}`, kind: "part", id: p.id,
+      label: p.item || "Parts request",
+      sub: [p.company, p.stage, p.neededBy && `Needed ${p.neededBy}`].filter(Boolean).join(" · ")
+    }))
   ].sort((a, b) => a.label.localeCompare(b.label));
 
-  const jobKeyOf = (r) => (r.projectId ? `project:${r.projectId}` : r.pipelineId ? `pipeline:${r.pipelineId}` : "");
+  const jobKeyOf = (r) =>
+    (r.projectId ? `project:${r.projectId}` : r.pipelineId ? `pipeline:${r.pipelineId}` : r.partId ? `part:${r.partId}` : "");
   const jobOf = (r) => {
     if (r.projectId) {
       const c = customers.find(x => x.id === r.projectId);
@@ -130,12 +140,20 @@ export default function RemindersPage() {
       const p = pipelineEntries.find(x => x.id === r.pipelineId);
       return p ? { name: p.title || "a pipeline entry", href: `/dashboard/pipeline/${p.id}` } : null;
     }
+    if (r.partId) {
+      const x = parts.find(o => o.id === r.partId);
+      return x ? { name: x.item || "a parts request", href: `/dashboard/parts/${x.id}` } : null;
+    }
     return null;
   };
 
   const jobFields = (jobKey) => {
     const [kind, id] = (jobKey || "").split(":");
-    return { projectId: kind === "project" ? id : null, pipelineId: kind === "pipeline" ? id : null };
+    return {
+      projectId: kind === "project" ? id : null,
+      pipelineId: kind === "pipeline" ? id : null,
+      partId: kind === "part" ? id : null
+    };
   };
 
   const addReminder = async () => {
