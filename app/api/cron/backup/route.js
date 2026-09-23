@@ -10,16 +10,20 @@ import { recordCronRun } from "../../../../lib/cronLog";
 // back by hand if something goes badly wrong.
 
 const COLLECTIONS = [
-  "users", "customers", "pipeline", "companies", "contacts", "companyKeys",
+  "users", "customers", "pipeline", "parts", "companies", "contacts", "companyKeys",
   "products", "towerModels", "reminders", "notifications", "duplicateDismissals", "disabledEmails",
   "cronRuns"
 ];
 
 // Subcollections worth keeping: a project's notes and drawings, a pipeline
 // entry's notes and files, and both of their photo details.
+// Notes live in their own documents now (one per note), so they only get
+// backed up if they're listed here -- they're not fields on the record.
 const SUBCOLLECTIONS = {
-  customers: ["private", "drawings", "photos", "collabRequests"],
-  pipeline: ["private", "photos"]
+  customers: ["private", "notes", "drawings", "photos", "collabRequests"],
+  pipeline: ["private", "teamNotes", "myNotes", "photos"],
+  parts: ["notes"],
+  contacts: ["notes"]
 };
 
 const KEEP_DAYS = 30;
