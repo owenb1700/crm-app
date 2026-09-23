@@ -6,7 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { auth, db } from "../../../../lib/firebase";
 import { withoutTrashed } from "../../../../lib/trash";
-import { collectAddresses, matchesAddressSearch, addressKey } from "../../../../lib/addresses";
+import { collectAddresses, matchesAddressSearch, addressKey, groupSimilarAddresses } from "../../../../lib/addresses";
 import { downloadTable, csvDateStamp } from "../../../../lib/csv";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
@@ -94,6 +94,8 @@ function AddressesPageContent() {
     [buildings, search, sort]
   );
 
+  const duplicateGroups = useMemo(() => groupSimilarAddresses(buildings), [buildings]);
+
   const exportAddresses = (format) => downloadTable({
     format,
     filename: `project-addresses${search.trim() ? "-filtered" : ""}-${csvDateStamp()}`,
@@ -131,7 +133,7 @@ function AddressesPageContent() {
       <div className="toolbar">
         <input
           className="field"
-          placeholder="Search addresses..."
+          placeholder="Search every address we've worked at..."
           aria-label="Search addresses"
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -142,6 +144,31 @@ function AddressesPageContent() {
       </div>
 
       {!loaded && <p className="modal-subtitle">Loading addresses...</p>}
+
+      {loaded && duplicateGroups.length > 0 && !search.trim() && (
+        <div className="review-banner" style={{ marginBottom: 14, display: "block" }}>
+          <div style={{ marginBottom: 6 }}>
+            ⚠ {duplicateGroups.length} {duplicateGroups.length === 1 ? "building looks" : "buildings look"} like the same place written two ways.
+            Opening one shows everything filed under that spelling.
+          </div>
+          {duplicateGroups.map((group, i) => (
+            <div key={`dupe-${i}`} className="private-note-hint" style={{ marginTop: 4 }}>
+              {group.map((b, j) => (
+                <span key={b.key}>
+                  {j > 0 && " · "}
+                  <button
+                    type="button"
+                    className="link-muted matching-select-link"
+                    onClick={() => router.push(`/dashboard/directory/address/${addressKey(b.label)}`)}
+                  >
+                    {b.label} ({b.total})
+                  </button>
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
 
       {loaded && (
         <p className="analytics-card-sub" style={{ marginTop: 0 }}>
