@@ -6,7 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, deleteDoc, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../../../lib/firebase";
 import { ensureCompanyAndContactBatch } from "../../../../lib/directory";
-import { blankPart, partPayload, partError, partChanges, logEntry, describeContractors, firmTypeLine, needsContractorType } from "../../../../lib/parts";
+import { blankPart, partPayload, partError, partChanges, logEntry, describeContractors, firmTypeLine } from "../../../../lib/parts";
 import { withDollar } from "../../../../lib/analytics";
 import { personName } from "../../../../lib/people";
 import DashboardHeader from "../../../components/DashboardHeader";
@@ -15,8 +15,9 @@ import PartForm from "../../../components/PartForm";
 import RecordNotes from "../../../components/RecordNotes";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import useUnsavedGuard from "../../../components/useUnsavedGuard";
-import ContractorTypePrompt from "../../../components/ContractorTypePrompt";
-import { saveContractorType } from "../../../../lib/firmTypes";
+import FirmDetailsPrompt from "../../../components/FirmDetailsPrompt";
+import { saveFirmTags } from "../../../../lib/firmTypes";
+import { firmsNeedingDetails } from "../../../../lib/newFirms";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -47,7 +48,7 @@ function PartPageContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [askingType, setAskingType] = useState(null);
+  const [firmQueue, setFirmQueue] = useState(null);
 
   const load = async () => {
     const snap = await getDoc(doc(db, "parts", partId));
@@ -122,14 +123,15 @@ function PartPageContent() {
   const save = async (choice = null) => {
     // Called straight from a button, React would hand us the click event;
     // only a real answer from the prompt counts.
-    const contractorType = typeof choice === "string" ? choice : null;
+    const firmTags = choice && !choice.nativeEvent && typeof choice === "object" ? choice : null;
     const message = partError(editForm);
     if (message) return setError(message);
     const payloadPreview = partPayload(editForm);
-    if (!contractorType && needsContractorType(payloadPreview, companies)) {
-      setAskingType(payloadPreview.company);
-      return;
-    }
+    const needDetails = firmTags ? [] : firmsNeedingDetails([
+      { name: payloadPreview.company, category: payloadPreview.companyCategory },
+      ...payloadPreview.contractors.map(c => ({ name: c.company, category: "Contractor" }))
+    ], companies);
+    if (needDetails.length) return setFirmQueue(needDetails);
     setSaving(true);
     setError("");
     try {
@@ -148,9 +150,18 @@ function PartPageContent() {
         ],
         { companies, contacts, uid }
       );
-      if (contractorType) await saveContractorType(payload.company, contractorType);
+      if (firmTags) {
+        await Promise.all(Object.entries(firmTags).map(([name, tags]) => {
+          const category = name === payload.company ? payload.companyCategory : "Contractor";
+          return saveFirmTags(name, category, tags);
+        }));
+        // Read the firms back, so what was just answered is known here
+        // rather than being asked again on the next save.
+        const companiesSnap = await getDocs(collection(db, "companies"));
+        setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
       setIsEditing(false);
-      setAskingType(null);
+      setFirmQueue(null);
       await load();
     } catch (err) {
       setError(`Couldn't save this parts request: ${err.message}`);
@@ -291,12 +302,12 @@ function PartPageContent() {
         </div>
       </div>
 
-      {askingType && (
-        <ContractorTypePrompt
-          firmName={askingType}
+      {firmQueue && (
+        <FirmDetailsPrompt
+          queue={firmQueue}
           busy={saving}
-          onChoose={(type) => save(type)}
-          onCancel={() => setAskingType(null)}
+          onDone={(tags) => { setFirmQueue(null); save(tags); }}
+          onCancel={() => setFirmQueue(null)}
         />
       )}
 
