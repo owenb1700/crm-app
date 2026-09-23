@@ -20,6 +20,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { ensureCompanyAndContactBatch, firmTypeOf, salespersonAfterFirmChange } from "../../../../lib/directory";
 import { notifyUsers, firmOwnersFor, newlyAddedFirms, newSplitMembers } from "../../../../lib/notify";
 import { stateChanges, activityEntry, withActivity } from "../../../../lib/activityLog";
+import { movedToPostBid, postBidCheckIn } from "../../../../lib/pipelineStages";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
@@ -291,6 +292,10 @@ export default function PipelineDetail() {
     payload.towerManufacturer = payload.equipment[0]?.manufacturer || null;
     payload.modelNumber = payload.equipment[0]?.model || null;
     payload.serialNumber = null;
+
+    // Post-Bid: nothing to chase for a while, so it comes back in a month
+    // -- for everyone on the entry, since the date lives on the entry.
+    if (movedToPostBid(pipeline, payload)) payload.nextCheckIn = postBidCheckIn();
 
     const stateEdits = stateChanges(pipeline, payload, "pipeline", ownerLabel);
     if (stateEdits.length) {

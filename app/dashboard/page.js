@@ -1401,9 +1401,23 @@ export default function Dashboard() {
       .filter(p => isPipelineBidAlertFor(p, uid, role))
       .map(p => ({ ...p, _kind: "bid", projectName: p.title, nextCheckIn: p.bidDate }));
 
+    // An open entry's own next date (set when it went Post-Bid).
+    const pipelineCheckIns = pipelineEntries
+      .filter(p => isPipelineCheckInFor(p, uid, role))
+      .map(p => ({ ...p, _kind: "pipeline", projectName: p.title }));
+
     const reminderItems = activeReminders.map(r => ({ ...r, _kind: "reminder", projectName: r.subject, nextCheckIn: r.date }));
 
-    return [...projectItems, ...pipelineFollowUps, ...bidDates, ...reminderItems];
+    // A Won entry's follow-up and an open entry's check-in are the same
+    // field, so an entry never appears twice.
+    const seen = new Set(pipelineFollowUps.map(p => p.id));
+    return [
+      ...projectItems,
+      ...pipelineFollowUps,
+      ...pipelineCheckIns.filter(p => !seen.has(p.id)),
+      ...bidDates,
+      ...reminderItems
+    ];
   }, [customers, pipelineEntries, activeReminders, uid, role]);
 
   // Jobs a reminder can be attached to: active projects you own or
