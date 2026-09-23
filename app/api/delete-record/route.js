@@ -1,5 +1,5 @@
 import { getAdminDb, getAdminAuth } from "../../../lib/firebaseAdmin";
-import { loadRecord, deleteProjectCompletely, deletePipelineCompletely, moveToTrash, restoreFromTrash } from "../../../lib/deleteRecord";
+import { loadRecord, deleteProjectCompletely, deletePipelineCompletely, deletePartCompletely, moveToTrash, restoreFromTrash } from "../../../lib/deleteRecord";
 import { alertAdmins } from "../../../lib/adminAlert";
 
 // Deleting a project or pipeline entry, in three steps:
@@ -22,7 +22,7 @@ export async function POST(req) {
   }
 
   const { kind, id, action = "trash" } = await req.json();
-  if (!["project", "pipeline"].includes(kind) || !id || !["trash", "restore", "purge"].includes(action)) {
+  if (!["project", "pipeline", "part"].includes(kind) || !id || !["trash", "restore", "purge"].includes(action)) {
     return Response.json({ error: "Missing or invalid record to delete" }, { status: 400 });
   }
 
@@ -55,7 +55,9 @@ export async function POST(req) {
     let summary;
     if (action === "trash") summary = await moveToTrash(kind, id, callerUid);
     else if (action === "restore") summary = await restoreFromTrash(kind, id);
-    else summary = kind === "project" ? await deleteProjectCompletely(id) : await deletePipelineCompletely(id);
+    else if (kind === "project") summary = await deleteProjectCompletely(id);
+    else if (kind === "part") summary = await deletePartCompletely(id);
+    else summary = await deletePipelineCompletely(id);
     return Response.json({ ok: true, summary });
   } catch (err) {
     const code = await alertAdmins({

@@ -74,7 +74,7 @@ function PartsPageContent() {
       getDocs(collection(db, "contacts")),
       getDocs(collection(db, "customers"))
     ]);
-    setParts(partsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setParts(withoutTrashed(partsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
     setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -179,10 +179,17 @@ function PartsPageContent() {
 
   const remove = async (p) => {
     try {
-      await deleteDoc(doc(db, "parts", p.id));
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch("/api/delete-record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ kind: "part", id: p.id })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't delete this parts entry");
       setParts(prev => prev.filter(x => x.id !== p.id));
       setConfirmDelete(null);
-      setNotice("Parts entry deleted");
+      setNotice("Moved to the Trash — it can be brought back for 30 days");
     } catch (err) {
       setError(`Couldn't delete this parts entry: ${err.message}`);
     }
@@ -425,7 +432,9 @@ function PartsPageContent() {
           onConfirm={() => remove(confirmDelete)}
           onCancel={() => setConfirmDelete(null)}
         >
-          <p className="modal-subtitle">&quot;{confirmDelete.item}&quot; will be removed for everyone. This can&apos;t be undone.</p>
+          <p className="modal-subtitle">
+            &quot;{confirmDelete.item}&quot; goes to the Trash, where you or an admin can bring it back for 30 days.
+          </p>
         </ConfirmDialog>
       )}
     </div>

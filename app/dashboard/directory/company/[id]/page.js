@@ -19,7 +19,7 @@ import { COMPANY_CATEGORIES, propagateContactUpdate, directoryAction, firmTagsOf
 import DashboardHeader from "../../../../components/DashboardHeader";
 import AddressAutocomplete from "../../../../components/AddressAutocomplete";
 import MobileNav from "../../../../components/MobileNav";
-import { isTrashed } from "../../../../../lib/trash";
+import { isTrashed, withoutTrashed } from "../../../../../lib/trash";
 import { companyKeyOf, sameCompany, samePerson, findSimilarPeople, findSimilarCompanies, groupSimilarPeople } from "../../../../../lib/companyMatch";
 import { companyConflicts, personConflicts, describeConflicts, reviewSignature, emailsOf, phonesOf, companyValues, FIELD_LABELS } from "../../../../../lib/directoryConflicts";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
@@ -148,7 +148,7 @@ export default function CompanyDetail() {
       getDocs(collection(db, "users")),
       getDocs(collection(db, "parts"))
     ]);
-    setParts(partsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setParts(withoutTrashed(partsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
     setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
     setPeople(peopleSnap.docs.map(d => ({ id: d.id, ...d.data() })));

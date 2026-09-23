@@ -53,7 +53,7 @@ export default function RemindersPage() {
       getDocs(collection(db, "pipeline")),
       getDocs(collection(db, "parts"))
     ]);
-    setParts(partsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setParts(withoutTrashed(partsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
     setReminders(remindersSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => String(a.date).localeCompare(String(b.date))));
     setCustomers(withoutTrashed(customersSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
     setPipelineEntries(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));

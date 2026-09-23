@@ -104,7 +104,7 @@ function PersonPageContent() {
         if (companySnap?.exists()) setCompany({ id: companySnap.id, ...companySnap.data() });
         setProjects(withoutTrashed(projectsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setPipeline(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
-        setParts(partsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setParts(withoutTrashed(partsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setLoaded(true);
       } catch (err) {

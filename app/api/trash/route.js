@@ -32,9 +32,10 @@ export async function GET(req) {
     // Expired items are retried by the daily job; still show the list.
   }
 
-  const [projectsSnap, pipelineSnap, usersSnap] = await Promise.all([
+  const [projectsSnap, pipelineSnap, partsSnap, usersSnap] = await Promise.all([
     db.collection("customers").where("deletedAt", ">", "").get(),
     db.collection("pipeline").where("deletedAt", ">", "").get(),
+    db.collection("parts").where("deletedAt", ">", "").get(),
     db.collection("users").get()
   ]);
   const nameOf = new Map(usersSnap.docs.map(d => {
@@ -49,10 +50,14 @@ export async function GET(req) {
     return {
       kind,
       id: d.id,
-      name: kind === "project" ? (data.projectName || data.company || "Untitled project") : (data.title || "Untitled pipeline entry"),
+      name: kind === "project"
+        ? (data.projectName || data.company || "Untitled project")
+        : kind === "part" ? (data.item || "Parts request") : (data.title || "Untitled pipeline entry"),
       sub: kind === "project"
         ? [data.company !== data.projectName ? data.company : "", data.category].filter(Boolean).join(" · ")
-        : [data.stage, data.outcome].filter(Boolean).join(" · "),
+        : kind === "part"
+          ? [data.company, data.stage].filter(Boolean).join(" · ")
+          : [data.stage, data.outcome].filter(Boolean).join(" · "),
       owner: nameOf.get(data.ownerId) || "Unknown",
       deletedAt: data.deletedAt,
       deletedBy: nameOf.get(data.deletedBy) || "Unknown",
@@ -62,7 +67,8 @@ export async function GET(req) {
 
   const items = [
     ...projectsSnap.docs.filter(d => visible(d.data())).map(d => item("project", d)),
-    ...pipelineSnap.docs.filter(d => visible(d.data())).map(d => item("pipeline", d))
+    ...pipelineSnap.docs.filter(d => visible(d.data())).map(d => item("pipeline", d)),
+    ...partsSnap.docs.filter(d => visible(d.data())).map(d => item("part", d))
   ].sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt)));
 
   return Response.json({ items, isAdmin });

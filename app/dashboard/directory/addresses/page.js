@@ -68,7 +68,7 @@ function AddressesPageContent() {
         ]);
         setProjects(withoutTrashed(projectsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setPipeline(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
-        setParts(partsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setParts(withoutTrashed(partsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setLoaded(true);
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading addresses.");

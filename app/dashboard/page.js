@@ -24,7 +24,7 @@ import {
   where
 } from "firebase/firestore";
 import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf, BUILDING_SECTORS, WORK_TYPES } from "../../lib/directory";
-import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor } from "../../lib/alertRecipients";
+import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor, isPipelineCheckInFor } from "../../lib/alertRecipients";
 import { bidderDirectoryEntries } from "../../lib/bidders";
 import FirmTypeSelect from "../components/FirmTypeSelect";
 import BuildingSectorSelect from "../components/BuildingSectorSelect";

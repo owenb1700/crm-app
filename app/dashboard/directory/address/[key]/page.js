@@ -74,7 +74,7 @@ function AddressPageContent() {
         ]);
         setProjects(withoutTrashed(projectsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setPipeline(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
-        setParts(partsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setParts(withoutTrashed(partsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));

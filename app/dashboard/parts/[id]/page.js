@@ -174,7 +174,14 @@ function PartPageContent() {
   const remove = async () => {
     setSaving(true);
     try {
-      await deleteDoc(doc(db, "parts", partId));
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch("/api/delete-record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ kind: "part", id: partId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't delete this parts request");
       router.push("/dashboard/parts");
     } catch (err) {
       setError(`Couldn't delete this parts request: ${err.message}`);
@@ -323,7 +330,9 @@ function PartPageContent() {
           onConfirm={remove}
           onCancel={() => setConfirmDelete(false)}
         >
-          <p className="modal-subtitle">&quot;{part.item}&quot; will be removed for everyone. This can&apos;t be undone.</p>
+          <p className="modal-subtitle">
+            &quot;{part.item}&quot; goes to the Trash, where you or an admin can bring it back for 30 days.
+          </p>
         </ConfirmDialog>
       )}
     </div>
