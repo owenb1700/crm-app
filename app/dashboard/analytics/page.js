@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { BUILDING_SECTORS, WORK_TYPES } from "../../../lib/directory";
+import { summarizeParts, partsByPerson } from "../../../lib/parts";
 import { canViewAnalytics, canViewOthersStats, summarizeMixed, summarizeProjects, combinedBreakdown, byPersonWeighted, breakdown, breakdownMulti, manufacturersOf, bidForecast, outcomesByMonth, formatMoney, parseMoney, statusOf } from "../../../lib/analytics";
 import { hasShare, splitShares } from "../../../lib/splits";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
@@ -327,6 +328,7 @@ function AnalyticsPageContent() {
   const [entries, setEntries] = useState([]);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
+  const [parts, setParts] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [searchLoadError, setSearchLoadError] = useState("");
@@ -365,7 +367,8 @@ function AnalyticsPageContent() {
         const dataPromise = Promise.all([
           getDocs(collection(db, "pipeline")),
           getDocs(collection(db, "customers")),
-          getDocs(collection(db, "users"))
+          getDocs(collection(db, "users")),
+          getDocs(collection(db, "parts"))
         ]);
         dataPromise.catch(() => {}); // handled below; this just avoids an unhandled rejection
 
@@ -388,10 +391,11 @@ function AnalyticsPageContent() {
         setAllowed(true);
         setMyProfile(profile);
 
-        const [pipelineSnap, customersSnap, usersSnap] = await dataPromise;
+        const [pipelineSnap, customersSnap, usersSnap, partsSnap] = await dataPromise;
         setEntries(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setProjects(withoutTrashed(customersSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setParts(withoutTrashed(partsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setLoaded(true);
 
         // The Directory is only here for the tab bar's "Search everything"
@@ -473,6 +477,23 @@ function AnalyticsPageContent() {
   // Bids: pipeline entries plus replacement projects that were never bid.
   // Volume: every job once -- a converted entry counts as its project.
   // Repairs are their own section, since they aren't bid work.
+  // Parts are entered by whoever handles them; without the wider view you
+  // see your own. Sector and stage don't apply, so only the date filter
+  // and the person filter narrow them.
+  const minePartsAll = useMemo(
+    () => (seesEveryone ? parts : parts.filter(p => p.ownerId === uid)),
+    [parts, seesEveryone, uid]
+  );
+  const filteredParts = useMemo(() => minePartsAll
+    .filter(p => !filters.person || p.ownerId === filters.person)
+    .filter(p => filters.show !== "pipeline" && filters.show !== "projects")
+    .filter(p => !filters.stage && !filters.status && !filters.sector && !filters.workType)
+    .filter(p => matchesDateFilter(p.createdAt, filters.created)),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [minePartsAll, filters]);
+
+  const partsStats = useMemo(() => summarizeParts(filteredParts), [filteredParts]);
+
   const stats = useMemo(() => summarizeMixed(bidRecords({ entries: filtered, projects: filteredProjects })), [filtered, filteredProjects]);
   const volumeStats = useMemo(() => summarizeMixed(volumeRecords({ entries: filtered, projects: filteredProjects })), [filtered, filteredProjects]);
   const repairStats = useMemo(() => summarizeProjects(repairRecords({ projects: filteredProjects }).projects), [filteredProjects]);
@@ -655,6 +676,46 @@ function AnalyticsPageContent() {
         <p className="private-note-hint" style={{ marginTop: -4 }}>
           {volumeStats.missingValue} of {volumeStats.total} jobs have no usable value (blank or not a number), so they aren't counted in volume.
         </p>
+      )}
+
+      <h2 className="analytics-section-title">Parts</h2>
+      <div className="stat-row">
+        <StatTile label="Parts requests" value={partsStats.count} sub={anyFilter ? "Matching filters" : "Every request"} />
+        <StatTile label="Open" value={partsStats.open} sub="Not yet invoiced or closed" />
+        <StatTile label="Finished" value={partsStats.done} />
+        <StatTile label="Parts volume" value={formatMoney(partsStats.volume)} />
+        <StatTile label="Avg. request" value={partsStats.avgValue ? formatMoney(partsStats.avgValue) : "—"} />
+      </div>
+      {partsStats.missingValue > 0 && (
+        <p className="private-note-hint" style={{ marginTop: -4 }}>
+          {partsStats.missingValue} of {partsStats.count} requests have no usable value, so they aren&apos;t counted in parts volume.
+        </p>
+      )}
+      <p className="private-note-hint">
+        Parts sit outside bids and volume above -- they&apos;re their own kind of work, counted for whoever entered the request.
+      </p>
+
+      {seesEveryone && partsStats.count > 0 && (
+        <div className="analytics-card">
+          <h3 className="analytics-card-title">Parts by person</h3>
+          <p className="analytics-card-sub">Counted for whoever entered the request.</p>
+          <div className="analytics-table-wrap">
+            <table className="analytics-table stack-on-phone">
+              <thead>
+                <tr><th>Person</th><th>Requests</th><th>Volume</th></tr>
+              </thead>
+              <tbody>
+                {partsByPerson(filteredParts, personLabel).map(row => (
+                  <tr key={row.id || "unassigned"}>
+                    <td data-label="Person">{row.name}</td>
+                    <td data-label="Requests">{row.count}</td>
+                    <td data-label="Volume">{formatMoney(row.volume)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       <h2 className="analytics-section-title">Repair projects</h2>
