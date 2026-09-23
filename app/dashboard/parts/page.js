@@ -126,7 +126,9 @@ function PartsPageContent() {
 
   const nameOf = (id) => (id ? personName(users.find(u => u.id === id)) : "");
 
-  const save = async (contractorType = null) => {
+  const save = async (choice = null) => {
+    // Only the prompt's answer counts -- a click event is not one.
+    const contractorType = choice && !choice.nativeEvent && typeof choice === "object" ? choice : null;
     const message = partError(form);
     if (message) return setError(message);
     const payloadPreview = partPayload(form);
@@ -338,7 +340,7 @@ function PartsPageContent() {
               <PartForm values={form} setValues={setForm} idPrefix="new-part" companies={companies} contacts={contacts} />
               <div className="modal-actions">
                 <button className="btn btn-secondary" onClick={() => { setAdding(false); setForm(blankPart()); setError(""); }}>Cancel</button>
-                <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Add parts entry"}</button>
+                <button className="btn btn-primary" disabled={saving} onClick={() => save()}>{saving ? "Saving…" : "Add parts entry"}</button>
               </div>
             </div>
           )}

@@ -219,7 +219,9 @@ export default function NewProject() {
     ...cleanOwnerRows(ownerRows).map(r => ({ name: r.company, category: OWNER_CATEGORY }))
   ];
 
-  const addProject = async (firmTags = null) => {
+  const addProject = async (choice = null) => {
+    // Only the prompt's answer counts -- a click event is not one.
+    const firmTags = choice && !choice.nativeEvent && typeof choice === "object" ? choice : null;
     const missing = [];
     if (!projectName) missing.push("Project Name");
     if (!buildingSector) missing.push("Building Sector");
@@ -357,7 +359,7 @@ export default function NewProject() {
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-on-dark" onClick={handleCancel}>Cancel</button>
-          <button className="btn btn-primary" disabled={saving} onClick={addProject}>
+          <button className="btn btn-primary" disabled={saving} onClick={() => addProject()}>
             {saving ? "Adding…" : "Add Project"}
           </button>
           <span className="header-divider" aria-hidden="true" />

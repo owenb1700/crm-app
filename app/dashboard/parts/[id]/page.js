@@ -119,7 +119,10 @@ function PartPageContent() {
     setError("");
   };
 
-  const save = async (contractorType = null) => {
+  const save = async (choice = null) => {
+    // Called straight from a button, React would hand us the click event;
+    // only a real answer from the prompt counts.
+    const contractorType = typeof choice === "string" ? choice : null;
     const message = partError(editForm);
     if (message) return setError(message);
     const payloadPreview = partPayload(editForm);
@@ -230,7 +233,7 @@ function PartPageContent() {
               <PartForm values={editForm} setValues={setEditForm} idPrefix={`part-${partId}`} companies={companies} contacts={contacts} />
               <div className="modal-actions">
                 <button className="btn btn-secondary" onClick={() => setIsEditing(false)}>Cancel</button>
-                <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save"}</button>
+                <button className="btn btn-primary" disabled={saving} onClick={() => save()}>{saving ? "Saving…" : "Save"}</button>
               </div>
             </>
           ) : (

@@ -173,7 +173,9 @@ export default function NewPipelineEntry() {
     ...biddersForStorage(biddingCompanies).map(b => ({ name: b.company, category: firmTypeOf(b.category) }))
   ];
 
-  const addPipelineEntry = async (firmTags = null) => {
+  const addPipelineEntry = async (choice = null) => {
+    // Only the prompt's answer counts -- a click event is not one.
+    const firmTags = choice && !choice.nativeEvent && typeof choice === "object" ? choice : null;
     if (!title) {
       return alert("Please enter a project/opportunity name");
     }
@@ -310,7 +312,7 @@ export default function NewPipelineEntry() {
         </div>
         <div className="dashboard-header-actions">
           <button className="btn btn-on-dark" onClick={handleCancel}>Cancel</button>
-          <button className="btn btn-primary" disabled={saving} onClick={addPipelineEntry}>
+          <button className="btn btn-primary" disabled={saving} onClick={() => addPipelineEntry()}>
             {saving ? "Adding…" : "Add Entry"}
           </button>
           <span className="header-divider" aria-hidden="true" />
