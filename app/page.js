@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
+import { getDeviceId } from "../lib/deviceId";
 import { useRouter } from "next/navigation";
 
 const CAROUSEL_IMAGES = [
@@ -51,7 +52,44 @@ export default function Login() {
   const [showForgot, setShowForgot] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
 
+  // The second step for admins: while this is on, the browser is signed
+  // out and waiting for the emailed code.
+  const [codeStep, setCodeStep] = useState(false);
+  const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const finish = () => {
+    localStorage.setItem("loginTimestamp", String(Date.now()));
+    router.push("/dashboard");
+  };
+
+  // Admins on a device that hasn't passed a code in the last 30 days get
+  // one emailed, and are signed straight back out until they enter it --
+  // so an unfinished sign-in leaves no way into anything.
+  const maybeAskForCode = async (user) => {
+    const res = await fetch("/api/login-code/start", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${await user.getIdToken()}`
+      },
+      body: JSON.stringify({ deviceId: getDeviceId() })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Couldn't start the login check");
+    if (!data.needsCode) return false;
+
+    await signOut(auth);
+    setCodeStep(true);
+    setCode("");
+    setCodeError("");
+    return true;
+  };
+
   const login = async () => {
+    if (busy) return;
+    setBusy(true);
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const userRef = doc(db, "users", cred.user.uid);
@@ -82,15 +120,53 @@ export default function Login() {
         return;
       }
 
-      localStorage.setItem("loginTimestamp", String(Date.now()));
-      router.push("/dashboard");
+      if (await maybeAskForCode(cred.user)) return;
+      finish();
     } catch (err) {
       if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
         alert("Login failed: incorrect email or password");
       } else {
         alert(`Login failed: ${err.message || err.code}`);
       }
+    } finally {
+      setBusy(false);
     }
+  };
+
+  // The code is checked without a session -- see the verify route. Once
+  // it's accepted the device is trusted and we sign in properly, using the
+  // password that's still in this form, so nothing was held onto anywhere.
+  const submitCode = async () => {
+    if (busy) return;
+    if (!code.trim()) return setCodeError("Enter the code from your email.");
+    setBusy(true);
+    setCodeError("");
+    try {
+      const res = await fetch("/api/login-code/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code: code.trim(), deviceId: getDeviceId() })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCodeError(data.error || "That code didn't work.");
+        return;
+      }
+
+      await signInWithEmailAndPassword(auth, email, password);
+      finish();
+    } catch (err) {
+      setCodeError(err.message || "Couldn't finish signing in.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startOver = async () => {
+    setCodeStep(false);
+    setCode("");
+    setCodeError("");
+    setPassword("");
   };
 
   const sendReset = async () => {
@@ -126,22 +202,73 @@ export default function Login() {
 
       <div className="auth-form-panel">
         <div className="auth-card">
-          <h2 className="auth-title">CRM Login</h2>
-          <p className="auth-subtitle">Sign in to manage your customers.</p>
+          {codeStep ? (
+            <>
+              <h2 className="auth-title">Check your email</h2>
+              <p className="auth-subtitle">
+                We sent a six-digit code to <strong>{email}</strong>. It works for the next 10 minutes.
+              </p>
 
-          <label className="field-label" htmlFor="login-email">Email</label>
-          <input id="login-email" className="field" placeholder="Email" onChange={(e) => setEmail(e.target.value)} />
+              <label className="field-label" htmlFor="login-code">Login code</label>
+              <input
+                id="login-code"
+                className="field"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="123456"
+                style={{ letterSpacing: 6, fontSize: 20 }}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => { if (e.key === "Enter") submitCode(); }}
+              />
 
-          <label className="field-label" htmlFor="login-password">Password</label>
-          <input id="login-password" className="field" type="password" placeholder="Password" onChange={(e) => setPassword(e.target.value)} />
+              {codeError && <p className="settings-status is-error">{codeError}</p>}
 
-          <button className="btn btn-primary btn-block" onClick={login}>Login</button>
+              <button className="btn btn-primary btn-block" disabled={busy} onClick={submitCode}>
+                {busy ? "Checking..." : "Sign In"}
+              </button>
 
-          <div className="auth-footer">
-            <a href="#" className="link-muted" onClick={(e) => { e.preventDefault(); setShowForgot(true); }}>
-              Forgot password?
-            </a>
-          </div>
+              <p className="auth-subtitle" style={{ marginTop: 14, marginBottom: 0, fontSize: 12 }}>
+                Once this code is accepted, this device won&apos;t need one again for 30 days.
+              </p>
+
+              <div className="auth-footer">
+                <a href="#" className="link-muted" onClick={(e) => { e.preventDefault(); startOver(); }}>
+                  Use a different account
+                </a>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="auth-title">CRM Login</h2>
+              <p className="auth-subtitle">Sign in to manage your customers.</p>
+
+              <label className="field-label" htmlFor="login-email">Email</label>
+              <input id="login-email" className="field" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+
+              <label className="field-label" htmlFor="login-password">Password</label>
+              <input
+                id="login-password"
+                className="field"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") login(); }}
+              />
+
+              <button className="btn btn-primary btn-block" disabled={busy} onClick={login}>
+                {busy ? "Signing in..." : "Login"}
+              </button>
+
+              <div className="auth-footer">
+                <a href="#" className="link-muted" onClick={(e) => { e.preventDefault(); setShowForgot(true); }}>
+                  Forgot password?
+                </a>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

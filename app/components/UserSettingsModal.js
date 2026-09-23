@@ -5,6 +5,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { DAY_NAMES, DEFAULT_DIGEST_SCHEDULE, schedulesFor } from "../../lib/digest";
 import TrashModal from "./TrashModal";
+import TrustedDevices from "./TrustedDevices";
 
 // The one User Settings window, opened from the avatar menu on every page.
 // Edits are held locally until Save, so Cancel (or ✕) really discards them.
@@ -196,6 +197,8 @@ export default function UserSettingsModal({ uid, profile, onClose, onSaved }) {
             </label>
             <p className="settings-hint" style={{ marginTop: 6 }}>These always show in the alerts bell either way.</p>
           </section>
+
+          {profile?.role === "admin" && <TrustedDevices />}
         </div>
 
         {showTrash && <TrashModal onClose={() => setShowTrash(false)} />}
