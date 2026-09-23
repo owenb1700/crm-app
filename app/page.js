@@ -67,7 +67,14 @@ export default function Login() {
   // Admins on a device that hasn't passed a code in the last 30 days get
   // one emailed, and are signed straight back out until they enter it --
   // so an unfinished sign-in leaves no way into anything.
-  const maybeAskForCode = async (user) => {
+  //
+  // Only admins make this call at all. Everyone else's sign-in doesn't
+  // depend on it, so a bad minute for this route can't keep the whole
+  // company out. For an admin it deliberately fails closed: if we can't
+  // find out whether this device is trusted, it doesn't get in.
+  const maybeAskForCode = async (user, profile) => {
+    if ((profile?.role || "") !== "admin") return false;
+
     const res = await fetch("/api/login-code/start", {
       method: "POST",
       headers: {
@@ -94,6 +101,7 @@ export default function Login() {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const userRef = doc(db, "users", cred.user.uid);
       const userSnap = await getDoc(userRef);
+      let profile = userSnap.exists() ? userSnap.data() : null;
 
       if (!userSnap.exists()) {
         // First-ever login for this account: bootstrap a profile. If the
@@ -104,12 +112,13 @@ export default function Login() {
         const configSnap = await getDoc(configRef);
         const isFirstUser = !configSnap.exists();
 
-        await setDoc(userRef, {
+        profile = {
           email: cred.user.email,
           role: isFirstUser ? "admin" : "member",
           disabled: false,
           createdAt: new Date().toISOString()
-        });
+        };
+        await setDoc(userRef, profile);
 
         if (isFirstUser) {
           await setDoc(configRef, { bootstrapped: true, createdAt: new Date().toISOString() });
@@ -120,7 +129,7 @@ export default function Login() {
         return;
       }
 
-      if (await maybeAskForCode(cred.user)) return;
+      if (await maybeAskForCode(cred.user, profile)) return;
       finish();
     } catch (err) {
       if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
