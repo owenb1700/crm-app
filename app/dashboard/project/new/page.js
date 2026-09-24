@@ -10,6 +10,10 @@ import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import { ensureTowerModel } from "../../../../lib/towerModels";
+import { buildingMemory, equipmentBySerial, modelMemory, salespersonForFirm, firmFromEmail, emailFirmMismatch } from "../../../../lib/learned";
+import { normalizePhone } from "../../../../lib/tidyEntry";
+import { withoutTrashed } from "../../../../lib/trash";
+import Suggested, { SuggestedBlock } from "../../../components/Suggested";
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import DashboardHeader from "../../../components/DashboardHeader";
@@ -83,6 +87,46 @@ export default function NewProject() {
   const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
   const [ownerRows, setOwnerRows] = useState([]);
 
+  // Everything the site already knows, offered rather than applied. See
+  // lib/learned.js -- nothing here overwrites a field somebody has typed.
+  const [projects, setProjects] = useState([]);
+  const [pipelineEntries, setPipelineEntries] = useState([]);
+  const [partsRows, setPartsRows] = useState([]);
+  const [usedBuilding, setUsedBuilding] = useState(false);
+  const [autoSalesperson, setAutoSalesperson] = useState(false);
+  const [autoFirm, setAutoFirm] = useState(false);
+
+  const building = buildingMemory({ address: projectAddress, projects, pipeline: pipelineEntries, parts: partsRows });
+  const firmGuess = company.trim() ? null : firmFromEmail(email, { contacts, companies });
+  const firmMismatch = emailFirmMismatch(email, company, { contacts });
+  const salesGuess = salespersonForFirm(company, {
+    projects, pipeline: pipelineEntries,
+    nameOf: (id) => { const u = users.find(x => x.id === id); return u ? (u.firstName ? `${u.firstName} ${u.lastName || ""}`.trim() : u.email) : "someone"; }
+  });
+
+  // A building we have worked at before: its engineer and its equipment
+  // are already on file, so offer them together rather than one by one.
+  const useBuilding = () => {
+    if (building.engineers.length && ownerRows.length === 0) {
+      const first = building.engineers[0];
+      setOwnerRows([{ company: first.company, contact: first.contact, email: first.email, phone: first.phone }]);
+    }
+    const blankEquipment = equipmentRows.every(r => !r.type && !r.manufacturer && !r.model && !r.serial && !r.yearInstalled);
+    if (building.equipment.length && blankEquipment) {
+      setEquipmentRows(building.equipment.map(e => ({
+        type: e.type || "", manufacturer: e.manufacturer || "", model: e.model || "",
+        serial: e.serial || "", yearInstalled: e.yearInstalled || ""
+      })));
+    }
+    setUsedBuilding(true);
+  };
+
+  const undoBuilding = () => {
+    setUsedBuilding(false);
+    setOwnerRows([]);
+    setEquipmentRows([{ ...BLANK_EQUIPMENT_ROW }]);
+  };
+
   const contactsForCompany = (name) => peopleAtFirm(contacts, name, companies);
   const matchingContacts = contactsForCompany(company);
 
@@ -112,6 +156,35 @@ export default function NewProject() {
 
   const updateEquipmentRow = (index, field, value) => {
     setEquipmentRows(prev => prev.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
+  };
+
+  // A serial is unique and permanent, so it only ever needs typing once:
+  // everything else about that machine comes back with it. Only blanks are
+  // filled -- anything already typed is left exactly as it is.
+  const recallBySerial = (index, serial) => {
+    const found = equipmentBySerial(serial, projects);
+    if (!found) return;
+    setEquipmentRows(prev => prev.map((r, i) => {
+      if (i !== index) return r;
+      const filled = { ...r };
+      for (const field of ["type", "manufacturer", "model", "yearInstalled"]) {
+        if (!String(filled[field] || "").trim() && found.value[field]) filled[field] = found.value[field];
+      }
+      return { ...filled, _from: found.source };
+    }));
+  };
+
+  // A model number knows its maker.
+  const recallByModel = (index, model) => {
+    const found = modelMemory({ model }, towerModels, projects);
+    if (!found) return;
+    setEquipmentRows(prev => prev.map((r, i) => {
+      if (i !== index) return r;
+      const filled = { ...r };
+      if (!String(filled.manufacturer || "").trim() && found.value.manufacturer) filled.manufacturer = found.value.manufacturer;
+      if (!String(filled.type || "").trim() && found.value.type) filled.type = found.value.type;
+      return { ...filled, _from: found.source };
+    }));
   };
 
   const removeEquipmentRow = (index) => {
@@ -154,15 +227,21 @@ export default function NewProject() {
           return;
         }
 
-        const [companiesSnap, contactsSnap, towerModelsSnap, usersSnap] = await Promise.all([
+        const [companiesSnap, contactsSnap, towerModelsSnap, usersSnap, projectsSnap, pipelineSnap, partsSnap] = await Promise.all([
           getDocs(collection(db, "companies")),
           getDocs(collection(db, "contacts")),
           getDocs(collection(db, "towerModels")),
-          getDocs(collection(db, "users"))
+          getDocs(collection(db, "users")),
+          getDocs(collection(db, "customers")),
+          getDocs(collection(db, "pipeline")),
+          getDocs(collection(db, "parts"))
         ]);
         setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setTowerModels(towerModelsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setProjects(withoutTrashed(projectsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
+        setPipelineEntries(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
+        setPartsRows(withoutTrashed(partsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setLoaded(true);
       } catch (err) {
@@ -386,10 +465,27 @@ export default function NewProject() {
           <div>
             <label className="field-label">Email</label>
             <input className="field" autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} />
+            <Suggested
+              suggestion={firmGuess}
+              applied={autoFirm}
+              onUse={() => { setCompany(firmGuess.value); setAutoFirm(true); }}
+              onUndo={() => { setCompany(""); setAutoFirm(false); }}
+            />
+            {firmMismatch && (
+              <p className="settings-status is-error" style={{ marginTop: 4 }}>
+                That email looks like <strong>{firmMismatch.expected}</strong> ({firmMismatch.source}), not {company}. Check it before saving.
+              </p>
+            )}
           </div>
           <div>
             <label className="field-label">Phone</label>
-            <input className="field" autoComplete="off" value={phone} onChange={e => setPhone(e.target.value)} />
+            <input
+              className="field"
+              autoComplete="off"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              onBlur={e => setPhone(normalizePhone(e.target.value))}
+            />
           </div>
 
           <BuildingSectorSelect id="new-project-sector" value={buildingSector} onChange={setBuildingSector} />
@@ -411,7 +507,18 @@ export default function NewProject() {
               label="Salesperson if entering for someone else (whose project is this?)"
               users={users.filter(u => !u.disabled && u.role !== "estimating")}
               value={salespersonId || uid || ""}
-              onChange={setSalespersonId}
+              onChange={(v) => { setSalespersonId(v); setAutoSalesperson(false); }}
+            />
+          )}
+          {canEnterForOthers(myProfile) && salesGuess && salesGuess.value !== (salespersonId || uid) && (
+            <Suggested
+              suggestion={salesGuess}
+              applied={autoSalesperson}
+              format={(id) => {
+                const u = users.find(x => x.id === id);
+                return u ? (u.firstName ? `${u.firstName} ${u.lastName || ""}`.trim() : u.email) : "someone";
+              }}
+              onUse={() => { setSalespersonId(salesGuess.value); setAutoSalesperson(true); }}
             />
           )}
 
@@ -428,6 +535,30 @@ export default function NewProject() {
           <div>
             <label className="field-label">Project Address</label>
             <AddressAutocomplete placeholder="Project Address (required)" value={projectAddress} onChange={setProjectAddress} />
+
+            {(building.engineers.length > 0 || building.equipment.length > 0) && (
+              <SuggestedBlock
+                title="We have worked at this building before"
+                source={building.source}
+                applied={usedBuilding}
+                onUse={useBuilding}
+                onDismiss={usedBuilding ? undoBuilding : () => setUsedBuilding(true)}
+              >
+                {building.engineers.length > 0 && (
+                  <div className="private-note-hint">
+                    Building engineer: <strong>{building.engineers[0].contact || building.engineers[0].company}</strong>
+                    {building.engineers[0].contact && building.engineers[0].company ? ` at ${building.engineers[0].company}` : ""}
+                    {" "}({building.engineers[0].source})
+                  </div>
+                )}
+                {building.equipment.length > 0 && (
+                  <div className="private-note-hint">
+                    {building.equipment.length} {building.equipment.length === 1 ? "machine" : "machines"} on file here:{" "}
+                    {building.equipment.map(e => [e.manufacturer, e.model, e.serial && `#${e.serial}`].filter(Boolean).join(" ")).join("; ")}
+                  </div>
+                )}
+              </SuggestedBlock>
+            )}
           </div>
 
           <input className="field" autoComplete="off" placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
@@ -501,6 +632,7 @@ export default function NewProject() {
                 placeholder="Model Number"
                 value={row.model}
                 onChange={e => updateEquipmentRow(i, "model", e.target.value)}
+                onBlur={e => recallByModel(i, e.target.value)}
               />
               <input
                 className="field"
@@ -509,6 +641,7 @@ export default function NewProject() {
                 placeholder="Serial Number"
                 value={row.serial}
                 onChange={e => updateEquipmentRow(i, "serial", e.target.value)}
+                onBlur={e => recallBySerial(i, e.target.value)}
               />
               <input
                 className="field"

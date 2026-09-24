@@ -26,6 +26,8 @@ import ConfirmDialog from "../../../../components/ConfirmDialog";
 import SalespersonSelect from "../../../../components/SalespersonSelect";
 import FirmTagPicker from "../../../../components/FirmTagPicker";
 import { historyForFirm } from "../../../../../lib/firmHistory";
+import { titleForPerson, firmForPerson } from "../../../../../lib/learned";
+import Suggested from "../../../../components/Suggested";
 import { sortRows } from "../../../../../lib/sorting";
 import SortableHeader from "../../../../components/SortableHeader";
 import { addressKey } from "../../../../../lib/addresses";
@@ -107,6 +109,10 @@ export default function CompanyDetail() {
 
   const [showAddPerson, setShowAddPerson] = useState(false);
   const [personName, setPersonName] = useState("");
+  const [autoTitle, setAutoTitle] = useState(false);
+  // Everyone in the Directory, so a person already on file somewhere else
+  // can be spotted before they become a second record.
+  const [allContacts, setAllContacts] = useState([]);
   const [personTitle, setPersonTitle] = useState("");
   const [personEmails, setPersonEmails] = useState([""]);
   const [personPhones, setPersonPhones] = useState([""]);
@@ -141,13 +147,15 @@ export default function CompanyDetail() {
     const data = { id: snap.id, ...snap.data() };
     setCompany(data);
 
-    const [peopleSnap, customersSnap, pipelineSnap, usersSnap, partsSnap] = await Promise.all([
+    const [peopleSnap, customersSnap, pipelineSnap, usersSnap, partsSnap, allContactsSnap] = await Promise.all([
       getDocs(query(collection(db, "contacts"), where("companyId", "==", companyId))),
       getDocs(collection(db, "customers")),
       getDocs(collection(db, "pipeline")),
       getDocs(collection(db, "users")),
-      getDocs(collection(db, "parts"))
+      getDocs(collection(db, "parts")),
+      getDocs(collection(db, "contacts"))
     ]);
+    setAllContacts(allContactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setParts(withoutTrashed(partsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
     setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
@@ -683,7 +691,25 @@ export default function CompanyDetail() {
           {showAddPerson && (
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--color-border)" }}>
               <input className="field" placeholder="Name" autoComplete="off" value={personName} onChange={e => setPersonName(e.target.value)} />
-              <input className="field" placeholder="Title" autoComplete="off" value={personTitle} onChange={e => setPersonTitle(e.target.value)} />
+              {(() => {
+                const known = firmForPerson(personName, { contacts: allContacts });
+                return known && !sameCompany(known.value, company?.name) ? (
+                  <p className="settings-status is-error" style={{ marginTop: 0 }}>
+                    {personName.trim()} is already on file at <strong>{known.value}</strong>. Adding them here makes a second record.
+                  </p>
+                ) : null;
+              })()}
+              <input className="field" placeholder="Title" autoComplete="off" value={personTitle} onChange={e => { setPersonTitle(e.target.value); setAutoTitle(false); }} />
+              {(() => {
+                const known = titleForPerson(personName, { contacts: allContacts });
+                return known && !personTitle.trim() ? (
+                  <Suggested
+                    suggestion={known}
+                    applied={autoTitle}
+                    onUse={() => { setPersonTitle(known.value); setAutoTitle(true); }}
+                  />
+                ) : null;
+              })()}
               <MultiField label="Email" type="email" values={personEmails} onChange={setPersonEmails} />
               <MultiField label="Phone" type="tel" values={personPhones} onChange={setPersonPhones} />
               <textarea className="field" placeholder="Notes" style={{ width: "100%", height: 60 }} value={personNotes} onChange={e => setPersonNotes(e.target.value)} />

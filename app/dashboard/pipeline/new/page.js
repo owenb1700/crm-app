@@ -16,6 +16,10 @@ import BidderEditor from "../../../components/BidderEditor";
 import { biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson } from "../../../../lib/bidders";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
+import { buildingMemory, firmFromEmail, emailFirmMismatch } from "../../../../lib/learned";
+import { normalizePhone } from "../../../../lib/tidyEntry";
+import { withoutTrashed } from "../../../../lib/trash";
+import Suggested, { SuggestedBlock } from "../../../components/Suggested";
 import ProductOptionsEditor from "../../../components/ProductOptionsEditor";
 import { blankProductRow, productRowsForStorage, isTowerRow } from "../../../../lib/equipment";
 import DashboardHeader from "../../../components/DashboardHeader";
@@ -58,6 +62,16 @@ export default function NewPipelineEntry() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [projectAddress, setProjectAddress] = useState("");
+  // What we already know about the building, shown rather than filled in:
+  // a pipeline entry has no owner rows of its own to put it in.
+  const [pastProjects, setPastProjects] = useState([]);
+  const [pastPipeline, setPastPipeline] = useState([]);
+  const [pastParts, setPastParts] = useState([]);
+  const [autoFirm, setAutoFirm] = useState(false);
+
+  const building = buildingMemory({ address: projectAddress, projects: pastProjects, pipeline: pastPipeline, parts: pastParts });
+  const firmGuess = company.trim() ? null : firmFromEmail(email, { contacts, companies });
+  const firmMismatch = emailFirmMismatch(email, company, { contacts });
   const [biddingCompanies, setBiddingCompanies] = useState([]);
   const [salespersonId, setSalespersonId] = useState("");
   const [projectPointPersonId, setProjectPointPersonId] = useState("");
@@ -111,13 +125,19 @@ export default function NewPipelineEntry() {
           return;
         }
 
-        const [usersSnap, companiesSnap, contactsSnap, towerModelsSnap, productsSnap] = await Promise.all([
+        const [usersSnap, companiesSnap, contactsSnap, towerModelsSnap, productsSnap, projectsSnap, pipelineSnap, partsSnap] = await Promise.all([
           getDocs(collection(db, "users")),
           getDocs(collection(db, "companies")),
           getDocs(collection(db, "contacts")),
           getDocs(collection(db, "towerModels")),
-          getDocs(collection(db, "products"))
+          getDocs(collection(db, "products")),
+          getDocs(collection(db, "customers")),
+          getDocs(collection(db, "pipeline")),
+          getDocs(collection(db, "parts"))
         ]);
+        setPastProjects(withoutTrashed(projectsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
+        setPastPipeline(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
+        setPastParts(withoutTrashed(partsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -363,15 +383,48 @@ export default function NewPipelineEntry() {
             <div>
               <label className="field-label">Email</label>
               <input className="field" autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} />
+              <Suggested
+                suggestion={firmGuess}
+                applied={autoFirm}
+                onUse={() => { setCompany(firmGuess.value); setAutoFirm(true); }}
+                onUndo={() => { setCompany(""); setAutoFirm(false); }}
+              />
+              {firmMismatch && (
+                <p className="settings-status is-error" style={{ marginTop: 4 }}>
+                  That email looks like <strong>{firmMismatch.expected}</strong> ({firmMismatch.source}), not {company}.
+                </p>
+              )}
             </div>
             <div>
               <label className="field-label">Phone</label>
-              <input className="field" autoComplete="off" value={phone} onChange={e => setPhone(e.target.value)} />
+              <input
+                className="field"
+                autoComplete="off"
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                onBlur={e => setPhone(normalizePhone(e.target.value))}
+              />
             </div>
 
             <div>
               <label className="field-label">Project Address</label>
               <AddressAutocomplete value={projectAddress} onChange={setProjectAddress} />
+
+              {(building.engineers.length > 0 || building.equipment.length > 0) && (
+                <SuggestedBlock title="We have worked at this building before" source={building.source}>
+                  {building.engineers.length > 0 && (
+                    <div className="private-note-hint">
+                      Building engineer: <strong>{building.engineers[0].contact || building.engineers[0].company}</strong>
+                      {building.engineers[0].contact && building.engineers[0].company ? ` at ${building.engineers[0].company}` : ""}
+                    </div>
+                  )}
+                  {building.equipment.length > 0 && (
+                    <div className="private-note-hint">
+                      On site: {building.equipment.map(e => [e.manufacturer, e.model, e.serial && `#${e.serial}`].filter(Boolean).join(" ")).join("; ")}
+                    </div>
+                  )}
+                </SuggestedBlock>
+              )}
             </div>
           </div>
         </div>

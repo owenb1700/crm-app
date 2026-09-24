@@ -5,6 +5,7 @@ import { PART_STAGES, blankContractor } from "../../lib/parts";
 import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "./DirectoryPickers";
 import MoneyInput from "./MoneyInput";
 import AddressAutocomplete from "./AddressAutocomplete";
+import { normalizePhone } from "../../lib/tidyEntry";
 
 // The fields of a parts request, shared by the Add box on the Parts list
 // and the Edit form on a request's own page, so the two can't drift.
@@ -96,7 +97,14 @@ export default function PartForm({ values, setValues, idPrefix, companies = [], 
         </div>
         <div>
           <label className="field-label" htmlFor={`${idPrefix}-phone`}>Phone</label>
-          <input id={`${idPrefix}-phone`} className="field" autoComplete="off" value={values.phone} onChange={e => setValues(prev => ({ ...prev, phone: e.target.value }))} />
+          <input
+            id={`${idPrefix}-phone`}
+            className="field"
+            autoComplete="off"
+            value={values.phone}
+            onChange={e => setValues(prev => ({ ...prev, phone: e.target.value }))}
+            onBlur={e => setValues(prev => ({ ...prev, phone: normalizePhone(e.target.value) }))}
+          />
         </div>
 
         <div style={{ gridColumn: "1 / -1" }}>
