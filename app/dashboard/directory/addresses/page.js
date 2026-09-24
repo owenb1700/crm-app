@@ -6,7 +6,10 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { auth, db } from "../../../../lib/firebase";
 import { withoutTrashed } from "../../../../lib/trash";
-import { collectAddresses, matchesAddressSearch, addressKey, groupSimilarAddresses } from "../../../../lib/addresses";
+import {
+  collectAddresses, addressKey, groupSimilarAddresses,
+  describeBuildings, addressFacets, filterBuildings
+} from "../../../../lib/addresses";
 import { downloadTable, csvDateStamp } from "../../../../lib/csv";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
@@ -28,9 +31,14 @@ function AddressesPageContent() {
   const [projects, setProjects] = useState([]);
   const [pipeline, setPipeline] = useState([]);
   const [parts, setParts] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
+  const [sector, setSector] = useState("");
+  const [workType, setWorkType] = useState("");
+  const [firm, setFirm] = useState("");
+  const [kind, setKind] = useState("");
   const [sort, setSort] = useState({ key: "address", direction: "asc" });
 
   useEffect(() => {
@@ -61,14 +69,16 @@ function AddressesPageContent() {
         }
         setMyProfile(profileSnap.data());
 
-        const [projectsSnap, pipelineSnap, partsSnap] = await Promise.all([
+        const [projectsSnap, pipelineSnap, partsSnap, companiesSnap] = await Promise.all([
           getDocs(collection(db, "customers")),
           getDocs(collection(db, "pipeline")),
-          getDocs(collection(db, "parts"))
+          getDocs(collection(db, "parts")),
+          getDocs(collection(db, "companies"))
         ]);
         setProjects(withoutTrashed(projectsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setPipeline(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setParts(withoutTrashed(partsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
+        setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setLoaded(true);
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading addresses.");
@@ -82,26 +92,38 @@ function AddressesPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const buildings = useMemo(() => collectAddresses({ projects, pipeline, parts }), [projects, pipeline, parts]);
+  const buildings = useMemo(
+    () => describeBuildings(collectAddresses({ projects, pipeline, parts }), companies),
+    [projects, pipeline, parts, companies]
+  );
+  const facets = useMemo(() => addressFacets(buildings), [buildings]);
+
   const ADDRESS_SORTS = {
     address: { kind: "text", get: b => b.label, label: "Address" },
     jobs: { kind: "money", get: b => b.total, label: "How much work" },
     latest: { kind: "date", get: b => b.latest, label: "Most recent" }
   };
   const shown = useMemo(
-    () => sortRows(buildings.filter(b => matchesAddressSearch(b, search)), ADDRESS_SORTS, sort),
+    () => sortRows(filterBuildings(buildings, { search, sector, workType, firm, kind }), ADDRESS_SORTS, sort),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [buildings, search, sort]
+    [buildings, search, sector, workType, firm, kind, sort]
   );
+
+  const filtered = Boolean(search.trim() || sector || workType || firm || kind);
+  const clearFilters = () => { setSearch(""); setSector(""); setWorkType(""); setFirm(""); setKind(""); };
 
   const duplicateGroups = useMemo(() => groupSimilarAddresses(buildings), [buildings]);
 
+  // Exports exactly what's on the screen, filters and all.
   const exportAddresses = (format) => downloadTable({
     format,
-    filename: `project-addresses${search.trim() ? "-filtered" : ""}-${csvDateStamp()}`,
+    filename: `project-addresses${filtered ? "-filtered" : ""}-${csvDateStamp()}`,
     sheetName: "Project Addresses",
-    headers: ["Address", "Jobs", "Projects", "Pipeline entries", "Parts orders", "Most recent"],
-    rows: shown.map(b => [b.label, b.total, b.counts.Project, b.counts.Pipeline, b.counts.Parts, b.latest])
+    headers: ["Address", "Jobs", "Projects", "Pipeline entries", "Parts orders", "Sectors", "Work types", "Firms", "Most recent"],
+    rows: shown.map(b => [
+      b.label, b.total, b.counts.Project, b.counts.Pipeline, b.counts.Parts,
+      (b.sectors || []).join("; "), (b.workTypes || []).join("; "), (b.firms || []).join("; "), b.latest
+    ])
   });
 
   if (loadError) {
@@ -133,7 +155,7 @@ function AddressesPageContent() {
       <div className="toolbar">
         <input
           className="field"
-          placeholder="Search every address we've worked at..."
+          placeholder="Search by address, firm, person, sector or work type..."
           aria-label="Search addresses"
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -143,9 +165,37 @@ function AddressesPageContent() {
         <ExportButtons label="these addresses" buttonText="Export page" onExport={exportAddresses} disabled={!shown.length} />
       </div>
 
+      <div className="toolbar">
+        <select className="field" aria-label="Filter by sector" value={sector} onChange={e => setSector(e.target.value)} style={{ marginBottom: 0 }}>
+          <option value="">Sector: ALL</option>
+          {facets.sectors.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        <select className="field" aria-label="Filter by work type" value={workType} onChange={e => setWorkType(e.target.value)} style={{ marginBottom: 0 }}>
+          <option value="">Work type: ALL</option>
+          {facets.workTypes.map(w => <option key={w} value={w}>{w}</option>)}
+        </select>
+
+        <select className="field" aria-label="Filter by firm" value={firm} onChange={e => setFirm(e.target.value)} style={{ marginBottom: 0 }}>
+          <option value="">Firm: ALL</option>
+          {facets.firms.map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
+
+        <select className="field" aria-label="Filter by what kind of work" value={kind} onChange={e => setKind(e.target.value)} style={{ marginBottom: 0 }}>
+          <option value="">Work: ALL</option>
+          <option value="Project">Has projects</option>
+          <option value="Pipeline">Has pipeline entries</option>
+          <option value="Parts">Has parts orders</option>
+        </select>
+
+        {filtered && (
+          <button type="button" className="btn btn-secondary" onClick={clearFilters}>Clear filters</button>
+        )}
+      </div>
+
       {!loaded && <p className="modal-subtitle">Loading addresses...</p>}
 
-      {loaded && duplicateGroups.length > 0 && !search.trim() && (
+      {loaded && duplicateGroups.length > 0 && !filtered && (
         <div className="review-banner" style={{ marginBottom: 14, display: "block" }}>
           <div style={{ marginBottom: 6 }}>
             ⚠ {duplicateGroups.length} {duplicateGroups.length === 1 ? "building looks" : "buildings look"} like the same place written two ways.
@@ -172,13 +222,13 @@ function AddressesPageContent() {
 
       {loaded && (
         <p className="analytics-card-sub" style={{ marginTop: 0 }}>
-          {shown.length} {shown.length === 1 ? "address" : "addresses"}{search.trim() && " (filtered)"}
+          {shown.length} {shown.length === 1 ? "address" : "addresses"}{filtered && " (filtered)"}
         </p>
       )}
 
       {loaded && shown.length === 0 && (
         <p className="private-note-hint">
-          {search.trim() ? "No addresses match that." : "No addresses yet. They appear here as soon as work has one."}
+          {filtered ? "No addresses match that." : "No addresses yet. They appear here as soon as work has one."}
         </p>
       )}
 
@@ -194,6 +244,12 @@ function AddressesPageContent() {
             <div className="customer-meta" style={{ marginTop: 4 }}>
               {b.total} {b.total === 1 ? "job" : "jobs"} on file
             </div>
+            {(b.sectors.length > 0 || b.workTypes.length > 0) && (
+              <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {b.sectors.map(s => <span key={`s-${s}`} className="role-badge">{s}</span>)}
+                {b.workTypes.map(w => <span key={`w-${w}`} className="role-badge role-badge-admin">{w}</span>)}
+              </div>
+            )}
           </div>
           <div className="customer-card-middle">
             <div className="private-note-hint">
