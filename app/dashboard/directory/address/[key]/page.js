@@ -7,6 +7,8 @@ import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { auth, db } from "../../../../../lib/firebase";
 import { withoutTrashed } from "../../../../../lib/trash";
 import { workAtAddress, collectAddresses, uniqueNames, normalizeAddress } from "../../../../../lib/addresses";
+import { SECTOR_COLLECTION, sectorKey } from "../../../../../lib/buildingSectors";
+import BuildingSector from "../../../../components/BuildingSector";
 import { personName } from "../../../../../lib/people";
 import { sortRows } from "../../../../../lib/sorting";
 import SortableHeader from "../../../../components/SortableHeader";
@@ -35,6 +37,7 @@ function AddressPageContent() {
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [historySort, setHistorySort] = useState({ key: "date", direction: "desc" });
+  const [sectors, setSectors] = useState([]);
 
   useEffect(() => {
     let timer;
@@ -64,13 +67,14 @@ function AddressPageContent() {
         }
         setMyProfile(profileSnap.data());
 
-        const [projectsSnap, pipelineSnap, partsSnap, usersSnap, companiesSnap, contactsSnap] = await Promise.all([
+        const [projectsSnap, pipelineSnap, partsSnap, usersSnap, companiesSnap, contactsSnap, sectorSnap] = await Promise.all([
           getDocs(collection(db, "customers")),
           getDocs(collection(db, "pipeline")),
           getDocs(collection(db, "parts")),
           getDocs(collection(db, "users")),
           getDocs(collection(db, "companies")),
-          getDocs(collection(db, "contacts"))
+          getDocs(collection(db, "contacts")),
+          getDoc(doc(db, SECTOR_COLLECTION, sectorKey(decodeURIComponent(key))))
         ]);
         setProjects(withoutTrashed(projectsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setPipeline(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -78,6 +82,7 @@ function AddressPageContent() {
         setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setSectors(sectorSnap.exists() ? (sectorSnap.data().sectors || []) : []);
         setLoaded(true);
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading this address.");
@@ -154,6 +159,15 @@ function AddressPageContent() {
       </div>
 
       <div className="project-page">
+        <BuildingSector
+          label={label}
+          sectors={sectors}
+          firms={firms}
+          uid={uid}
+          userName={myProfile?.name || myProfile?.email || "Someone"}
+          onSaved={setSectors}
+        />
+
         <div className="project-section">
           <h4 className="field-label">Firms we worked with here</h4>
           {firms.length === 0 ? <p className="private-note-hint">None on file.</p> : (

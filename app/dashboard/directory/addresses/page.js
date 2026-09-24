@@ -7,9 +7,9 @@ import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { auth, db } from "../../../../lib/firebase";
 import { withoutTrashed } from "../../../../lib/trash";
 import {
-  collectAddresses, addressKey, groupSimilarAddresses,
-  describeBuildings, addressFacets, filterBuildings
+  collectAddresses, addressKey, groupSimilarAddresses, addressFacets, filterBuildings
 } from "../../../../lib/addresses";
+import { SECTOR_COLLECTION, applyBuildingSectors } from "../../../../lib/buildingSectors";
 import { downloadTable, csvDateStamp } from "../../../../lib/csv";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
@@ -31,12 +31,11 @@ function AddressesPageContent() {
   const [projects, setProjects] = useState([]);
   const [pipeline, setPipeline] = useState([]);
   const [parts, setParts] = useState([]);
-  const [companies, setCompanies] = useState([]);
+  const [sectorRecords, setSectorRecords] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
   const [sector, setSector] = useState("");
-  const [workType, setWorkType] = useState("");
   const [firm, setFirm] = useState("");
   const [kind, setKind] = useState("");
   const [sort, setSort] = useState({ key: "address", direction: "asc" });
@@ -69,16 +68,16 @@ function AddressesPageContent() {
         }
         setMyProfile(profileSnap.data());
 
-        const [projectsSnap, pipelineSnap, partsSnap, companiesSnap] = await Promise.all([
+        const [projectsSnap, pipelineSnap, partsSnap, sectorsSnap] = await Promise.all([
           getDocs(collection(db, "customers")),
           getDocs(collection(db, "pipeline")),
           getDocs(collection(db, "parts")),
-          getDocs(collection(db, "companies"))
+          getDocs(collection(db, SECTOR_COLLECTION))
         ]);
         setProjects(withoutTrashed(projectsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setPipeline(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
         setParts(withoutTrashed(partsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
-        setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setSectorRecords(sectorsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setLoaded(true);
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading addresses.");
@@ -93,8 +92,8 @@ function AddressesPageContent() {
   }, []);
 
   const buildings = useMemo(
-    () => describeBuildings(collectAddresses({ projects, pipeline, parts }), companies),
-    [projects, pipeline, parts, companies]
+    () => applyBuildingSectors(collectAddresses({ projects, pipeline, parts }), sectorRecords),
+    [projects, pipeline, parts, sectorRecords]
   );
   const facets = useMemo(() => addressFacets(buildings), [buildings]);
 
@@ -104,13 +103,13 @@ function AddressesPageContent() {
     latest: { kind: "date", get: b => b.latest, label: "Most recent" }
   };
   const shown = useMemo(
-    () => sortRows(filterBuildings(buildings, { search, sector, workType, firm, kind }), ADDRESS_SORTS, sort),
+    () => sortRows(filterBuildings(buildings, { search, sector, firm, kind }), ADDRESS_SORTS, sort),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [buildings, search, sector, workType, firm, kind, sort]
+    [buildings, search, sector, firm, kind, sort]
   );
 
-  const filtered = Boolean(search.trim() || sector || workType || firm || kind);
-  const clearFilters = () => { setSearch(""); setSector(""); setWorkType(""); setFirm(""); setKind(""); };
+  const filtered = Boolean(search.trim() || sector || firm || kind);
+  const clearFilters = () => { setSearch(""); setSector(""); setFirm(""); setKind(""); };
 
   const duplicateGroups = useMemo(() => groupSimilarAddresses(buildings), [buildings]);
 
@@ -119,10 +118,10 @@ function AddressesPageContent() {
     format,
     filename: `project-addresses${filtered ? "-filtered" : ""}-${csvDateStamp()}`,
     sheetName: "Project Addresses",
-    headers: ["Address", "Jobs", "Projects", "Pipeline entries", "Parts orders", "Sectors", "Work types", "Firms", "Most recent"],
+    headers: ["Address", "Jobs", "Projects", "Pipeline entries", "Parts orders", "Sectors", "Firms", "Most recent"],
     rows: shown.map(b => [
       b.label, b.total, b.counts.Project, b.counts.Pipeline, b.counts.Parts,
-      (b.sectors || []).join("; "), (b.workTypes || []).join("; "), (b.firms || []).join("; "), b.latest
+      (b.sectors || []).join("; "), (b.firms || []).join("; "), b.latest
     ])
   });
 
@@ -155,7 +154,7 @@ function AddressesPageContent() {
       <div className="toolbar">
         <input
           className="field"
-          placeholder="Search by address, firm, person, sector or work type..."
+          placeholder="Search by address, firm, person or sector..."
           aria-label="Search addresses"
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -169,11 +168,6 @@ function AddressesPageContent() {
         <select className="field" aria-label="Filter by sector" value={sector} onChange={e => setSector(e.target.value)} style={{ marginBottom: 0 }}>
           <option value="">Sector: ALL</option>
           {facets.sectors.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-
-        <select className="field" aria-label="Filter by work type" value={workType} onChange={e => setWorkType(e.target.value)} style={{ marginBottom: 0 }}>
-          <option value="">Work type: ALL</option>
-          {facets.workTypes.map(w => <option key={w} value={w}>{w}</option>)}
         </select>
 
         <select className="field" aria-label="Filter by firm" value={firm} onChange={e => setFirm(e.target.value)} style={{ marginBottom: 0 }}>
@@ -244,10 +238,9 @@ function AddressesPageContent() {
             <div className="customer-meta" style={{ marginTop: 4 }}>
               {b.total} {b.total === 1 ? "job" : "jobs"} on file
             </div>
-            {(b.sectors.length > 0 || b.workTypes.length > 0) && (
+            {b.sectors.length > 0 && (
               <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
                 {b.sectors.map(s => <span key={`s-${s}`} className="role-badge">{s}</span>)}
-                {b.workTypes.map(w => <span key={`w-${w}`} className="role-badge role-badge-admin">{w}</span>)}
               </div>
             )}
           </div>

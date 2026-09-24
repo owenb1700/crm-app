@@ -285,6 +285,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // What sort of building an address is -- healthcare, commercial and so
+    // on -- kept against the address rather than borrowed from whoever
+    // worked there. Anyone active can set one: it's a shared fact about a
+    // building, the same as the work sitting at that address, and it's what
+    // teaches the Directory which firms do which kind of work.
+    match /buildingSectors/{addressKey} {
+      allow read: if isActive();
+      allow write: if isActive();
+    }
+
     match /contacts/{contactId} {
       allow read: if isActive();
       allow create, update: if isActive();
