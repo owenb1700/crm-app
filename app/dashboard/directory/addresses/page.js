@@ -193,7 +193,14 @@ function AddressesPageContent() {
         <div className="review-banner" style={{ marginBottom: 14, display: "block" }}>
           <div style={{ marginBottom: 6 }}>
             ⚠ {duplicateGroups.length} {duplicateGroups.length === 1 ? "building looks" : "buildings look"} like the same place written two ways.
-            Opening one shows everything filed under that spelling.
+            Opening one shows everything filed under that spelling —{" "}
+            <button
+              type="button"
+              className="link-muted matching-select-link"
+              onClick={() => router.push("/dashboard/directory/duplicates")}
+            >
+              merge them on Find Duplicates
+            </button>.
           </div>
           {duplicateGroups.map((group, i) => (
             <div key={`dupe-${i}`} className="private-note-hint" style={{ marginTop: 4 }}>

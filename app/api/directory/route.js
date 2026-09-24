@@ -1,5 +1,5 @@
 import { getAdminDb, getAdminAuth } from "../../../lib/firebaseAdmin";
-import { mergeCompanies, mergePeople, renameCompany, syncCompanyKeys, importDirectoryFirms } from "../../../lib/directoryRecords";
+import { mergeCompanies, mergePeople, mergeAddresses, renameCompany, syncCompanyKeys, importDirectoryFirms } from "../../../lib/directoryRecords";
 import { alertAdmins } from "../../../lib/adminAlert";
 
 // Directory maintenance that has to touch many records at once:
@@ -30,7 +30,7 @@ export async function POST(req) {
 
   const body = await req.json();
   const { action } = body;
-  const adminOnly = ["mergeCompanies", "mergePeople", "syncKeys", "dismissGroup", "importFirms"];
+  const adminOnly = ["mergeCompanies", "mergePeople", "mergeAddresses", "syncKeys", "dismissGroup", "importFirms"];
   if (![...adminOnly, "renameCompany"].includes(action)) {
     return Response.json({ error: "Unknown action" }, { status: 400 });
   }
@@ -50,6 +50,12 @@ export async function POST(req) {
       result = action === "mergeCompanies"
         ? await mergeCompanies({ keepId: body.keepId, mergeIds })
         : await mergePeople({ keepId: body.keepId, mergeIds });
+    } else if (action === "mergeAddresses") {
+      const labels = (body.mergeLabels || []).filter(Boolean);
+      if (!body.keepLabel || !labels.length) {
+        return Response.json({ error: "Pick which spelling to keep" }, { status: 400 });
+      }
+      result = await mergeAddresses({ keepLabel: body.keepLabel, mergeLabels: labels });
     } else if (action === "importFirms") {
       if (!Array.isArray(body.firms) || body.firms.length > 250 || !body.importId) {
         return Response.json({ error: "Send up to 250 firms at a time with an import id" }, { status: 400 });
