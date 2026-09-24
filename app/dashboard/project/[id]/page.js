@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { withDollar } from "../../../../lib/analytics";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -244,6 +244,23 @@ export default function ProjectDetail() {
   }, [projectId]);
 
   const isOwner = customer && customer.ownerId === uid;
+
+  // Arriving from the Edit button on My Projects (/dashboard/project/x?edit=1)
+  // opens edit mode straight away, so that button behaves the same as
+  // opening the project and pressing Edit here. Read from the URL directly
+  // rather than through useSearchParams, which would need a Suspense
+  // boundary around the whole page.
+  const askedToEdit = useRef(false);
+  useEffect(() => {
+    if (askedToEdit.current || !customer || isEditing) return;
+    const wants = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("edit") === "1";
+    if (!wants) return;
+    askedToEdit.current = true;
+    if (isOwner || role === "admin") startEdit();
+    // Take the flag out of the address bar so a refresh doesn't reopen it.
+    window.history.replaceState({}, "", window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer, isOwner, role, isEditing]);
   const isCollaborator = customer && (customer.collaboratorIds || []).includes(uid);
   const canSeeNotes = isOwner || isCollaborator || role === "admin";
   const canEditNotes = isOwner || isCollaborator;

@@ -23,12 +23,9 @@ import {
   query,
   where
 } from "firebase/firestore";
-import { ensureCompanyAndContact, ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf, BUILDING_SECTORS, WORK_TYPES } from "../../lib/directory";
+import { ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf, BUILDING_SECTORS, WORK_TYPES } from "../../lib/directory";
 import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor, isPipelineCheckInFor } from "../../lib/alertRecipients";
 import { bidderDirectoryEntries } from "../../lib/bidders";
-import FirmTypeSelect from "../components/FirmTypeSelect";
-import BuildingSectorSelect from "../components/BuildingSectorSelect";
-import WorkTypeSelect from "../components/WorkTypeSelect";
 import JobPicker from "../components/JobPicker";
 import { RECORDS_CHANGED_EVENT } from "../components/TrashModal";
 import { withoutTrashed, reminderJobIsActive } from "../../lib/trash";
@@ -38,10 +35,8 @@ import { canViewAnalytics, withDollar } from "../../lib/analytics";
 import ClosedCheckInActions from "../components/ClosedCheckInActions";
 import MyScorecard from "../components/MyScorecard";
 import ExportDataModal from "../components/ExportDataModal";
-import DeleteRecordButton from "../components/DeleteRecordButton";
 import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, yearsFrom, localDateKey } from "../../lib/closedProjects";
 import { ensureTowerModel } from "../../lib/towerModels";
-import CompanyContactFields from "../components/CompanyContactFields";
 import MobileNav from "../components/MobileNav";
 import EditUserModal from "../components/EditUserModal";
 import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, defaultPermissionsFor, roleLabel, accessSummary, canEnterForOthers } from "../../lib/permissions";
@@ -152,8 +147,6 @@ export default function Dashboard() {
   const [requestedIds, setRequestedIds] = useState(new Set()); // customerIds I've just requested (optimistic)
 
   // EDIT
-  const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({});
 
   // MODAL
   const [selected, setSelected] = useState(null);
@@ -905,56 +898,6 @@ export default function Dashboard() {
       else setView("pastProjects");
     }
   }, [myProfile, role, view]);
-
-  const startEdit = (c) => {
-    setEditingId(c.id);
-    setEditData({
-      projectName: c.projectName || c.company || "",
-      company: c.company || "",
-      companyCategory: firmTypeOf(c.companyCategory),
-      contact: c.contact || "",
-      email: c.email || "",
-      phone: c.phone || "",
-      category: c.category || "",
-      buildingSector: c.buildingSector || "",
-      workType: c.workType || "",
-      nextCheckIn: formatDate(c.nextCheckIn),
-      lastContact: formatDate(c.lastContact)
-    });
-  };
-
-  const saveEdit = async () => {
-    if (!editData.buildingSector) {
-      return alert("Please select a building sector");
-    }
-    if (!editData.workType) {
-      return alert("Please select a work type (new installation, replacement, or repair)");
-    }
-    const original = customers.find(c => c.id === editingId);
-    const payload = { ...editData };
-
-    // Closing a project schedules a 6-month "how are things going" check-in
-    // automatically, so it resurfaces on the Home calendar even though it's
-    // now hidden from the active My Projects list.
-    if (editData.category === "Project Closed" && original?.category !== "Project Closed") {
-      Object.assign(payload, closeProjectPayload(original?.activityLog));
-    } else if (editData.category !== "Project Closed" && original?.category === "Project Closed") {
-      payload.closedOutcome = null;
-      payload.closedAt = null;
-    }
-
-    await updateDoc(doc(db, "customers", editingId), payload);
-
-    ensureCompanyAndContact({
-      companies, contacts, companyName: editData.company, category: editData.companyCategory,
-      contactName: editData.contact, email: editData.email, phone: editData.phone, uid
-    }).then(loadDirectory);
-
-    setEditingId(null);
-    setEditData({});
-    showToast("Changes saved");
-    loadCustomers(uid, role === "admin");
-  };
 
   const handleFollowUp = async (c) => {
     const next = new Date();
@@ -2104,60 +2047,13 @@ export default function Dashboard() {
               <div
                 key={c.id}
                 className={`customer-card ${barClass}`}
-                onClick={() => { if (editingId !== c.id) router.push(`/dashboard/project/${c.id}`); }}
-                style={{ cursor: editingId === c.id ? "default" : "pointer" }}
+                onClick={() => router.push(`/dashboard/project/${c.id}`)}
+                style={{ cursor: "pointer" }}
               >
 
                 {/* LEFT */}
                 <div className="customer-card-left">
                   {!isOwner && <div className="owner-badge" style={{ marginBottom: 6 }}>🤝 Collaborating with {ownerLabel(c.ownerId)}</div>}
-                  {editingId === c.id ? (
-                    <>
-                      <input className="field" name={`edit-projectName-${c.id}`} autoComplete="off" placeholder="Project Name" value={editData.projectName} onChange={e => setEditData({ ...editData, projectName: e.target.value })} />
-                      <FirmTypeSelect id={`edit-project-type-${c.id}`} value={editData.companyCategory} onChange={v => setEditData({ ...editData, companyCategory: v })} />
-                      <CompanyContactFields
-                        idPrefix={`edit-project-${c.id}`}
-                        companies={companies}
-                        contacts={contacts}
-                        companyLabel={editData.companyCategory}
-                        companyCategory={editData.companyCategory}
-                        companyValue={editData.company}
-                        contactValue={editData.contact}
-                        emailValue={editData.email}
-                        phoneValue={editData.phone}
-                        onCompanyChange={v => setEditData(prev => ({ ...prev, company: v }))}
-                        onContactChange={v => setEditData(prev => ({ ...prev, contact: v }))}
-                        onEmailChange={v => setEditData(prev => ({ ...prev, email: v }))}
-                        onPhoneChange={v => setEditData(prev => ({ ...prev, phone: v }))}
-                      />
-
-                      <BuildingSectorSelect id={`edit-project-sector-${c.id}`} value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
-                      <WorkTypeSelect id={`edit-project-work-type-${c.id}`} value={editData.workType} onChange={v => setEditData({ ...editData, workType: v })} />
-
-                      <div className="field-label">Category</div>
-                      <select className="field" value={editData.category} onChange={e => setEditData({ ...editData, category: e.target.value })}>
-                        <option value="">Select category...</option>
-                        {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      </select>
-
-                      <div className="field-label">Next Date</div>
-                      <input
-                        className="field"
-                        type="date"
-                        value={editData.nextCheckIn}
-                        onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })}
-                      />
-
-                      <div className="field-label">Last Contact</div>
-                      <input
-                        className="field"
-                        type="date"
-                        value={editData.lastContact}
-                        onChange={e => setEditData({ ...editData, lastContact: e.target.value })}
-                      />
-                    </>
-                  ) : (
-                    <>
                       <div className="customer-name">{c.projectName || c.company}</div>
                       {c.company && (c.projectName && c.projectName !== c.company) && (
                         <div className="customer-contact">{c.company}</div>
@@ -2178,8 +2074,6 @@ export default function Dashboard() {
 
                       <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
                       <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>
-                    </>
-                  )}
                 </div>
 
                 {/* MIDDLE */}
@@ -2230,25 +2124,12 @@ export default function Dashboard() {
                         </label>
                       </div>
 
-                      {editingId === c.id ? (
-                        <>
-                          <button className="btn btn-secondary" onClick={saveEdit}>Save</button>
-                          <button className="btn btn-secondary" onClick={() => setEditingId(null)}>Cancel</button>
-                          <DeleteRecordButton
-                            kind="project"
-                            id={c.id}
-                            name={c.projectName || c.company || "Untitled project"}
-                            onDeleted={() => {
-                              setEditingId(null);
-                              setSelected(null);
-                              showToast("Project deleted");
-                              loadCustomers(uid, role === "admin");
-                            }}
-                          />
-                        </>
-                      ) : (
-                        <button className="btn btn-secondary" onClick={() => startEdit(c)}>Edit</button>
-                      )}
+                      <button
+                        className="btn btn-secondary"
+                        onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/project/${c.id}?edit=1`); }}
+                      >
+                        Edit
+                      </button>
                     </>
                   ) : (
                     <>

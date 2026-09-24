@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { withDollar } from "../../../../lib/analytics";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -224,6 +224,20 @@ export default function PipelineDetail() {
   // only the private notes/files and the destructive actions (delete,
   // convert to project) stay restricted to the owner/admin.
   const canEdit = !!pipeline;
+
+  // Same as the project page: a link carrying ?edit=1 opens edit mode, so
+  // an Edit button on a list behaves exactly like opening the entry and
+  // pressing Edit here.
+  const askedToEdit = useRef(false);
+  useEffect(() => {
+    if (askedToEdit.current || !pipeline || isEditing) return;
+    const wants = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("edit") === "1";
+    if (!wants) return;
+    askedToEdit.current = true;
+    if (canEdit) startEdit();
+    window.history.replaceState({}, "", window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pipeline, canEdit, isEditing]);
   const canEditPrivate = isOwner;
   const canDelete = isOwner || role === "admin";
 
