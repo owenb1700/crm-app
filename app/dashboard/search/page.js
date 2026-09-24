@@ -8,6 +8,8 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { doc, getDoc, getDocs, collection } from "firebase/firestore";
 import { primaryEmail, primaryPhone, OWNER_CATEGORY } from "../../../lib/directory";
+import { withDollar } from "../../../lib/analytics";
+import { matchesPartSearch } from "../../../lib/parts";
 import { equipmentRowsFrom } from "../../../lib/equipment";
 import { bidderContactNames } from "../../../lib/bidders";
 import DashboardHeader from "../../components/DashboardHeader";
@@ -35,15 +37,17 @@ function SearchPageContent() {
 
   const [customers, setCustomers] = useState([]);
   const [pipelineEntries, setPipelineEntries] = useState([]);
+  const [parts, setParts] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [products, setProducts] = useState([]);
   const [towerModels, setTowerModels] = useState([]);
 
   const loadAll = async () => {
-    const [customersSnap, pipelineSnap, companiesSnap, contactsSnap, productsSnap, towerModelsSnap] = await Promise.all([
+    const [customersSnap, pipelineSnap, partsSnap, companiesSnap, contactsSnap, productsSnap, towerModelsSnap] = await Promise.all([
       getDocs(collection(db, "customers")),
       getDocs(collection(db, "pipeline")),
+      getDocs(collection(db, "parts")),
       getDocs(collection(db, "companies")),
       getDocs(collection(db, "contacts")),
       getDocs(collection(db, "products")),
@@ -51,6 +55,7 @@ function SearchPageContent() {
     ]);
     setCustomers(withoutTrashed(customersSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
     setPipelineEntries(withoutTrashed(pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    setParts(withoutTrashed(partsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
     setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setProducts(productsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -160,6 +165,10 @@ function SearchPageContent() {
     ...bidderContactNames(p.biddingCompanies)
   ])) : [];
 
+  // The same matcher the Parts tab uses, so a search that finds a request
+  // there finds it here too.
+  const partsResults = q ? parts.filter(p => matchesPartSearch(p, q)) : [];
+
   const contractorResults = q ? companies.filter(c => c.category === "Contractor" && matches(q, [c.name, c.phone, c.address, c.website, c.notes])) : [];
   const engineeringResults = q ? companies.filter(c => c.category === "Engineering Firm" && matches(q, [c.name, c.phone, c.address, c.website, c.notes])) : [];
   const ownerResults = q ? companies.filter(c => c.category === OWNER_CATEGORY && matches(q, [c.name, c.phone, c.address, c.website, c.notes])) : [];
@@ -175,7 +184,7 @@ function SearchPageContent() {
   const towerModelResults = q ? towerModels.filter(m => matches(q, [m.manufacturer, m.model])) : [];
   const productResults = q ? products.filter(p => matches(q, [p.name, p.type, p.manufacturer, p.model, p.notes])) : [];
 
-  const totalResults = projectResults.length + pipelineResults.length + contractorResults.length +
+  const totalResults = projectResults.length + pipelineResults.length + partsResults.length + contractorResults.length +
     engineeringResults.length + ownerResults.length + otherCompanyResults.length + peopleResults.length +
     towerResults.length + towerModelResults.length + productResults.length;
 
@@ -219,7 +228,7 @@ function SearchPageContent() {
       <form className="toolbar" onSubmit={runSearch}>
         <input
           className="field"
-          placeholder="Search projects, pipeline, contractors, engineering firms, owners, people, towers, products..."
+          placeholder="Search projects, pipeline, parts, contractors, engineering firms, owners, people, towers, products..."
           value={query}
           onChange={e => setQuery(e.target.value)}
           style={{ flex: 1, marginBottom: 0 }}
@@ -263,6 +272,24 @@ function SearchPageContent() {
             <div className="customer-card-middle">
               {p.stage && <span className="role-badge role-badge-admin">{p.stage}</span>}
             </div>
+          </div>
+        )}
+      />
+
+      <Section
+        title="Parts"
+        items={ordered(partsResults)}
+        render={p => (
+          <div key={p.id} className="customer-card" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/parts/${p.id}`)}>
+            <div className="customer-card-left">
+              <div className="customer-name">{p.item || "Parts request"}</div>
+              <div className="private-note-hint">{p.company}{p.contact ? ` — ${p.contact}` : ""}</div>
+            </div>
+            <div className="customer-card-middle">
+              {p.projectAddress && <div className="private-note-hint">{p.projectAddress}</div>}
+              {p.value && <div className="customer-dates">{withDollar(p.value)}</div>}
+            </div>
+            {p.stage && <span className="role-badge role-badge-admin">{p.stage}</span>}
           </div>
         )}
       />
