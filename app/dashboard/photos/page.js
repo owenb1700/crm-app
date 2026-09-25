@@ -54,6 +54,14 @@ function PhotoGalleryPageContent() {
         }
         setProfile(profileSnap.data());
 
+        // Reached without an id -- a hand-typed or stale link. Say so
+        // plainly instead of letting Firestore's "even number of
+        // segments" complaint reach the page.
+        if (!recordId) {
+          setNotFound(true);
+          return;
+        }
+
         const snap = await getDoc(doc(db, kind === "pipeline" ? "pipeline" : "customers", recordId));
         if (!snap.exists() || isTrashed(snap.data())) {
           setNotFound(true);
@@ -89,7 +97,11 @@ function PhotoGalleryPageContent() {
       <div className="dashboard-page">
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Not found</h3>
-          <p className="modal-subtitle">This {kind === "pipeline" ? "pipeline entry" : "project"} may have been deleted.</p>
+          <p className="modal-subtitle">
+            {recordId
+              ? `This ${kind === "pipeline" ? "pipeline entry" : "project"} may have been deleted.`
+              : "This link doesn't say whose photos to show. Open the project or pipeline entry and use its Photos link."}
+          </p>
           <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
         </div>
       </div>
