@@ -6,7 +6,9 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, deleteDoc, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../../../lib/firebase";
 import { ensureCompanyAndContactBatch } from "../../../../lib/directory";
-import { blankPart, partPayload, partError, partChanges, logEntry, describeContractors, firmTypeLine } from "../../../../lib/parts";
+import { blankPart, partPayload, partError, partChanges, logEntry, describeContractors, firmTypeLine, stageStamps } from "../../../../lib/parts";
+import { todayKey } from "../../../../lib/leadTimes";
+import { LeadTimeSummary } from "../../../components/LeadTimeFields";
 import { withDollar } from "../../../../lib/analytics";
 import { personName } from "../../../../lib/people";
 import DashboardHeader from "../../../components/DashboardHeader";
@@ -138,8 +140,12 @@ function PartPageContent() {
     try {
       const payload = partPayload(editForm);
       const changes = partChanges(part, payload);
+      // Moving the stage forward is what dates the order, the shipment and
+      // the delivery -- nobody types those in.
+      const stamps = stageStamps(part, payload, todayKey());
       await updateDoc(doc(db, "parts", partId), {
         ...payload,
+        ...stamps,
         updatedAt: new Date().toISOString(),
         updatedBy: uid,
         log: [...(part.log || []), logEntry({ kind: "updated", changes, by: uid, byName: myName() })]
@@ -267,6 +273,14 @@ function PartPageContent() {
               <dt>Contractors</dt><dd>{describeContractors(part.contractors) || "—"}</dd>
               <dt>Project address</dt><dd>{part.projectAddress || "—"}</dd>
               <dt>Needed by</dt><dd>{part.neededBy || "—"}</dd>
+              <dt>Lead time</dt>
+              <dd>
+                {part.leadTime || "—"}
+                <LeadTimeSummary record={part} subject="This part" defaultUnit="days" className="private-note-hint" />
+              </dd>
+              {part.orderedOn && <><dt>Ordered on</dt><dd>{part.orderedOn}</dd></>}
+              {part.shippedOn && <><dt>Shipped on</dt><dd>{part.shippedOn}</dd></>}
+              {part.deliveredOn && <><dt>Delivered on</dt><dd>{part.deliveredOn}</dd></>}
               <dt>Entered by</dt><dd>{nameOf(part.ownerId) || "—"}</dd>
             </dl>
           )}

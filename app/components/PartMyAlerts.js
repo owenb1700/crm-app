@@ -76,7 +76,8 @@ export default function PartMyAlerts({ part, uid }) {
     <div className="project-section">
       <h4 className="field-label">My Alerts</h4>
       <p className="private-note-hint" style={{ marginBottom: 10 }}>
-        Parts don&apos;t alert anyone by themselves. Set your own date here{part.neededBy ? ` — it's needed by ${part.neededBy}` : ""} and
+        A lead time alerts whoever entered the request when it&apos;s late. Anything else is yours to
+        set: add a date here{part.neededBy ? ` — it's needed by ${part.neededBy}` : ""} and
         it shows on your calendar, My Projects and digest emails. Only you see it.
       </p>
 

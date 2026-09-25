@@ -5,6 +5,7 @@ import { PART_STAGES, blankContractor } from "../../lib/parts";
 import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "./DirectoryPickers";
 import MoneyInput from "./MoneyInput";
 import AddressAutocomplete from "./AddressAutocomplete";
+import { parseLeadTime } from "../../lib/leadTimes";
 import { normalizePhone } from "../../lib/tidyEntry";
 
 // The fields of a parts request, shared by the Add box on the Parts list
@@ -23,6 +24,15 @@ export default function PartForm({ values, setValues, idPrefix, companies = [], 
       };
     });
   };
+
+  // What the typed lead time works out to, shown while it's being typed so
+  // "10" is never silently read as the wrong unit.
+  const leadParsed = parseLeadTime(values.leadTime, { defaultUnit: "days" });
+  const leadTimeHint = !String(values.leadTime || "").trim()
+    ? "Clock starts when the stage goes to Ordered."
+    : leadParsed
+      ? `Read as ${leadParsed.label}${leadParsed.isRange ? ` — estimates use the middle, ${leadParsed.days} days` : ""}.`
+      : "Not a lead time yet — try \"10 days\" or \"3-4 weeks\".";
 
   return (
     <>
@@ -121,6 +131,18 @@ export default function PartForm({ values, setValues, idPrefix, companies = [], 
         <div>
           <label className="field-label" htmlFor={`${idPrefix}-needed`}>Needed by</label>
           <input id={`${idPrefix}-needed`} className="field" type="date" value={values.neededBy} onChange={e => setValues(prev => ({ ...prev, neededBy: e.target.value }))} />
+        </div>
+
+        <div>
+          <label className="field-label" htmlFor={`${idPrefix}-lead`}>Lead time</label>
+          <input
+            id={`${idPrefix}-lead`}
+            className="field"
+            placeholder="e.g. 10 days, or 3-4 weeks"
+            value={values.leadTime || ""}
+            onChange={e => setValues(prev => ({ ...prev, leadTime: e.target.value }))}
+          />
+          <p className="private-note-hint" style={{ marginTop: -4 }}>{leadTimeHint}</p>
         </div>
       </div>
 

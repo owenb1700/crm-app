@@ -63,17 +63,19 @@ async function runDigests(req) {
   }
 
   const db = getAdminDb();
-  const [usersSnap, customersSnap, pipelineSnap, remindersSnap] = await Promise.all([
+  const [usersSnap, customersSnap, pipelineSnap, remindersSnap, partsSnap] = await Promise.all([
     db.collection("users").get(),
     db.collection("customers").get(),
     db.collection("pipeline").get(),
-    db.collection("reminders").get()
+    db.collection("reminders").get(),
+    db.collection("parts").get()
   ]);
 
   const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   const customers = customersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   const pipelineEntries = pipelineSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   const reminders = remindersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const parts = partsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
   const testEmail = new URL(req.url).searchParams.get("testEmail");
 
@@ -102,6 +104,7 @@ async function runDigests(req) {
           customers,
           pipelineEntries,
           reminders,
+          parts,
           uid: user.id,
           role: user.role,
           daysAhead: schedule.daysAhead || 7,

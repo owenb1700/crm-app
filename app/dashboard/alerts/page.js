@@ -8,7 +8,8 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
 import { collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import DashboardHeader from "../../components/DashboardHeader";
-import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor } from "../../../lib/alertRecipients";
+import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor, isLeadTimeAlertFor, isPartLeadTimeAlertFor } from "../../../lib/alertRecipients";
+import { leadTimeStatus, isLeadTimeAlert, describeLeadTime, leadTimeAlertDate, todayKey } from "../../../lib/leadTimes";
 import MobileNav from "../../components/MobileNav";
 import { isTrashed } from "../../../lib/trash";
 
@@ -45,10 +46,12 @@ export default function AllAlerts() {
   const [editedDates, setEditedDates] = useState({});
 
   const loadAlerts = async (currentUid, currentRole) => {
-    const [customersSnap, pipelineSnap] = await Promise.all([
+    const [customersSnap, pipelineSnap, partsSnap] = await Promise.all([
       getDocs(collection(db, "customers")),
-      getDocs(collection(db, "pipeline"))
+      getDocs(collection(db, "pipeline")),
+      getDocs(collection(db, "parts"))
     ]);
+    const today = todayKey();
 
     const customers = customersSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
@@ -110,7 +113,69 @@ export default function AllAlerts() {
         canEditDate: true
       }));
 
-    const combined = [...customers, ...pipeline, ...bidDates]
+    // Lead times that have run out: equipment on a job that was due to
+    // ship and hasn't, or that should have arrived by now. The date isn't
+    // editable here -- it's worked out from the order date and the lead
+    // time, so it's the record itself that has to change.
+    const leadTimeRow = (record, { kind, link, name, defaultUnit, subject }) => {
+      const status = leadTimeStatus(record, today, { defaultUnit });
+      if (!isLeadTimeAlert(status)) return null;
+      return {
+        key: `lead-${kind}-${record.id}`,
+        kind,
+        id: record.id,
+        name,
+        company: record.company || "",
+        badge: status.state === "delivery-due" ? "Delivery overdue" : "Ship date",
+        nextCheckIn: leadTimeAlertDate(status),
+        note: describeLeadTime(status, { subject }),
+        link,
+        field: null,
+        canEditDate: false,
+        lockedReason: "Worked out from the order date — change it on the record"
+      };
+    };
+
+    const projectLeadTimes = customersSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(r => !isTrashed(r))
+      .filter(c => isLeadTimeAlertFor(c, currentUid))
+      .map(c => leadTimeRow(c, {
+        kind: "project",
+        link: `/dashboard/project/${c.id}`,
+        name: c.projectName || c.company || "Untitled project",
+        defaultUnit: "weeks",
+        subject: "This job"
+      }))
+      .filter(Boolean);
+
+    const pipelineLeadTimes = pipelineSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(r => !isTrashed(r))
+      .filter(p => isLeadTimeAlertFor(p, currentUid))
+      .map(p => leadTimeRow(p, {
+        kind: "pipeline",
+        link: `/dashboard/pipeline/${p.id}`,
+        name: p.title || "Untitled pipeline entry",
+        defaultUnit: "weeks",
+        subject: "This job"
+      }))
+      .filter(Boolean);
+
+    const partLeadTimes = partsSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(r => !isTrashed(r))
+      .filter(p => isPartLeadTimeAlertFor(p, currentUid))
+      .map(p => leadTimeRow(p, {
+        kind: "part",
+        link: `/dashboard/parts/${p.id}`,
+        name: p.item || "Parts request",
+        defaultUnit: "days",
+        subject: "This part"
+      }))
+      .filter(Boolean);
+
+    const combined = [...customers, ...pipeline, ...bidDates, ...projectLeadTimes, ...pipelineLeadTimes, ...partLeadTimes]
       .sort((a, b) => new Date(a.nextCheckIn) - new Date(b.nextCheckIn));
 
     setAlerts(combined);
@@ -277,6 +342,7 @@ export default function AllAlerts() {
           <div className="customer-card-middle">
             {a.company && <div className="private-note-hint">{a.company}</div>}
             <div className="customer-dates">Alert set for: {a.nextCheckIn.slice ? a.nextCheckIn.slice(0, 10) : a.nextCheckIn}</div>
+            {a.note && <div className="private-note-hint" style={{ marginTop: 4 }}>{a.note}</div>}
           </div>
           <div className="customer-card-right" onClick={e => e.stopPropagation()}>
             {a.canEditDate ? (
@@ -297,7 +363,7 @@ export default function AllAlerts() {
                 </button>
               </>
             ) : (
-              <span className="private-note-hint">Only the owner can change this date</span>
+              <span className="private-note-hint">{a.lockedReason || "Only the owner can change this date"}</span>
             )}
           </div>
         </div>

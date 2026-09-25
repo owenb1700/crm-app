@@ -32,6 +32,7 @@ import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MoneyInput from "../../../components/MoneyInput";
 import MobileNav from "../../../components/MobileNav";
+import { LeadTimeFields, LeadTimeSummary } from "../../../components/LeadTimeFields";
 import ProjectMyReminders from "../../../components/ProjectMyReminders";
 import RecordNotes from "../../../components/RecordNotes";
 import useUnsavedGuard from "../../../components/useUnsavedGuard";
@@ -72,7 +73,9 @@ const formatBytes = (bytes) => {
 
 const EDITABLE_FIELDS = [
   "projectName", "buildingSector", "company", "companyCategory", "contact", "email", "phone", "category", "projectValue", "workType",
-  "nextCheckIn", "lastContact", "projectAddress"
+  "nextCheckIn", "lastContact", "projectAddress",
+  // Equipment lead time and the dates it runs on.
+  "leadTime", "orderedOn", "shippedOn", "deliveredOn"
 ];
 
 export default function ProjectDetail() {
@@ -276,6 +279,10 @@ export default function ProjectDetail() {
       category: customer.category || "",
       projectValue: customer.projectValue || "",
       workType: customer.workType || "",
+      leadTime: customer.leadTime || "",
+      orderedOn: customer.orderedOn || "",
+      shippedOn: customer.shippedOn || "",
+      deliveredOn: customer.deliveredOn || "",
       buildingSector: customer.buildingSector || "",
       nextCheckIn: formatDate(customer.nextCheckIn),
       lastContact: formatDate(customer.lastContact),
@@ -651,6 +658,9 @@ export default function ProjectDetail() {
               <WorkTypeSelect id="project-detail-work-type" value={editData.workType} onChange={v => setEditData(prev => ({ ...prev, workType: v }))} />
             </div>
 
+            <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
+            <LeadTimeFields idPrefix="project-detail" values={editData} setValues={setEditData} />
+
             <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split</h4>
             <CreditSplitEditor idPrefix="project-detail-split" users={users} value={splitRows} onChange={setSplitRows} ownerId={customer.ownerId} ownerLabel="the project owner" />
             <div className="form-grid-3">
@@ -793,6 +803,15 @@ export default function ProjectDetail() {
                   </>
                 )}
                 <dt>Work Type</dt><dd>{customer.workType || "—"}</dd>
+                {customer.leadTime && (
+                  <>
+                    <dt>Lead Time</dt>
+                    <dd>
+                      {customer.leadTime}
+                      <LeadTimeSummary record={customer} subject="This job" className="private-note-hint" />
+                    </dd>
+                  </>
+                )}
               </dl>
             </div>
 

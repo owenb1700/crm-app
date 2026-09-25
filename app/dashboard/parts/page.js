@@ -7,7 +7,9 @@ import { addDoc, collection, deleteDoc, doc, getDoc, getDocs } from "firebase/fi
 import { auth, db } from "../../../lib/firebase";
 import { withoutTrashed } from "../../../lib/trash";
 import { COMPANY_CATEGORIES, ensureCompanyAndContactBatch } from "../../../lib/directory";
-import { partFromProject, isPartsProject, blankPart, partPayload, partError, filterParts, partsTotal, logEntry, describeContractors, PART_STAGES, firmTypeLine } from "../../../lib/parts";
+import { partFromProject, isPartsProject, blankPart, partPayload, partError, filterParts, partsTotal, logEntry, describeContractors, PART_STAGES, firmTypeLine, stageStamps } from "../../../lib/parts";
+import { todayKey, leadTimeStatus, isLeadTimeAlert } from "../../../lib/leadTimes";
+import { LeadTimeSummary } from "../../components/LeadTimeFields";
 import { formatMoney, withDollar } from "../../../lib/analytics";
 import { personName } from "../../../lib/people";
 import { downloadTable, csvDateStamp } from "../../../lib/csv";
@@ -143,12 +145,15 @@ function PartsPageContent() {
       const payload = partPayload(form);
       await addDoc(collection(db, "parts"), {
         ...payload,
+        // An entry added straight into a later stage still gets its dates.
+        ...stageStamps({}, payload, todayKey()),
         ownerId: uid,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         updatedBy: uid,
-        // Everything that happens to a parts entry is kept on it. No one
-        // is emailed or alerted -- parts stay out of everyone's alerts.
+        // Everything that happens to a parts entry is kept on it. The only
+        // thing that ever reaches someone's alerts is a lead time running
+        // out -- see lib/leadTimes.js.
         log: [logEntry({ kind: "created", by: uid, byName: nameOf(uid) })]
       });
       // A firm or person typed here joins the Directory, so parts work
@@ -237,15 +242,26 @@ function PartsPageContent() {
   );
   const anyFilter = Object.values(filters).some(Boolean);
 
+  // Estimated dates for the export, worked out the same way the cards do.
+  const leadDates = (p) => {
+    const status = leadTimeStatus(p, todayKey(), { defaultUnit: "days" });
+    return { shipDate: status.shipDate || "", deliveryDate: status.deliveryDate || "" };
+  };
+
+  // Requests whose ship or delivery date has come and gone.
+  const lateCount = shown.filter(p => isLeadTimeAlert(leadTimeStatus(p, todayKey(), { defaultUnit: "days" }))).length;
+
   const exportParts = (format) => downloadTable({
     format,
     filename: `parts${anyFilter ? "-filtered" : ""}-${csvDateStamp()}`,
     sheetName: "Parts",
-    headers: ["Part", "Stage", "Firm type", "Firm", "Contact", "Email", "Phone", "Contractors", "Project address", "Value", "Needed by", "Notes", "Entered by", "Added", "Last updated by", "Changes logged"],
+    headers: ["Part", "Stage", "Firm type", "Firm", "Contact", "Email", "Phone", "Contractors", "Project address", "Value", "Needed by", "Lead time", "Ordered on", "Est. ship", "Shipped on", "Est. delivery", "Delivered on", "Notes", "Entered by", "Added", "Last updated by", "Changes logged"],
     rows: shown.map(p => [
       p.item, p.stage, p.companyCategory, p.company, p.contact, p.email, p.phone,
       describeContractors(p.contractors), p.projectAddress || "",
-      p.value, p.neededBy, p.notes, nameOf(p.ownerId),
+      p.value, p.neededBy,
+      p.leadTime || "", p.orderedOn || "", leadDates(p).shipDate, p.shippedOn || "", leadDates(p).deliveryDate, p.deliveredOn || "",
+      p.notes, nameOf(p.ownerId),
       String(p.createdAt || "").slice(0, 10), nameOf(p.updatedBy), (p.log || []).length
     ])
   });
@@ -317,7 +333,12 @@ function PartsPageContent() {
 
             <SortPicker id="parts-sort" options={PART_SORTS} sort={sort} onChange={setSort} />
             <span className="list-toolbar-add" style={{ display: "flex", gap: 10 }}>
-              <ExportButtons label="this page" buttonText="Export page" onExport={exportParts} disabled={!shown.length} />
+              <ExportButtons
+                label={anyFilter ? "these filtered entries" : "this page"}
+                buttonText={anyFilter ? `Export these ${shown.length}` : "Export page"}
+                onExport={exportParts}
+                disabled={!shown.length}
+              />
               <button className="btn btn-primary" onClick={() => { setAdding(a => !a); setError(""); }}>
                 {adding ? "Cancel" : "ADD PARTS ENTRY"}
               </button>
@@ -356,6 +377,7 @@ function PartsPageContent() {
             {shown.length} {shown.length === 1 ? "entry" : "entries"}
             {partsTotal(shown) > 0 && <> · {formatMoney(partsTotal(shown))} total</>}
             {anyFilter && " (filtered)"}
+            {lateCount > 0 && <> · <span style={{ color: "#dc2626" }}>{lateCount} past due</span></>}
           </p>
 
           {shown.length === 0 && (
@@ -373,6 +395,7 @@ function PartsPageContent() {
                 <div className="customer-name">{p.item}</div>
                 <span className="role-badge" style={{ marginTop: 6 }}>{p.stage}</span>
                 {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
+                <LeadTimeSummary record={p} subject="This part" defaultUnit="days" />
                 {p.neededBy && <div className="customer-dates">Needed by {p.neededBy}</div>}
               </div>
               <div className="customer-card-middle">

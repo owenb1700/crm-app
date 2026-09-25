@@ -24,6 +24,7 @@ import { movedToPostBid, postBidCheckIn } from "../../../../lib/pipelineStages";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
+import { LeadTimeFields, LeadTimeSummary } from "../../../components/LeadTimeFields";
 import BidderEditor from "../../../components/BidderEditor";
 import { bidderRowsForEditing, biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson, groupBidders, contactsOf } from "../../../../lib/bidders";
 import { buildBidSnapshot } from "../../../../lib/bidHistory";
@@ -53,7 +54,9 @@ const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
 };
 
-const EDITABLE_FIELDS = ["title", "buildingSector", "stage", "bidDate", "value", "workType", "company", "contact", "email", "phone", "projectAddress", "salespersonId", "projectPointPersonId"];
+const EDITABLE_FIELDS = ["title", "buildingSector", "stage", "bidDate", "value", "workType", "company", "contact", "email", "phone", "projectAddress", "salespersonId", "projectPointPersonId",
+  // Equipment lead time and the dates it runs on.
+  "leadTime", "orderedOn", "shippedOn", "deliveredOn"];
 
 const formatBytes = (bytes) => {
   if (!bytes) return "";
@@ -247,6 +250,10 @@ export default function PipelineDetail() {
       stage: pipeline.stage || "Pre-Bid",
       buildingSector: pipeline.buildingSector || "",
       workType: pipeline.workType || "",
+      leadTime: pipeline.leadTime || "",
+      orderedOn: pipeline.orderedOn || "",
+      shippedOn: pipeline.shippedOn || "",
+      deliveredOn: pipeline.deliveredOn || "",
       bidDate: pipeline.bidDate || "",
       value: pipeline.value || "",
       company: pipeline.company || "",
@@ -698,6 +705,7 @@ export default function PipelineDetail() {
                 {pipeline.bidDate && <span>Bid {pipeline.bidDate}</span>}
                 {pipeline.value && <span>Value {pipeline.value}</span>}
                 <span>{pipeline.workType || "No work type"}</span>
+                <LeadTimeSummary record={pipeline} subject="This job" />
                 {pipeline.convertedToProjectId && (
                   <span>
                     ✅ Converted —{" "}
@@ -755,6 +763,8 @@ export default function PipelineDetail() {
                 <MoneyInput name="pd-value" value={editData.value} onChange={v => setEditData(prev => ({ ...prev, value: v }))} />
               </div>
               <WorkTypeSelect id="pipeline-detail-work-type" value={editData.workType} onChange={v => setEditData({ ...editData, workType: v })} />
+              <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
+              <LeadTimeFields idPrefix="pipeline-detail" values={editData} setValues={setEditData} />
               <CompanyContactFields
                 idPrefix="pipeline-detail"
                 companies={companies}
