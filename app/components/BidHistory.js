@@ -2,6 +2,7 @@
 
 import { firmTypeOf } from "../../lib/directory";
 import { groupBidders, contactsOf } from "../../lib/bidders";
+import Icon from "./Icon";
 
 const formatPhone = (phone) => {
   if (!phone) return "";
@@ -128,7 +129,7 @@ export default function BidHistory({ snapshot, isLive, bidFiles, canSeePrivate, 
 
       <div className="project-section">
         <h4 className="field-label">Bid Files (PDF)</h4>
-        {!canSeePrivate && <p className="private-note-hint">🔒 Bid files are private to the project owner and their collaborators.</p>}
+        {!canSeePrivate && <p className="private-note-hint"><Icon name="lock" size={11} /> Bid files are private to the project owner and their collaborators.</p>}
         {canSeePrivate && (bidFiles || []).length === 0 && <p className="private-note-hint">No files were uploaded to the pipeline entry.</p>}
         {canSeePrivate && (bidFiles || []).map((f, i) => (
           <div key={i} className="notes-history-item">

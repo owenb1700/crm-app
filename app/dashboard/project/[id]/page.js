@@ -44,6 +44,7 @@ import CreditSplitEditor from "../../../components/CreditSplitEditor";
 import { describeSplit, normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 import { stateChanges, activityEntry, withActivity } from "../../../../lib/activityLog";
 import { notifyUsers, newSplitMembers } from "../../../../lib/notify";
+import Icon from "../../../components/Icon";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
@@ -939,7 +940,7 @@ export default function ProjectDetail() {
           <h4 className="field-label">Notes</h4>
 
           {!canSeeNotes && (
-            <p className="private-note-hint">🔒 Notes are private to {ownerLabel(customer.ownerId)} and their collaborators.</p>
+            <p className="private-note-hint"><Icon name="lock" size={11} /> Notes are private to {ownerLabel(customer.ownerId)} and their collaborators.</p>
           )}
 
           {canSeeNotes && uid && (

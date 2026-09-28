@@ -2174,7 +2174,7 @@ export default function Dashboard() {
 
                 {/* LEFT */}
                 <div className="customer-card-left">
-                  {!isOwner && <div className="owner-badge" style={{ marginBottom: 6 }}>🤝 Collaborating with {ownerLabel(c.ownerId)}</div>}
+                  {!isOwner && <div className="owner-badge" style={{ marginBottom: 6 }}>Collaborating with {ownerLabel(c.ownerId)}</div>}
                       <div className="customer-name">{c.projectName || c.company}</div>
                       {c.company && (c.projectName && c.projectName !== c.company) && (
                         <div className="customer-contact">{c.company}</div>
@@ -2217,7 +2217,7 @@ export default function Dashboard() {
                     <div className="collab-requests" onClick={(e) => e.stopPropagation()}>
                       {pendingRequests.map(r => (
                         <div key={r.id} className="collab-request-row">
-                          <span>🤝 {r.requesterName} wants to collaborate</span>
+                          <span>{r.requesterName} wants to collaborate</span>
                           <div className="collab-request-actions">
                             <button className="btn btn-secondary" onClick={() => approveRequest(c.id, r)}>Approve</button>
                             <button className="btn btn-danger" onClick={() => denyRequest(c.id, r)}>Deny</button>
@@ -2231,7 +2231,7 @@ export default function Dashboard() {
                     <div className="collab-requests" onClick={(e) => e.stopPropagation()}>
                       {c.collaboratorIds.map(collabId => (
                         <div key={collabId} className="collab-request-row">
-                          <span>🤝 Collaborating with {ownerLabel(collabId)}</span>
+                          <span>Collaborating with {ownerLabel(collabId)}</span>
                           <button className="btn btn-danger" onClick={() => revokeCollaborator(c.id, collabId)}>Revoke</button>
                         </div>
                       ))}
@@ -2446,11 +2446,11 @@ export default function Dashboard() {
                 <div className="customer-card-middle">
                   <div className="owner-badge">Owned by {ownerLabel(c.ownerId)}</div>
                   {isCollaborator ? (
-                    <div className="private-note-hint">🤝 You're collaborating on this entry</div>
+                    <div className="private-note-hint">You&apos;re collaborating on this entry</div>
                   ) : role === "admin" ? (
                     <div className="private-note-hint">Notes visible to you as admin</div>
                   ) : (
-                    <div className="private-note-hint">🔒 Notes are private to {ownerLabel(c.ownerId)}</div>
+                    <div className="private-note-hint"><Icon name="lock" size={11} /> Notes are private to {ownerLabel(c.ownerId)}</div>
                   )}
                 </div>
 

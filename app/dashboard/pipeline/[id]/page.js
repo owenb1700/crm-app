@@ -45,6 +45,7 @@ import { FirmSelect } from "../../../components/DirectoryPickers";
 import { sameCompany } from "../../../../lib/companyMatch";
 import CreditSplitEditor from "../../../components/CreditSplitEditor";
 import { describeSplit, normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
+import Icon from "../../../components/Icon";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
@@ -1003,7 +1004,7 @@ export default function PipelineDetail() {
             <h4 className="field-label">Files (PDF)</h4>
 
             {!canSeeNotes && (
-              <p className="private-note-hint">🔒 Files are private to {ownerLabel(pipeline.ownerId)}.</p>
+              <p className="private-note-hint"><Icon name="lock" size={11} /> Files are private to {ownerLabel(pipeline.ownerId)}.</p>
             )}
 
             {canSeeNotes && (
