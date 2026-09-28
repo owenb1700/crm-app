@@ -24,7 +24,7 @@ import {
   where
 } from "firebase/firestore";
 import { ensureCompanyAndContactBatch, OWNER_CATEGORY, firmTypeOf, BUILDING_SECTORS, WORK_TYPES } from "../../lib/directory";
-import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor, isPipelineCheckInFor } from "../../lib/alertRecipients";
+import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor, isPipelineCheckInFor, wasMineOnPipeline, wasMineOnProject } from "../../lib/alertRecipients";
 import { bidderDirectoryEntries } from "../../lib/bidders";
 import JobPicker from "../components/JobPicker";
 import { RECORDS_CHANGED_EVENT } from "../components/TrashModal";
@@ -1381,8 +1381,11 @@ export default function Dashboard() {
     // What already happened, on the days it happened -- so a week behind
     // today shows what was on it rather than nothing. Read-only markers;
     // see lib/calendarHistory.js.
-    const mineProject = (c) => isProjectCheckInFor(c, uid, role);
-    const minePipeline = (p) => isPipelineBidAlertFor(p, uid, role) || isWonFollowUpFor(p, uid, role) || isPipelineCheckInFor(p, uid, role);
+    // "Was this ever mine", not "should this chase me" -- the alert rules
+    // all bail out once a job is settled, which would have hidden every
+    // lost and did-not-bid entry from the history.
+    const mineProject = (c) => wasMineOnProject(c, uid, role);
+    const minePipeline = (p) => wasMineOnPipeline(p, uid, role);
 
     const history = dedupeByDay([
       ...resolvedBidItems(pipelineEntries, minePipeline),
@@ -1686,7 +1689,7 @@ export default function Dashboard() {
               <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>✅ Won — Check In</span>
             ) : c._kind === "reminder" ? (
               <>
-                <span className="role-badge" style={{ marginTop: 4 }}>🔔 Reminder</span>
+                <span className="role-badge" style={{ marginTop: 4 }}><Icon name="bell" size={11} /> Reminder</span>
                 {(c.projectId || c.pipelineId || c.partId) && <div className="customer-meta" style={{ marginTop: 4 }}>For {jobTitleOf(c)}</div>}
               </>
             ) : (
@@ -1734,7 +1737,7 @@ export default function Dashboard() {
       >
         <div className="customer-card-left">
           <div className="customer-name">{r.subject}</div>
-          <span className="role-badge" style={{ marginTop: 6 }}>🔔 Reminder</span>
+          <span className="role-badge" style={{ marginTop: 6 }}><Icon name="bell" size={11} /> Reminder</span>
           {(r.projectId || r.pipelineId) && <div className="customer-meta" style={{ marginTop: 4 }}>For {jobTitleOf(r)}</div>}
           <div className="customer-dates">Due: {r.date}</div>
         </div>

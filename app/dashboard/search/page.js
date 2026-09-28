@@ -15,6 +15,7 @@ import { bidderContactNames } from "../../../lib/bidders";
 import DashboardHeader from "../../components/DashboardHeader";
 import MobileNav from "../../components/MobileNav";
 import { withoutTrashed } from "../../../lib/trash";
+import Icon from "../../components/Icon";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -236,7 +237,7 @@ function SearchPageContent() {
         />
         <button className="btn btn-primary search-submit" type="submit" aria-label="Search">
           <span className="search-submit-text">Search</span>
-          <span className="search-submit-icon" aria-hidden="true">🔍</span>
+          <span className="search-submit-icon" aria-hidden="true"><Icon name="search" size={15} /></span>
         </button>
         <SortPicker id="search-sort" options={SEARCH_SORTS} sort={sort} onChange={setSort} />
       </form>

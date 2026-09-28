@@ -8,6 +8,7 @@ import { equipmentRowsFrom } from "../../lib/equipment";
 import { bidderContactNames } from "../../lib/bidders";
 import { withoutTrashed } from "../../lib/trash";
 import { collectAddresses, matchesAddressSearch, addressKey } from "../../lib/addresses";
+import Icon from "./Icon";
 
 // The header's "Search everything" box: typing lists the closest matches
 // across projects, pipeline entries, the Directory, towers, and products --
@@ -240,7 +241,7 @@ export default function GlobalSearch({
       </div>
       <button className="btn btn-secondary search-submit" type="submit" aria-label="Search">
         <span className="search-submit-text">Search</span>
-        <span className="search-submit-icon" aria-hidden="true">🔍</span>
+        <span className="search-submit-icon" aria-hidden="true"><Icon name="search" size={15} /></span>
       </button>
     </form>
   );
