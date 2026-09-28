@@ -67,7 +67,7 @@ function ResetPasswordContent() {
             <p className="auth-subtitle">Choose a password to sign in with.</p>
 
             {!token && (
-              <p style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>
+              <p style={{ color: "var(--color-danger)", fontSize: 13, marginBottom: 12 }}>
                 This link is missing its reset code. Ask an admin to send you a new one.
               </p>
             )}
@@ -93,7 +93,7 @@ function ResetPasswordContent() {
               onKeyDown={e => { if (e.key === "Enter") submit(); }}
             />
 
-            {error && <p style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>{error}</p>}
+            {error && <p style={{ color: "var(--color-danger)", fontSize: 13, marginBottom: 12 }}>{error}</p>}
 
             <button className="btn btn-primary btn-block" disabled={saving || !token} onClick={submit}>
               {saving ? "Saving..." : "Set Password"}

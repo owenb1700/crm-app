@@ -126,7 +126,7 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
 
               <div className="field-label" style={{ marginTop: 12 }}>Notifications</div>
               {notificationsError && (
-                <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ Couldn't load alerts: {notificationsError}</p>
+                <p className="private-note-hint" style={{ color: "var(--color-danger)" }}>⚠ Couldn't load alerts: {notificationsError}</p>
               )}
               {!notificationsError && notifications.length === 0 && (
                 <p className="private-note-hint">Nothing yet.</p>

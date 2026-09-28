@@ -131,7 +131,7 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
                     </td>
                     <td style={{ padding: "6px 0", verticalAlign: "top" }}>
                       {load && (
-                        <span className="private-note-hint" style={load.over ? { color: "#b45309" } : undefined}>
+                        <span className="private-note-hint" style={load.over ? { color: "var(--color-warning-strong)" } : undefined}>
                           {load.over ? "⚠ " : ""}{describeDayLoad(load)}
                         </span>
                       )}

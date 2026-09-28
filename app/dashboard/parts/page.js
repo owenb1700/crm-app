@@ -340,7 +340,7 @@ function PartsPageContent() {
                 disabled={!shown.length}
               />
               <button className="btn btn-primary" onClick={() => { setAdding(a => !a); setError(""); }}>
-                {adding ? "Cancel" : "ADD PARTS ENTRY"}
+                {adding ? "Cancel" : "Add Parts Entry"}
               </button>
             </span>
           </div>
@@ -360,7 +360,7 @@ function PartsPageContent() {
           )}
 
           {notice && <p className="private-note-hint">{notice}</p>}
-          {error && <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ {error}</p>}
+          {error && <p className="private-note-hint" style={{ color: "var(--color-danger)" }}>⚠ {error}</p>}
 
           {adding && (
             <div className="admin-card" style={{ marginBottom: 20 }}>
@@ -377,11 +377,11 @@ function PartsPageContent() {
             {shown.length} {shown.length === 1 ? "entry" : "entries"}
             {partsTotal(shown) > 0 && <> · {formatMoney(partsTotal(shown))} total</>}
             {anyFilter && " (filtered)"}
-            {lateCount > 0 && <> · <span style={{ color: "#dc2626" }}>{lateCount} past due</span></>}
+            {lateCount > 0 && <> · <span style={{ color: "var(--color-danger)" }}>{lateCount} past due</span></>}
           </p>
 
           {shown.length === 0 && (
-            <p className="private-note-hint">{anyFilter ? "No parts match these filters." : "No parts entries yet. Use ADD PARTS ENTRY to start one."}</p>
+            <p className="private-note-hint">{anyFilter ? "No parts match these filters." : "No parts entries yet. Use Add Parts Entry to start one."}</p>
           )}
 
           {shown.map(p => (

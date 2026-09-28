@@ -174,7 +174,7 @@ export function LeadTimeSummary({ record, subject = "This job", defaultUnit = "w
   const due = alertsOn && status.state === "ship-due";
 
   return (
-    <div className={className} style={late ? { color: "#dc2626" } : due ? { color: "#b45309" } : undefined}>
+    <div className={className} style={late ? { color: "var(--color-danger)" } : due ? { color: "var(--color-warning-strong)" } : undefined}>
       {late || due ? "\u26a0 " : ""}{describeLeadTime(status, { subject })}
     </div>
   );

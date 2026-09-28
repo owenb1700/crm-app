@@ -194,12 +194,12 @@ function SchedulingPageContent() {
             <span className="private-note-hint" style={{ margin: 0 }}>
               Everyone&apos;s work, next 4 weeks. {CREW_CAPACITY} men is a normal day.
               {overbooked.length > 0 && (
-                <> <strong style={{ color: "#b45309" }}>⚠ {overbooked.length} {overbooked.length === 1 ? "day is" : "days are"} over.</strong></>
+                <> <strong style={{ color: "var(--color-warning-strong)" }}>⚠ {overbooked.length} {overbooked.length === 1 ? "day is" : "days are"} over.</strong></>
               )}
             </span>
             <span className="list-toolbar-add">
               <button className="btn btn-primary" onClick={() => { setOpenDay(null); startEditing("", ""); }}>
-                ADD MANPOWER
+                Add Manpower
               </button>
             </span>
           </div>
@@ -228,7 +228,7 @@ function SchedulingPageContent() {
                       {total > 0 && (
                         <span
                           className="role-badge"
-                          style={{ marginLeft: 6, background: over ? "#fef3c7" : undefined, color: over ? "#b45309" : undefined }}
+                          style={{ marginLeft: 6, background: over ? "var(--color-warning-bg)" : undefined, color: over ? "var(--color-warning-strong)" : undefined }}
                           title={over ? `${total} men booked — over the usual ${CREW_CAPACITY}` : `${total} of ${CREW_CAPACITY} men booked`}
                         >
                           {over ? "⚠ " : ""}{total}
@@ -254,7 +254,7 @@ function SchedulingPageContent() {
           </div>
 
           {calendarDays.every(({ key }) => !(byDate.get(key) || []).length) && (
-            <p className="private-note-hint">No work scheduled in the next 4 weeks. Use ADD MANPOWER to put a job on the calendar.</p>
+            <p className="private-note-hint">No work scheduled in the next 4 weeks. Use Add Manpower to put a job on the calendar.</p>
           )}
         </>
       )}
@@ -267,7 +267,7 @@ function SchedulingPageContent() {
           <div className="modal-card" role="dialog" aria-labelledby="day-title" onClick={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setOpenDay(null)} aria-label="Close">✕</button>
             <h3 id="day-title" className="modal-title" style={{ marginTop: 0 }}>{openDay}</h3>
-            <p className={`modal-subtitle ${isOverbooked(byDate, openDay) ? "" : ""}`} style={isOverbooked(byDate, openDay) ? { color: "#b45309" } : undefined}>
+            <p className={`modal-subtitle ${isOverbooked(byDate, openDay) ? "" : ""}`} style={isOverbooked(byDate, openDay) ? { color: "var(--color-warning-strong)" } : undefined}>
               {isOverbooked(byDate, openDay) ? "⚠ " : ""}
               {menOnDate(byDate, openDay)} of {CREW_CAPACITY} men booked
               {isOverbooked(byDate, openDay) ? ` — ${menOnDate(byDate, openDay) - CREW_CAPACITY} over` : ""}

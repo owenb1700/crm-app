@@ -2248,6 +2248,20 @@ a {
   color: var(--color-text-muted);
 }
 
+/* The right-hand column on Home: what's due, and the scorecard under it. */
+.calendar-side-column {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.calendar-side-column > .calendar-side-panel {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
 .calendar-side-panel {
   flex: 1;
   min-width: 260px;

@@ -1799,7 +1799,7 @@ export default function Dashboard() {
 
                   <div className="field-label" style={{ marginTop: 12 }}>Notifications</div>
                   {notificationsError && (
-                    <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ Couldn't load alerts: {notificationsError}</p>
+                    <p className="private-note-hint" style={{ color: "var(--color-danger)" }}>⚠ Couldn't load alerts: {notificationsError}</p>
                   )}
                   {!notificationsError && notifications.length === 0 && (
                     <p className="private-note-hint">Nothing yet.</p>
@@ -1976,6 +1976,7 @@ export default function Dashboard() {
             })}
           </div>
 
+          <div className="calendar-side-column">
           <div className="calendar-side-panel">
             <div className="calendar-panel-header">
               <h3 className="modal-title" style={{ margin: 0 }}>{panelTitle}</h3>
@@ -1987,7 +1988,7 @@ export default function Dashboard() {
             </div>
 
             {remindersError && (
-              <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ Couldn't load your reminders: {remindersError}</p>
+              <p className="private-note-hint" style={{ color: "var(--color-danger)" }}>⚠ Couldn't load your reminders: {remindersError}</p>
             )}
 
             {panelProjects.length === 0 && (
@@ -1996,13 +1997,17 @@ export default function Dashboard() {
 
             {panelProjects.map(renderCalendarItem)}
           </div>
+
+          {/* Your own numbers, under what's due. They used to sit on top
+              of My Projects, which pushed the actual list of work down the
+              page; Home is where you glance at how things stand. */}
+          <MyScorecard pipelineEntries={pipelineEntries} projects={customers} uid={uid} />
+          </div>
         </div>
       )}
 
       {view === "personal" && role !== "estimating" && (
         <>
-          <MyScorecard pipelineEntries={pipelineEntries} projects={customers} uid={uid} />
-
           <div className="list-toolbar">
             <button
               className={`btn btn-secondary ${anyActive(personalFilters) ? "has-filters" : ""}`}
@@ -2024,7 +2029,7 @@ export default function Dashboard() {
               <option value="reminders">Reminders only</option>
             </select>
             <ExportButtons label="this page" buttonText="Export page" onExport={exportMyProjects} disabled={!filteredCustomers.length && !myPipelineEntries.length && !activeReminders.length} />
-            <button className="btn btn-primary list-toolbar-add" onClick={() => router.push("/dashboard/project/new")}>ADD PROJECT</button>
+            <button className="btn btn-primary list-toolbar-add" onClick={() => router.push("/dashboard/project/new")}>Add Project</button>
           </div>
 
           {(openFilters.personal || anyActive(personalFilters)) && (
@@ -2227,7 +2232,7 @@ export default function Dashboard() {
           ], personalSort).map(item => item.element)}
 
           {remindersError && (
-            <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ Couldn't load your reminders: {remindersError}</p>
+            <p className="private-note-hint" style={{ color: "var(--color-danger)" }}>⚠ Couldn't load your reminders: {remindersError}</p>
           )}
 
           {filteredCustomers.length === 0 && myPipelineEntries.length === 0 && activeReminders.length === 0 && (
@@ -2368,13 +2373,11 @@ export default function Dashboard() {
         <>
           {/* Estimating's My Projects is the pipeline list, so their
               reminders get their own section on top of it instead. */}
-          {view === "personal" && <MyScorecard pipelineEntries={pipelineEntries} projects={customers} uid={uid} />}
-
           {view === "personal" && (
             <div style={{ marginBottom: 24 }}>
               <h3 className="modal-title" style={{ marginBottom: 12 }}>My Reminders</h3>
               {remindersError && (
-                <p className="private-note-hint" style={{ color: "#dc2626" }}>⚠ Couldn't load your reminders: {remindersError}</p>
+                <p className="private-note-hint" style={{ color: "var(--color-danger)" }}>⚠ Couldn't load your reminders: {remindersError}</p>
               )}
               {!remindersError && activeReminders.length === 0 && (
                 <p className="private-note-hint">No reminders. Use Reminders → Add reminder to create one.</p>
@@ -2400,11 +2403,11 @@ export default function Dashboard() {
             <span className="list-toolbar-add" style={{ display: "flex", gap: 10 }}>
               {view === "personal" && role === "estimating" && canEnterForOthers({ ...(myProfile || {}), role }) && (
                 <button className="btn btn-secondary" onClick={() => router.push("/dashboard/project/new")}>
-                  ADD PROJECT
+                  Add Project
                 </button>
               )}
               <button className="btn btn-primary" onClick={() => router.push("/dashboard/pipeline/new")}>
-                ADD PIPELINE ENTRY
+                Add Pipeline Entry
               </button>
             </span>
           </div>
