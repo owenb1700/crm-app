@@ -51,6 +51,7 @@ import { exportDashboardView } from "../../lib/viewExport";
 import ExportButtons from "../components/ExportButtons";
 import SortPicker from "../components/SortPicker";
 import { sortRows, sortMixed } from "../../lib/sorting";
+import Icon from "../components/Icon";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -1774,7 +1775,7 @@ export default function Dashboard() {
           <div className="alerts-menu">
             {/* Opens on hover with a mouse, on tap on touch screens (TouchMenus). */}
             <button className="avatar-circle" style={{ position: "relative" }} aria-label="Alerts">
-              🔔
+              <Icon name="bell" size={15} />
               {alertsCount > 0 && <span className="alerts-badge">{alertsCount}</span>}
             </button>
             <div className="alerts-dropdown">

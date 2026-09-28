@@ -4154,3 +4154,17 @@ a {
   padding: 0;
   pointer-events: none;
 }
+
+/* Line icons (app/components/Icon.js). They take the colour and the
+   baseline of whatever they sit in, so a bell in a muted hint is muted. */
+
+.icon {
+  vertical-align: -0.15em;
+  flex: none;
+}
+
+/* An icon directly before its label needs a little air. */
+.icon + span,
+.icon + strong {
+  margin-left: 4px;
+}

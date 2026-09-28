@@ -8,6 +8,7 @@ import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "fireb
 import UserSettingsModal from "./UserSettingsModal";
 import ExportDataModal from "./ExportDataModal";
 import { canViewAnalytics } from "../../lib/analytics";
+import Icon from "./Icon";
 
 const ROLE_LABELS = { admin: "Admin", member: "Salesperson", estimating: "Estimating Department" };
 const roleLabel = (role) => ROLE_LABELS[role] || role;
@@ -93,7 +94,7 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
     <>
       <div className="alerts-menu">
         <button className="avatar-circle" style={{ position: "relative" }} aria-label="Alerts">
-          🔔
+          <Icon name="bell" size={15} />
           {alertsCount > 0 && <span className="alerts-badge">{alertsCount}</span>}
         </button>
         <div className="alerts-dropdown">
