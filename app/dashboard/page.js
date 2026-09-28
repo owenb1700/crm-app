@@ -38,6 +38,7 @@ import ExportDataModal from "../components/ExportDataModal";
 import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, yearsFrom, localDateKey } from "../../lib/closedProjects";
 import { ensureTowerModel } from "../../lib/towerModels";
 import MobileNav from "../components/MobileNav";
+import { LeadTimeSummary } from "../components/LeadTimeFields";
 import EditUserModal from "../components/EditUserModal";
 import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, defaultPermissionsFor, roleLabel, accessSummary, canEnterForOthers } from "../../lib/permissions";
 import { FirmSelect } from "../components/DirectoryPickers";
@@ -2071,6 +2072,16 @@ export default function Dashboard() {
                   {c.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {c.buildingSector}</div>}
                       {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(c.projectValue)}</div>}
                   {c.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{c.workType}</div>}
+                  {/* A project usually has several components coming, on
+                      several different lead times. The one kept on the
+                      record is the longest of them, since they ship
+                      together -- so the card says which one it is. */}
+                  {c.leadTime && (
+                    <div className="customer-meta" style={{ marginTop: 4 }}>
+                      Lead time (longest component): {c.leadTime}
+                      <LeadTimeSummary record={c} subject="This job" className="customer-meta" />
+                    </div>
+                  )}
 
                       <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
                       <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>

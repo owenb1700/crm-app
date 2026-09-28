@@ -5,10 +5,10 @@ import { leadTimeStatus, describeLeadTime, parseLeadTime, todayKey, TRANSIT_DAYS
 // The lead time on a project, pipeline entry or parts request, and the
 // dates that move it along. Shared by all of them so they can't drift.
 //
-// One lead time for the whole job, not one per piece of equipment:
-// everything on a job ships together almost every time, so the number to
-// put here is the LONGEST item's -- the job is only as early as the piece
-// that lands last.
+// One lead time for the whole job, not one per piece of equipment. A job
+// usually has several components coming, each on its own lead time, and
+// they ship together -- so the figure that matters is the LONGEST of
+// them. The job is only as early as the component that lands last.
 //
 // Most lead times are recorded and never chased: the figure is there for
 // the history, and nothing alerts anyone unless they ask for it.
@@ -63,6 +63,9 @@ export function LeadTimeFields({ idPrefix, values, setValues, defaultUnit = "wee
   const set = (field) => (e) => setValues(prev => ({ ...prev, [field]: e.target.value }));
   const stamp = (field) => () => setValues(prev => ({ ...prev, [field]: todayKey() }));
 
+  // Parts are a single item; a job is several components on different
+  // lead times, so on a job the figure wanted is the longest of them.
+  const longestWord = defaultUnit === "days" ? "supplier's" : "longest component's";
   const hasLeadTime = !!String(values.leadTime || "").trim();
   const parsed = parseLeadTime(values.leadTime, { defaultUnit });
   const alertsOn = values.leadTimeAlerts === true;
@@ -80,7 +83,7 @@ export function LeadTimeFields({ idPrefix, values, setValues, defaultUnit = "wee
   };
 
   const hint = !hasLeadTime
-    ? "The longest item's lead time -- everything ships together. Leave it blank if you're not tracking one."
+    ? `The ${longestWord} lead time — a job usually has several components coming, and they ship together. Leave it blank if you're not tracking one.`
     : parsed
       ? `${parsed.isRange ? "Middle of the range \u2014 " : ""}${parsed.days} business days${parsed.inWeeks ? " (5 per week)" : ""}.`
       : "Second number has to be at least the first.";
@@ -89,7 +92,9 @@ export function LeadTimeFields({ idPrefix, values, setValues, defaultUnit = "wee
     <>
       <div className="form-grid-2">
         <div>
-          <label className="field-label" htmlFor={`${idPrefix}-lead-low`}>Lead time</label>
+          <label className="field-label" htmlFor={`${idPrefix}-lead-low`}>
+            Lead time{defaultUnit === "days" ? "" : " (longest component)"}
+          </label>
           <LeadTimeInput
             idPrefix={idPrefix}
             value={values.leadTime || ""}

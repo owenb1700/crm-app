@@ -806,7 +806,7 @@ export default function ProjectDetail() {
                 <dt>Work Type</dt><dd>{customer.workType || "—"}</dd>
                 {customer.leadTime && (
                   <>
-                    <dt>Lead Time</dt>
+                    <dt>Lead Time (longest component)</dt>
                     <dd>
                       {customer.leadTime}
                       <LeadTimeSummary record={customer} subject="This job" className="private-note-hint" />
