@@ -916,6 +916,45 @@ export default function Dashboard() {
     by: uid
   });
 
+  // An overdue check-in had nowhere to go from the panel: only reminders
+  // carried buttons, so a late project or pipeline entry just sat there
+  // being late. Push it out a week, or take it off the list entirely.
+  const collectionOf = (c) => (c._kind === "pipeline" || c._kind === "bid" ? "pipeline" : "customers");
+
+  const pushOutAWeek = async (c) => {
+    const next = new Date();
+    next.setDate(next.getDate() + 7);
+    const to = adjustWeekend(next.toISOString());
+    await updateDoc(doc(db, collectionOf(c), c.id), {
+      nextCheckIn: to,
+      activityLog: [...(c.activityLog || []), checkInMoved(c, to, "Pushed out a week")]
+    });
+    showToast("Pushed out to " + to);
+    loadCustomers(uid, role === "admin");
+    loadPipeline();
+  };
+
+  // Snooze clears the date rather than moving it. The job keeps
+  // everything else; it just stops being something that's late, until
+  // someone gives it a new date on its own page.
+  const snoozeOffList = async (c) => {
+    await updateDoc(doc(db, collectionOf(c), c.id), {
+      nextCheckIn: null,
+      activityLog: [...(c.activityLog || []), checkInMoved(c, "(none)", "Snoozed off the overdue list")]
+    });
+    showToast("Taken off your overdue list");
+    loadCustomers(uid, role === "admin");
+    loadPipeline();
+  };
+
+  const stopShipAlerts = async (c) => {
+    const id = c._recordId || c.id;
+    await updateDoc(doc(db, collectionOf(c), id), { leadTimeAlerts: false });
+    showToast("Ship-date alerts off for this job");
+    loadCustomers(uid, role === "admin");
+    loadPipeline();
+  };
+
   const handleFollowUp = async (c) => {
     const next = new Date();
     next.setDate(next.getDate() + 14);
@@ -1723,6 +1762,35 @@ export default function Dashboard() {
               <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
                 <button className="btn btn-secondary" onClick={() => followUpReminder(c)}>Follow Up (1 Week)</button>
                 <button className="btn btn-primary" onClick={() => completeReminder(c)}>Complete</button>
+              </div>
+            )}
+
+            {/* A bid date that has passed isn't rescheduled -- it's
+                answered, on the entry, with Bids Sent or Not Bidding. */}
+            {isOverdueItem(c) && (c._kind === "project" || c._kind === "pipeline") && !c._done && (
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                <button className="btn btn-secondary" onClick={() => pushOutAWeek(c)}>Push out a week</button>
+                <button className="btn btn-secondary" onClick={() => snoozeOffList(c)}>Snooze</button>
+              </div>
+            )}
+
+            {/* A ship date isn't a date anyone picked -- it's worked out
+                from the lead time and the order date, so there's nothing
+                to push. Turning the alert off is what "take it off my
+                list" means here. */}
+            {isOverdueItem(c) && c._kind === "ship" && (
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                <button className="btn btn-secondary" onClick={() => stopShipAlerts(c)}>Stop alerting me</button>
+              </div>
+            )}
+
+            {/* A bid date that has passed is answered, not rescheduled --
+                the two buttons for that live on the entry itself. */}
+            {isOverdueItem(c) && c._kind === "bid" && !c._done && (
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                <button className="btn btn-primary" onClick={() => router.push(`/dashboard/pipeline/${c.id}`)}>
+                  Bids sent or not bidding?
+                </button>
               </div>
             )}
             {c._kind === "project" && isClosedWithCheckIn(c) && c.ownerId === uid && (
