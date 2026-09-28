@@ -5,8 +5,7 @@ import { PART_STAGES, blankContractor } from "../../lib/parts";
 import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "./DirectoryPickers";
 import MoneyInput from "./MoneyInput";
 import AddressAutocomplete from "./AddressAutocomplete";
-import { parseLeadTime, DEFAULT_LEAD_TIME_DAYS } from "../../lib/leadTimes";
-import { LeadTimeInput } from "./LeadTimeFields";
+import { LeadTimeFields } from "./LeadTimeFields";
 import { normalizePhone } from "../../lib/tidyEntry";
 
 // The fields of a parts request, shared by the Add box on the Parts list
@@ -25,15 +24,6 @@ export default function PartForm({ values, setValues, idPrefix, companies = [], 
       };
     });
   };
-
-  // What the typed lead time works out to, shown while it's being typed so
-  // "10" is never silently read as the wrong unit.
-  const leadParsed = parseLeadTime(values.leadTime, { defaultUnit: "days" });
-  const leadTimeHint = !String(values.leadTime || "").trim()
-    ? `Clock starts when the stage goes to Ordered. Left blank, it's figured at ${DEFAULT_LEAD_TIME_DAYS} business days.`
-    : leadParsed
-      ? `${leadParsed.isRange ? "Middle of the range — " : ""}${leadParsed.days} business days${leadParsed.inWeeks ? " (5 per week)" : ""}.`
-      : "Second number has to be at least the first.";
 
   return (
     <>
@@ -133,17 +123,10 @@ export default function PartForm({ values, setValues, idPrefix, companies = [], 
           <label className="field-label" htmlFor={`${idPrefix}-needed`}>Needed by</label>
           <input id={`${idPrefix}-needed`} className="field" type="date" value={values.neededBy} onChange={e => setValues(prev => ({ ...prev, neededBy: e.target.value }))} />
         </div>
+      </div>
 
-        <div>
-          <label className="field-label" htmlFor={`${idPrefix}-lead-low`}>Lead time</label>
-          <LeadTimeInput
-            idPrefix={idPrefix}
-            value={values.leadTime || ""}
-            onChange={v => setValues(prev => ({ ...prev, leadTime: v }))}
-            defaultUnit="days"
-          />
-          <p className="private-note-hint" style={{ marginTop: -4 }}>{leadTimeHint}</p>
-        </div>
+      <div style={{ marginTop: 6 }}>
+        <LeadTimeFields idPrefix={idPrefix} values={values} setValues={setValues} defaultUnit="days" subject="This part" />
       </div>
 
       <div style={{ marginTop: 6 }}>

@@ -12,6 +12,7 @@ import FirmDetailsPrompt from "../../../components/FirmDetailsPrompt";
 import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, firmTypeOf, salespersonAfterFirmChange } from "../../../../lib/directory";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
+import { LeadTimeFields } from "../../../components/LeadTimeFields";
 import BidderEditor from "../../../components/BidderEditor";
 import { biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson } from "../../../../lib/bidders";
 import { ensureTowerModel } from "../../../../lib/towerModels";
@@ -55,6 +56,8 @@ export default function NewPipelineEntry() {
   const [stage, setStage] = useState("Pre-Bid");
   const [buildingSector, setBuildingSector] = useState("");
   const [workType, setWorkType] = useState("");
+  // Lead time, whether it should alert anyone, and the dates it runs on.
+  const [leadTimeData, setLeadTimeData] = useState({ leadTime: "", leadTimeAlerts: false, orderedOn: "", shippedOn: "", deliveredOn: "" });
   const [bidDate, setBidDate] = useState("");
   const [value, setValue] = useState("");
   const [company, setCompany] = useState("");
@@ -230,6 +233,7 @@ export default function NewPipelineEntry() {
         stage,
         buildingSector,
         workType,
+        ...leadTimeData,
         bidDate: bidDate || null,
         value: value || null,
         company: company || null,
@@ -362,6 +366,9 @@ export default function NewPipelineEntry() {
               <MoneyInput id="new-pipeline-value" value={value} onChange={setValue} />
             </div>
             <WorkTypeSelect id="new-pipeline-work-type" value={workType} onChange={setWorkType} />
+
+            <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
+            <LeadTimeFields idPrefix="new-pipeline" values={leadTimeData} setValues={setLeadTimeData} defaultUnit="weeks" subject="This job" />
 
             <div>
               <label className="field-label">Engineering Firm</label>

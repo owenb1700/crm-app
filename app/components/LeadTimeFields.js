@@ -1,14 +1,17 @@
 "use client";
 
-import { leadTimeStatus, describeLeadTime, parseLeadTime, todayKey, TRANSIT_DAYS, DEFAULT_LEAD_TIME_DAYS, LEAD_TIME_UNITS, leadTimeParts, formatLeadTime } from "../../lib/leadTimes";
+import { leadTimeStatus, describeLeadTime, parseLeadTime, todayKey, TRANSIT_DAYS, LEAD_TIME_UNITS, leadTimeParts, formatLeadTime } from "../../lib/leadTimes";
 
-// The lead time on a project or pipeline entry, and the three dates that
-// move it along. Shared by both so they can't drift.
+// The lead time on a project, pipeline entry or parts request, and the
+// dates that move it along. Shared by all of them so they can't drift.
 //
 // One lead time for the whole job, not one per piece of equipment:
 // everything on a job ships together almost every time, so the number to
 // put here is the LONGEST item's -- the job is only as early as the piece
 // that lands last.
+//
+// Most lead times are recorded and never chased: the figure is there for
+// the history, and nothing alerts anyone unless they ask for it.
 
 // "[3] to [4] [Weeks v]". The second box is optional -- filling only the
 // first is an exact figure rather than a range. Whatever the boxes say is
@@ -56,17 +59,30 @@ export function LeadTimeInput({ idPrefix, value, onChange, defaultUnit = "weeks"
   );
 }
 
-export function LeadTimeFields({ idPrefix, values, setValues }) {
+export function LeadTimeFields({ idPrefix, values, setValues, defaultUnit = "weeks", subject = "This job" }) {
   const set = (field) => (e) => setValues(prev => ({ ...prev, [field]: e.target.value }));
   const stamp = (field) => () => setValues(prev => ({ ...prev, [field]: todayKey() }));
 
-  const parsed = parseLeadTime(values.leadTime, { defaultUnit: "weeks" });
-  const status = leadTimeStatus(values, todayKey(), { defaultUnit: "weeks" });
+  const hasLeadTime = !!String(values.leadTime || "").trim();
+  const parsed = parseLeadTime(values.leadTime, { defaultUnit });
+  const alertsOn = values.leadTimeAlerts === true;
+  const status = leadTimeStatus(values, todayKey(), { defaultUnit });
 
-  const hint = !String(values.leadTime || "").trim()
-    ? `The longest item's lead time — everything ships together. Left blank, an ordered job is figured at ${DEFAULT_LEAD_TIME_DAYS} business days.`
+  // Switching alerts on needs a day to count from, so it fills in today's
+  // date -- right most of the time, and editable when it isn't.
+  const toggleAlerts = (e) => {
+    const on = e.target.checked;
+    setValues(prev => ({
+      ...prev,
+      leadTimeAlerts: on,
+      orderedOn: on && !prev.orderedOn ? todayKey() : prev.orderedOn
+    }));
+  };
+
+  const hint = !hasLeadTime
+    ? "The longest item's lead time -- everything ships together. Leave it blank if you're not tracking one."
     : parsed
-      ? `${parsed.isRange ? `Middle of the range — ` : ""}${parsed.days} business days${parsed.inWeeks ? " (5 per week)" : ""}.`
+      ? `${parsed.isRange ? "Middle of the range \u2014 " : ""}${parsed.days} business days${parsed.inWeeks ? " (5 per week)" : ""}.`
       : "Second number has to be at least the first.";
 
   return (
@@ -78,57 +94,83 @@ export function LeadTimeFields({ idPrefix, values, setValues }) {
             idPrefix={idPrefix}
             value={values.leadTime || ""}
             onChange={v => setValues(prev => ({ ...prev, leadTime: v }))}
-            defaultUnit="weeks"
+            defaultUnit={defaultUnit}
           />
-          <p className="private-note-hint" style={{ marginTop: -4 }}>{hint}</p>
+          <p className="private-note-hint" style={{ marginTop: 4 }}>{hint}</p>
         </div>
+
         <div>
-          <label className="field-label" htmlFor={`${idPrefix}-ordered-on`}>Ordered on</label>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input id={`${idPrefix}-ordered-on`} className="field" type="date" style={{ marginBottom: 0 }} value={values.orderedOn || ""} onChange={set("orderedOn")} />
-            <button type="button" className="btn btn-secondary btn-small" onClick={stamp("orderedOn")}>Today</button>
-          </div>
-          <p className="private-note-hint" style={{ marginTop: 4 }}>Starts the clock on the lead time.</p>
+          <span className="field-label">Alerts</span>
+          <label className="export-notes-toggle" htmlFor={`${idPrefix}-lead-alerts`} style={{ marginBottom: 0 }}>
+            <input
+              id={`${idPrefix}-lead-alerts`}
+              type="checkbox"
+              checked={alertsOn}
+              disabled={!hasLeadTime}
+              onChange={toggleAlerts}
+            />
+            <span>
+              <strong>Tell me if it slips</strong>
+              <span className="export-row-desc">
+                {hasLeadTime
+                  ? "On the ship date, when it ships, and again if it hasn't landed two business days later."
+                  : "Give it a lead time first."}
+              </span>
+            </span>
+          </label>
         </div>
       </div>
 
-      <div className="form-grid-2">
-        <div>
-          <label className="field-label" htmlFor={`${idPrefix}-shipped-on`}>Shipped on</label>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input id={`${idPrefix}-shipped-on`} className="field" type="date" style={{ marginBottom: 0 }} value={values.shippedOn || ""} onChange={set("shippedOn")} />
-            <button type="button" className="btn btn-secondary btn-small" onClick={stamp("shippedOn")}>Today</button>
+      {hasLeadTime && alertsOn && (
+        <div className="form-grid-3">
+          <div>
+            <label className="field-label" htmlFor={`${idPrefix}-ordered-on`}>Lead time starts</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input id={`${idPrefix}-ordered-on`} className="field" type="date" style={{ marginBottom: 0 }} value={values.orderedOn || ""} onChange={set("orderedOn")} />
+              <button type="button" className="btn btn-secondary btn-small" onClick={stamp("orderedOn")}>Today</button>
+            </div>
+            <p className="private-note-hint" style={{ marginTop: 4 }}>Usually the day it was ordered.</p>
           </div>
-          <p className="private-note-hint" style={{ marginTop: 4 }}>Freight is figured at {TRANSIT_DAYS} business days from here.</p>
-        </div>
-        <div>
-          <label className="field-label" htmlFor={`${idPrefix}-delivered-on`}>Delivered on</label>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input id={`${idPrefix}-delivered-on`} className="field" type="date" style={{ marginBottom: 0 }} value={values.deliveredOn || ""} onChange={set("deliveredOn")} />
-            <button type="button" className="btn btn-secondary btn-small" onClick={stamp("deliveredOn")}>Today</button>
+          <div>
+            <label className="field-label" htmlFor={`${idPrefix}-shipped-on`}>Shipped on</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input id={`${idPrefix}-shipped-on`} className="field" type="date" style={{ marginBottom: 0 }} value={values.shippedOn || ""} onChange={set("shippedOn")} />
+              <button type="button" className="btn btn-secondary btn-small" onClick={stamp("shippedOn")}>Today</button>
+            </div>
+            <p className="private-note-hint" style={{ marginTop: 4 }}>Freight is figured at {TRANSIT_DAYS} business days.</p>
           </div>
-          <p className="private-note-hint" style={{ marginTop: 4 }}>Filling this in stops the alerts.</p>
+          <div>
+            <label className="field-label" htmlFor={`${idPrefix}-delivered-on`}>Delivered on</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input id={`${idPrefix}-delivered-on`} className="field" type="date" style={{ marginBottom: 0 }} value={values.deliveredOn || ""} onChange={set("deliveredOn")} />
+              <button type="button" className="btn btn-secondary btn-small" onClick={stamp("deliveredOn")}>Today</button>
+            </div>
+            <p className="private-note-hint" style={{ marginTop: 4 }}>Filling this in stops the alerts.</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {status.state !== "none" && (
-        <p className="private-note-hint" style={{ marginTop: 2 }}>{describeLeadTime(status, { subject: "This job" })}</p>
+        <p className="private-note-hint" style={{ marginTop: 2 }}>{describeLeadTime(status, { subject })}</p>
       )}
     </>
   );
 }
 
-// The read-only line on a record's page and on list cards.
+// The read-only line on a record's page and on list cards. A lead time
+// nobody asked to be alerted about still shows what it works out to --
+// it just never turns red, because nothing is being chased.
 export function LeadTimeSummary({ record, subject = "This job", defaultUnit = "weeks", className = "customer-meta" }) {
   const status = leadTimeStatus(record, todayKey(), { defaultUnit });
   if (status.state === "none") return null;
 
-  const late = status.state === "ship-late" || status.state === "delivery-due";
-  const due = status.state === "ship-due";
+  const alertsOn = record?.leadTimeAlerts === true;
+  const late = alertsOn && (status.state === "ship-late" || status.state === "delivery-due");
+  const due = alertsOn && status.state === "ship-due";
 
   return (
     <div className={className} style={late ? { color: "#dc2626" } : due ? { color: "#b45309" } : undefined}>
-      {late || due ? "⚠ " : ""}{describeLeadTime(status, { subject })}
+      {late || due ? "\u26a0 " : ""}{describeLeadTime(status, { subject })}
     </div>
   );
 }

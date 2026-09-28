@@ -75,7 +75,7 @@ const EDITABLE_FIELDS = [
   "projectName", "buildingSector", "company", "companyCategory", "contact", "email", "phone", "category", "projectValue", "workType",
   "nextCheckIn", "lastContact", "projectAddress",
   // Equipment lead time and the dates it runs on.
-  "leadTime", "orderedOn", "shippedOn", "deliveredOn"
+  "leadTime", "leadTimeAlerts", "orderedOn", "shippedOn", "deliveredOn"
 ];
 
 export default function ProjectDetail() {
@@ -280,6 +280,7 @@ export default function ProjectDetail() {
       projectValue: customer.projectValue || "",
       workType: customer.workType || "",
       leadTime: customer.leadTime || "",
+      leadTimeAlerts: customer.leadTimeAlerts === true,
       orderedOn: customer.orderedOn || "",
       shippedOn: customer.shippedOn || "",
       deliveredOn: customer.deliveredOn || "",

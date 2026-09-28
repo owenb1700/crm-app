@@ -9,6 +9,7 @@ import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, OWNER_CATEGOR
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
+import { LeadTimeFields } from "../../../components/LeadTimeFields";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import { buildingMemory, equipmentBySerial, modelMemory, salespersonForFirm, firmFromEmail, emailFirmMismatch } from "../../../../lib/learned";
 import { normalizePhone } from "../../../../lib/tidyEntry";
@@ -80,6 +81,8 @@ export default function NewProject() {
   const [buildingSector, setBuildingSector] = useState("");
   const [projectValue, setProjectValue] = useState("");
   const [workType, setWorkType] = useState("");
+  // Lead time, whether it should alert anyone, and the dates it runs on.
+  const [leadTimeData, setLeadTimeData] = useState({ leadTime: "", leadTimeAlerts: false, orderedOn: "", shippedOn: "", deliveredOn: "" });
   const [splits, setSplits] = useState([]);
   const [nextDate, setNextDate] = useState("");
   const [projectAddress, setProjectAddress] = useState("");
@@ -342,6 +345,7 @@ export default function NewProject() {
         buildingSector,
         projectValue: projectValue || null,
         workType,
+        ...leadTimeData,
         equipment,
         equipmentType: first.type || null,
         towerManufacturer: first.manufacturer || null,
@@ -500,6 +504,9 @@ export default function NewProject() {
             <MoneyInput id="new-project-value" value={projectValue} onChange={setProjectValue} />
           </div>
           <WorkTypeSelect id="new-project-work-type" value={workType} onChange={setWorkType} />
+
+          <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
+          <LeadTimeFields idPrefix="new-project" values={leadTimeData} setValues={setLeadTimeData} defaultUnit="weeks" subject="This job" />
 
           {canEnterForOthers(myProfile) && (
             <SalespersonSelect

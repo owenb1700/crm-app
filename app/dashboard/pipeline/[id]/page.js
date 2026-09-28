@@ -56,7 +56,7 @@ const clearSession = () => {
 
 const EDITABLE_FIELDS = ["title", "buildingSector", "stage", "bidDate", "value", "workType", "company", "contact", "email", "phone", "projectAddress", "salespersonId", "projectPointPersonId",
   // Equipment lead time and the dates it runs on.
-  "leadTime", "orderedOn", "shippedOn", "deliveredOn"];
+  "leadTime", "leadTimeAlerts", "orderedOn", "shippedOn", "deliveredOn"];
 
 const formatBytes = (bytes) => {
   if (!bytes) return "";
@@ -251,6 +251,7 @@ export default function PipelineDetail() {
       buildingSector: pipeline.buildingSector || "",
       workType: pipeline.workType || "",
       leadTime: pipeline.leadTime || "",
+      leadTimeAlerts: pipeline.leadTimeAlerts === true,
       orderedOn: pipeline.orderedOn || "",
       shippedOn: pipeline.shippedOn || "",
       deliveredOn: pipeline.deliveredOn || "",
