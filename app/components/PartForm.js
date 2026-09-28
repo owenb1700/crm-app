@@ -5,7 +5,8 @@ import { PART_STAGES, blankContractor } from "../../lib/parts";
 import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "./DirectoryPickers";
 import MoneyInput from "./MoneyInput";
 import AddressAutocomplete from "./AddressAutocomplete";
-import { parseLeadTime } from "../../lib/leadTimes";
+import { parseLeadTime, DEFAULT_LEAD_TIME_DAYS } from "../../lib/leadTimes";
+import { LeadTimeInput } from "./LeadTimeFields";
 import { normalizePhone } from "../../lib/tidyEntry";
 
 // The fields of a parts request, shared by the Add box on the Parts list
@@ -29,10 +30,10 @@ export default function PartForm({ values, setValues, idPrefix, companies = [], 
   // "10" is never silently read as the wrong unit.
   const leadParsed = parseLeadTime(values.leadTime, { defaultUnit: "days" });
   const leadTimeHint = !String(values.leadTime || "").trim()
-    ? "Clock starts when the stage goes to Ordered."
+    ? `Clock starts when the stage goes to Ordered. Left blank, it's figured at ${DEFAULT_LEAD_TIME_DAYS} business days.`
     : leadParsed
-      ? `Read as ${leadParsed.label}${leadParsed.isRange ? ` — estimates use the middle, ${leadParsed.days} days` : ""}.`
-      : "Not a lead time yet — try \"10 days\" or \"3-4 weeks\".";
+      ? `${leadParsed.isRange ? "Middle of the range — " : ""}${leadParsed.days} business days${leadParsed.inWeeks ? " (5 per week)" : ""}.`
+      : "Second number has to be at least the first.";
 
   return (
     <>
@@ -134,13 +135,12 @@ export default function PartForm({ values, setValues, idPrefix, companies = [], 
         </div>
 
         <div>
-          <label className="field-label" htmlFor={`${idPrefix}-lead`}>Lead time</label>
-          <input
-            id={`${idPrefix}-lead`}
-            className="field"
-            placeholder="e.g. 10 days, or 3-4 weeks"
+          <label className="field-label" htmlFor={`${idPrefix}-lead-low`}>Lead time</label>
+          <LeadTimeInput
+            idPrefix={idPrefix}
             value={values.leadTime || ""}
-            onChange={e => setValues(prev => ({ ...prev, leadTime: e.target.value }))}
+            onChange={v => setValues(prev => ({ ...prev, leadTime: v }))}
+            defaultUnit="days"
           />
           <p className="private-note-hint" style={{ marginTop: -4 }}>{leadTimeHint}</p>
         </div>

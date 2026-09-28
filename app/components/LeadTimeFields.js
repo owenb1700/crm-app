@@ -1,6 +1,6 @@
 "use client";
 
-import { leadTimeStatus, describeLeadTime, parseLeadTime, todayKey, TRANSIT_DAYS } from "../../lib/leadTimes";
+import { leadTimeStatus, describeLeadTime, parseLeadTime, todayKey, TRANSIT_DAYS, DEFAULT_LEAD_TIME_DAYS, LEAD_TIME_UNITS, leadTimeParts, formatLeadTime } from "../../lib/leadTimes";
 
 // The lead time on a project or pipeline entry, and the three dates that
 // move it along. Shared by both so they can't drift.
@@ -10,6 +10,52 @@ import { leadTimeStatus, describeLeadTime, parseLeadTime, todayKey, TRANSIT_DAYS
 // put here is the LONGEST item's -- the job is only as early as the piece
 // that lands last.
 
+// "[3] to [4] [Weeks v]". The second box is optional -- filling only the
+// first is an exact figure rather than a range. Whatever the boxes say is
+// stored as one string ("3-4 weeks"), which is also what a lead time
+// typed before this was a dropdown looks like.
+export function LeadTimeInput({ idPrefix, value, onChange, defaultUnit = "weeks" }) {
+  const parts = leadTimeParts(value, { defaultUnit });
+  const push = (next) => onChange(formatLeadTime({ ...parts, ...next }));
+  const number = (v) => v.replace(/[^\d.]/g, "");
+
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <input
+        id={`${idPrefix}-lead-low`}
+        className="field"
+        style={{ marginBottom: 0, width: 72 }}
+        inputMode="decimal"
+        placeholder="—"
+        aria-label="Lead time, from"
+        value={parts.low}
+        onChange={e => push({ low: number(e.target.value) })}
+      />
+      <span className="private-note-hint" style={{ margin: 0 }}>to</span>
+      <input
+        id={`${idPrefix}-lead-high`}
+        className="field"
+        style={{ marginBottom: 0, width: 72 }}
+        inputMode="decimal"
+        placeholder="—"
+        aria-label="Lead time, to (leave blank if it's an exact figure)"
+        value={parts.high}
+        onChange={e => push({ high: number(e.target.value) })}
+      />
+      <select
+        id={`${idPrefix}-lead-unit`}
+        className="field"
+        style={{ marginBottom: 0, width: 150 }}
+        aria-label="Lead time unit"
+        value={parts.unit}
+        onChange={e => push({ unit: e.target.value })}
+      >
+        {LEAD_TIME_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+      </select>
+    </div>
+  );
+}
+
 export function LeadTimeFields({ idPrefix, values, setValues }) {
   const set = (field) => (e) => setValues(prev => ({ ...prev, [field]: e.target.value }));
   const stamp = (field) => () => setValues(prev => ({ ...prev, [field]: todayKey() }));
@@ -18,22 +64,21 @@ export function LeadTimeFields({ idPrefix, values, setValues }) {
   const status = leadTimeStatus(values, todayKey(), { defaultUnit: "weeks" });
 
   const hint = !String(values.leadTime || "").trim()
-    ? "The longest item's lead time — everything ships together."
+    ? `The longest item's lead time — everything ships together. Left blank, an ordered job is figured at ${DEFAULT_LEAD_TIME_DAYS} business days.`
     : parsed
-      ? `Read as ${parsed.label}${parsed.isRange ? ` — estimates use the middle, ${parsed.days} days` : ""}.`
-      : "Not a lead time yet — try \"14-16 weeks\" or \"30 days\".";
+      ? `${parsed.isRange ? `Middle of the range — ` : ""}${parsed.days} business days${parsed.inWeeks ? " (5 per week)" : ""}.`
+      : "Second number has to be at least the first.";
 
   return (
     <>
       <div className="form-grid-2">
         <div>
-          <label className="field-label" htmlFor={`${idPrefix}-lead-time`}>Lead time</label>
-          <input
-            id={`${idPrefix}-lead-time`}
-            className="field"
-            placeholder="e.g. 14-16 weeks"
+          <label className="field-label" htmlFor={`${idPrefix}-lead-low`}>Lead time</label>
+          <LeadTimeInput
+            idPrefix={idPrefix}
             value={values.leadTime || ""}
-            onChange={set("leadTime")}
+            onChange={v => setValues(prev => ({ ...prev, leadTime: v }))}
+            defaultUnit="weeks"
           />
           <p className="private-note-hint" style={{ marginTop: -4 }}>{hint}</p>
         </div>
@@ -54,7 +99,7 @@ export function LeadTimeFields({ idPrefix, values, setValues }) {
             <input id={`${idPrefix}-shipped-on`} className="field" type="date" style={{ marginBottom: 0 }} value={values.shippedOn || ""} onChange={set("shippedOn")} />
             <button type="button" className="btn btn-secondary btn-small" onClick={stamp("shippedOn")}>Today</button>
           </div>
-          <p className="private-note-hint" style={{ marginTop: 4 }}>Freight is figured at {TRANSIT_DAYS} days from here.</p>
+          <p className="private-note-hint" style={{ marginTop: 4 }}>Freight is figured at {TRANSIT_DAYS} business days from here.</p>
         </div>
         <div>
           <label className="field-label" htmlFor={`${idPrefix}-delivered-on`}>Delivered on</label>
