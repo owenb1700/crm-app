@@ -4188,3 +4188,42 @@ a {
   color: var(--color-text-muted);
   font-weight: 400;
 }
+
+/* Overdue work in the This Week panel, folded away until asked for. It's
+   usually the longer list and rarely today's problem, but it has to stay
+   one click from view -- nothing else surfaces it now that overdue items
+   sit on their own dates in the calendar. */
+
+.overdue-fold {
+  margin-bottom: 10px;
+}
+
+.overdue-fold-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: var(--color-danger-bg);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-danger);
+  cursor: pointer;
+  text-align: left;
+}
+
+.overdue-fold-toggle:hover {
+  border-color: var(--color-danger);
+}
+
+.overdue-fold-caret {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.overdue-fold-list {
+  margin-top: 8px;
+}

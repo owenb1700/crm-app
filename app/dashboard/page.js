@@ -1330,6 +1330,7 @@ export default function Dashboard() {
   // Which four weeks the calendar is showing. Starts on this week and
   // moves with the arrows or the date picker.
   const [calendarAnchor, setCalendarAnchor] = useState(() => new Date());
+  const [showOverdue, setShowOverdue] = useState(false);
   const moveCalendar = (next) => { setCalendarAnchor(next); setSelectedCalendarDay(null); };
   const calendarWeeks = useMemo(() => buildCalendarWeeks(calendarAnchor, new Date()), [calendarAnchor]);
 
@@ -1529,6 +1530,22 @@ export default function Dashboard() {
       .sort((a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn));
   }, [selectedCalendarDay, projectsByDay, weekKeys, myCalendarProjects]);
 
+  // Late work is folded away by default. It's usually the longer list and
+  // it's rarely today's problem, so leaving it open pushed this week's
+  // actual work off the bottom of the panel -- but it still has to be one
+  // click from view, because nothing else surfaces it now that overdue
+  // items sit on their own dates.
+  const panelOverdue = useMemo(
+    () => (selectedCalendarDay ? [] : panelProjects.filter(isOverdueItem)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedCalendarDay, panelProjects]
+  );
+  const panelCurrent = useMemo(
+    () => (selectedCalendarDay ? panelProjects : panelProjects.filter(c => !isOverdueItem(c))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedCalendarDay, panelProjects]
+  );
+
   const panelTitle = selectedCalendarDay
     ? new Date(selectedCalendarDay + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
     : "This Week";
@@ -1685,6 +1702,13 @@ export default function Dashboard() {
             </div>
             {c._kind === "bid" ? (
               <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>Bid date · {c.stage}</span>
+            ) : c._kind === "ship" ? (
+              /* Without this a ship date rendered exactly like a check-in
+                 on the same job -- two identical rows, one job, no way to
+                 tell which was which. */
+              <span className="role-badge" style={{ marginTop: 4 }}>
+                {c._historyLabel || "Due to ship"}{c.leadTime ? ` · ${c.leadTime}` : ""}
+              </span>
             ) : c._kind === "pipeline" ? (
               <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>✅ Won — Check In</span>
             ) : c._kind === "reminder" ? (
@@ -2055,7 +2079,26 @@ export default function Dashboard() {
               <p className="private-note-hint">Nothing due.</p>
             )}
 
-            {panelProjects.map(renderCalendarItem)}
+            {panelOverdue.length > 0 && (
+              <div className="overdue-fold">
+                <button
+                  type="button"
+                  className="overdue-fold-toggle"
+                  aria-expanded={showOverdue}
+                  onClick={() => setShowOverdue(v => !v)}
+                >
+                  <span className="overdue-fold-caret" aria-hidden="true">{showOverdue ? "▾" : "▸"}</span>
+                  {panelOverdue.length} overdue {panelOverdue.length === 1 ? "item" : "items"}
+                </button>
+                {showOverdue && <div className="overdue-fold-list">{panelOverdue.map(renderCalendarItem)}</div>}
+              </div>
+            )}
+
+            {panelCurrent.map(renderCalendarItem)}
+
+            {panelCurrent.length === 0 && panelOverdue.length > 0 && !showOverdue && (
+              <p className="private-note-hint">Nothing else due this week.</p>
+            )}
           </div>
 
           {/* Your own numbers, under what's due. They used to sit on top
