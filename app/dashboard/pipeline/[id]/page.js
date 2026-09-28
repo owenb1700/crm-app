@@ -478,8 +478,9 @@ export default function PipelineDetail() {
     setWonOrderedOn("");
     await loadPipelineEntry(uid, role);
     // Won work becomes a project; there's no reason to make someone go
-    // looking for the button.
-    openConvert();
+    // looking for the button. The winner is handed over directly -- see
+    // openConvert on why reading it back off state doesn't work here.
+    openConvert(wonContractor.trim());
   };
 
   const confirmMarkLost = async () => {
@@ -515,15 +516,20 @@ export default function PipelineDetail() {
   // Only offered once an entry is marked Won. Pre-fills from the bid: the
   // entry's salesperson (or owner) and the winning firm, matched back to a
   // bidding row so its contact info and firm type carry over.
-  const openConvert = () => {
+  // `wonBy` is passed in when this is opened straight after marking the
+  // job won: the reload has happened but this closure still holds the
+  // pipeline object from before it, so reading wonByContractor off state
+  // gave nothing and the modal asked for a firm it had just been told.
+  const openConvert = (wonBy = null) => {
+    const winnerName = wonBy || pipeline.wonByContractor || "";
     const winner = groupBidders(pipeline.biddingCompanies).find(
-      b => (b.company || "").toLowerCase() === (pipeline.wonByContractor || "").toLowerCase()
+      b => (b.company || "").toLowerCase() === winnerName.toLowerCase()
     );
     const winnerContact = contactsOf(winner)[0] || {};
     setConvertData({
       salespersonId: pipeline.salespersonId || pipeline.ownerId || "",
       companyCategory: firmTypeOf(winner?.category),
-      company: winner?.company || pipeline.wonByContractor || "",
+      company: winner?.company || winnerName,
       contact: winnerContact.name || "",
       email: winnerContact.email || "",
       phone: winnerContact.phone || "",

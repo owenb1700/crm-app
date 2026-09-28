@@ -66,19 +66,20 @@ export default function MobileNav({ uid, profile: profileProp, currentView, onSe
   const isView = (v) => onDashboard && currentView === v;
   const isPath = (p, cat) => pathname === p && (cat === undefined || category === cat);
 
+  // Mirrors the desktop header exactly -- same items, same order, same
+  // grouping -- so the two don't teach different mental models of where
+  // things live. Desktop tabs first, then the Directory dropdown, then
+  // what sits behind the initials and the header bar on desktop.
   const sections = [
     {
       items: [
         can(profile, "dashboard") && { label: "Home", active: isView("home"), onClick: () => goView("home") },
         can(profile, "dashboard") && { label: "My Projects", active: isView("personal"), onClick: () => goView("personal") },
         can(profile, "pipeline") && { label: "Pipeline", active: isView("pipeline"), onClick: () => goView("pipeline") },
-        canViewAnalytics(profile) && { label: "Analytics", active: isPath("/dashboard/analytics"), onClick: () => goPath("/dashboard/analytics") },
-        { label: "Parts", active: isPath("/dashboard/parts"), onClick: () => goPath("/dashboard/parts") },
-        { label: "Project Addresses", active: isPath("/dashboard/directory/addresses"), onClick: () => goPath("/dashboard/directory/addresses") },
         can(profile, "team") && { label: "Team", active: isView("team"), onClick: () => goView("team") },
+        { label: "Project Scheduling", active: isPath("/dashboard/scheduling"), onClick: () => goPath("/dashboard/scheduling") },
         { label: "Past Projects", active: isView("pastProjects"), onClick: () => goView("pastProjects") },
-        { label: "All Alerts", active: isPath("/dashboard/alerts"), onClick: () => goPath("/dashboard/alerts") },
-        { label: "Reminders", active: isPath("/dashboard/reminders"), onClick: () => goPath("/dashboard/reminders") }
+        { label: "Parts", active: isPath("/dashboard/parts"), onClick: () => goPath("/dashboard/parts") }
       ]
     },
     {
@@ -88,8 +89,19 @@ export default function MobileNav({ uid, profile: profileProp, currentView, onSe
         can(profile, "directory") && { label: "Contractors", active: isPath("/dashboard/directory", "Contractor"), onClick: () => goPath("/dashboard/directory?category=Contractor") },
         can(profile, "directory") && { label: "Engineering Firms", active: isPath("/dashboard/directory", "Engineering Firm"), onClick: () => goPath("/dashboard/directory?category=Engineering%20Firm") },
         can(profile, "directory") && { label: "Owners & Building Engineers", active: isPath("/dashboard/directory", OWNER_CATEGORY), onClick: () => goPath(`/dashboard/directory?category=${encodeURIComponent(OWNER_CATEGORY)}`) },
+        { label: "Project Addresses", active: isPath("/dashboard/directory/addresses"), onClick: () => goPath("/dashboard/directory/addresses") },
         can(profile, "towers") && { label: "Installed Towers", active: isPath("/dashboard/directory/towers"), onClick: () => goPath("/dashboard/directory/towers") },
         can(profile, "products") && { label: "Product Options", active: isPath("/dashboard/directory/products"), onClick: () => goPath("/dashboard/directory/products") }
+      ]
+    },
+    {
+      // No tabs of their own on desktop: Analytics lives under the
+      // initials, alerts and reminders in the header bar.
+      title: "You",
+      items: [
+        canViewAnalytics(profile) && { label: "Analytics", active: isPath("/dashboard/analytics"), onClick: () => goPath("/dashboard/analytics") },
+        { label: "All Alerts", active: isPath("/dashboard/alerts"), onClick: () => goPath("/dashboard/alerts") },
+        { label: "Reminders", active: isPath("/dashboard/reminders"), onClick: () => goPath("/dashboard/reminders") }
       ]
     },
     profile?.role === "admin" && {
