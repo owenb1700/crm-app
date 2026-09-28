@@ -8,7 +8,7 @@ import { auth, db } from "../../../lib/firebase";
 import { withoutTrashed } from "../../../lib/trash";
 import { personName } from "../../../lib/people";
 import { hasShare } from "../../../lib/splits";
-import { buildCalendarWeeks, visibleCalendarDays, columnLabels } from "../../../lib/calendarDays";
+import { buildCalendarWeeks, visibleCalendarDays, columnLabels, WEEKEND_COLUMNS } from "../../../lib/calendarDays";
 import CalendarNav from "../../components/CalendarNav";
 import {
   laborByDate, laborForStorage, blankLaborSchedule, laborDays, menOnDate,
@@ -115,7 +115,7 @@ function SchedulingPageContent() {
   // tidy; this board is crews and shipments, where weekend work is
   // ordinary, and columns appearing and vanishing as jobs move made the
   // whole calendar jump about. A fixed week reads evenly.
-  const weekendColumns = useMemo(() => new Set([5, 6]), []);
+  const weekendColumns = useMemo(() => new Set(WEEKEND_COLUMNS), []);
   const calendarDays = useMemo(() => visibleCalendarDays(calendarWeeks, weekendColumns), [calendarWeeks, weekendColumns]);
   const labels = useMemo(() => columnLabels(weekendColumns), [weekendColumns]);
   const overbooked = useMemo(() => overbookedDates(byDate), [byDate]);
