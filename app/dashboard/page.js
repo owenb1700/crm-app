@@ -46,6 +46,8 @@ import ViewTabs from "../components/ViewTabs";
 import RecordNotes from "../components/RecordNotes";
 import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabels, startOfWeek, dateKey, calendarKeyFor as calendarDayKeyFor } from "../../lib/calendarDays";
 import CalendarNav from "../components/CalendarNav";
+import { resolvedBidItems, outcomeItems, activityItems, leadTimeItems, dedupeByDay } from "../../lib/calendarHistory";
+import { leadTimeStatus, todayKey } from "../../lib/leadTimes";
 import { hasShare, splitShares } from "../../lib/splits";
 import { exportDashboardView } from "../../lib/viewExport";
 import ExportButtons from "../components/ExportButtons";
@@ -902,12 +904,26 @@ export default function Dashboard() {
     }
   }, [myProfile, role, view]);
 
+  // Moving a check-in forward used to overwrite the old date and record
+  // nothing, so "what was due last Tuesday" had no answer -- which is why
+  // scrolling back through the calendar shows no check-in history before
+  // today. Logging it means that history builds from here.
+  const checkInMoved = (record, to, what) => ({
+    type: "completed",
+    outcome: what,
+    notes: `Check-in ${String(record.nextCheckIn || "").slice(0, 10) || "(none)"} → ${String(to).slice(0, 10)}`,
+    timestamp: new Date().toISOString(),
+    by: uid
+  });
+
   const handleFollowUp = async (c) => {
     const next = new Date();
     next.setDate(next.getDate() + 14);
+    const to = adjustWeekend(next.toISOString());
 
     await updateDoc(doc(db, "customers", c.id), {
-      nextCheckIn: adjustWeekend(next.toISOString())
+      nextCheckIn: to,
+      activityLog: [...(c.activityLog || []), checkInMoved(c, to, "Followed up")]
     });
 
     showToast("Follow-up scheduled for 2 weeks");
@@ -920,9 +936,11 @@ export default function Dashboard() {
   const snoozePipelineFollowUp = async (p) => {
     const next = new Date();
     next.setMonth(next.getMonth() + 3);
+    const to = adjustWeekend(next.toISOString());
 
     await updateDoc(doc(db, "pipeline", p.id), {
-      nextCheckIn: adjustWeekend(next.toISOString())
+      nextCheckIn: to,
+      activityLog: [...(p.activityLog || []), checkInMoved(p, to, "Snoozed 3 months")]
     });
 
     showToast("Snoozed for 3 months");
@@ -932,9 +950,11 @@ export default function Dashboard() {
   const pipelineFollowUpAnotherYear = async (p) => {
     const next = new Date();
     next.setFullYear(next.getFullYear() + 1);
+    const to = adjustWeekend(next.toISOString());
 
     await updateDoc(doc(db, "pipeline", p.id), {
-      nextCheckIn: adjustWeekend(next.toISOString())
+      nextCheckIn: to,
+      activityLog: [...(p.activityLog || []), checkInMoved(p, to, "Followed up 1 year")]
     });
 
     showToast("Follow-up scheduled for 1 year");
@@ -1358,6 +1378,22 @@ export default function Dashboard() {
 
     const reminderItems = activeReminders.map(r => ({ ...r, _kind: "reminder", projectName: r.subject, nextCheckIn: r.date }));
 
+    // What already happened, on the days it happened -- so a week behind
+    // today shows what was on it rather than nothing. Read-only markers;
+    // see lib/calendarHistory.js.
+    const mineProject = (c) => isProjectCheckInFor(c, uid, role);
+    const minePipeline = (p) => isPipelineBidAlertFor(p, uid, role) || isWonFollowUpFor(p, uid, role) || isPipelineCheckInFor(p, uid, role);
+
+    const history = dedupeByDay([
+      ...resolvedBidItems(pipelineEntries, minePipeline),
+      ...outcomeItems(pipelineEntries, customers, minePipeline, mineProject),
+      ...activityItems(customers, mineProject, "outcome"),
+      ...activityItems(pipelineEntries, minePipeline, "outcome"),
+      // Ship dates only for records someone asked to be told about.
+      ...leadTimeItems(customers, mineProject, r => leadTimeStatus(r, todayKey())),
+      ...leadTimeItems(pipelineEntries, minePipeline, r => leadTimeStatus(r, todayKey()))
+    ]);
+
     // A Won entry's follow-up and an open entry's check-in are the same
     // field, so an entry never appears twice.
     const seen = new Set(pipelineFollowUps.map(p => p.id));
@@ -1366,7 +1402,8 @@ export default function Dashboard() {
       ...pipelineFollowUps,
       ...pipelineCheckIns.filter(p => !seen.has(p.id)),
       ...bidDates,
-      ...reminderItems
+      ...reminderItems,
+      ...history
     ];
   }, [customers, pipelineEntries, activeReminders, uid, role]);
 
@@ -1478,9 +1515,14 @@ export default function Dashboard() {
         (a, b) => (a.projectName || a.company || "").localeCompare(b.projectName || b.company || "")
       );
     }
+    // This week's work, plus anything still overdue however far back it
+    // sits. Overdue items used to be dragged onto today's square so they
+    // couldn't be missed; they stay on their real date now, so the panel
+    // is what makes sure they're still seen.
     const weekSet = new Set(weekKeys);
     return myCalendarProjects
-      .filter(c => weekSet.has(calendarKeyFor(c)))
+      .filter(c => !c._done)
+      .filter(c => weekSet.has(calendarKeyFor(c)) || isOverdueItem(c))
       .sort((a, b) => getDateValue(a.nextCheckIn) - getDateValue(b.nextCheckIn));
   }, [selectedCalendarDay, projectsByDay, weekKeys, myCalendarProjects]);
 
@@ -1951,10 +1993,11 @@ export default function Dashboard() {
                       {dayProjects.slice(0, 3).map(c => (
                         <div
                           key={`${c._kind}-${c.id}`}
-                          className={`calendar-event-pill ${c._kind === "reminder" ? "calendar-event-pill-reminder" : ""} ${isOverdueItem(c) ? "calendar-event-pill-overdue" : ""}`}
+                          className={`calendar-event-pill ${c._kind === "reminder" ? "calendar-event-pill-reminder" : ""} ${c._done ? "calendar-event-pill-done" : isOverdueItem(c) ? "calendar-event-pill-overdue" : ""}`}
+                          title={c._historyLabel || undefined}
                           onClick={(e) => { e.stopPropagation(); openCalendarItem(c); }}
                         >
-                          {c.projectName || c.company}
+                          {c._done ? "✓ " : ""}{c.projectName || c.company}
                         </div>
                       ))}
                       {dayProjects.length > 3 && (

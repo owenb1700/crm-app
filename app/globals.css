@@ -4177,3 +4177,14 @@ a {
 .icon + strong {
   margin-left: 4px;
 }
+
+/* Something that already happened: a bid that was decided, a job that
+   closed, a shipment that went. It sits on the day it happened so a past
+   week reads as a record, and it's muted so it never competes with work
+   that still needs doing. */
+.calendar-event-pill.calendar-event-pill-done {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
