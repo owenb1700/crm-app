@@ -44,7 +44,8 @@ import { PERMISSION_DEFS, DEFAULT_PERMISSIONS, defaultPermissionsFor, roleLabel,
 import { FirmSelect } from "../components/DirectoryPickers";
 import ViewTabs from "../components/ViewTabs";
 import RecordNotes from "../components/RecordNotes";
-import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabels, calendarKeyFor as calendarDayKeyFor } from "../../lib/calendarDays";
+import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabels, startOfWeek, dateKey, calendarKeyFor as calendarDayKeyFor } from "../../lib/calendarDays";
+import CalendarNav from "../components/CalendarNav";
 import { hasShare, splitShares } from "../../lib/splits";
 import { exportDashboardView } from "../../lib/viewExport";
 import ExportButtons from "../components/ExportButtons";
@@ -1305,7 +1306,11 @@ export default function Dashboard() {
 
   // HOME CALENDAR: four weeks from the Monday of this week, weekends
   // included only when something is due on one (see lib/calendarDays.js).
-  const calendarWeeks = useMemo(() => buildCalendarWeeks(new Date()), []);
+  // Which four weeks the calendar is showing. Starts on this week and
+  // moves with the arrows or the date picker.
+  const [calendarAnchor, setCalendarAnchor] = useState(() => new Date());
+  const moveCalendar = (next) => { setCalendarAnchor(next); setSelectedCalendarDay(null); };
+  const calendarWeeks = useMemo(() => buildCalendarWeeks(calendarAnchor, new Date()), [calendarAnchor]);
 
 
 
@@ -1454,10 +1459,17 @@ export default function Dashboard() {
   const calendarDays = useMemo(() => visibleCalendarDays(calendarWeeks, weekendColumns), [calendarWeeks, weekendColumns]);
   const calendarColumnLabels = useMemo(() => columnLabels(weekendColumns), [weekendColumns]);
 
-  const weekKeys = useMemo(
-    () => calendarDays.slice(0, calendarColumnLabels.length).map(d => d.key),
-    [calendarDays, calendarColumnLabels]
-  );
+  // The real current week, not the first row of whatever the calendar is
+  // scrolled to. The panel answers "what's on now", so stepping back
+  // through the calendar shouldn't empty it.
+  const weekKeys = useMemo(() => {
+    const start = startOfWeek(new Date());
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      return dateKey(d);
+    });
+  }, []);
 
   const panelProjects = useMemo(() => {
     if (selectedCalendarDay) {
@@ -1909,6 +1921,7 @@ export default function Dashboard() {
       {view === "home" && (
         <div className="home-layout">
           <div className="calendar-container">
+            <CalendarNav anchor={calendarAnchor} onAnchor={moveCalendar} idPrefix="home-cal" />
             <div
               className="calendar-weekday-header"
               style={{ gridTemplateColumns: `repeat(${calendarColumnLabels.length}, 1fr)` }}

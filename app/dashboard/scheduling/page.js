@@ -8,6 +8,7 @@ import { auth, db } from "../../../lib/firebase";
 import { withoutTrashed } from "../../../lib/trash";
 import { personName } from "../../../lib/people";
 import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabels } from "../../../lib/calendarDays";
+import CalendarNav from "../../components/CalendarNav";
 import {
   laborByDate, laborForStorage, blankLaborSchedule, laborDays, menOnDate,
   isOverbooked, overbookedDates, describeLabor, CREW_CAPACITY
@@ -46,6 +47,7 @@ function SchedulingPageContent() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [notice, setNotice] = useState("");
+  const [calendarAnchor, setCalendarAnchor] = useState(() => new Date());
 
   const load = async () => {
     const [projectsSnap, usersSnap] = await Promise.all([
@@ -104,7 +106,9 @@ function SchedulingPageContent() {
   const nameOf = (id) => personName(users.find(u => u.id === id)) || "";
 
   const byDate = useMemo(() => laborByDate(projects), [projects]);
-  const calendarWeeks = useMemo(() => buildCalendarWeeks(new Date()), []);
+  // Which four weeks are on screen. Work gets scheduled months out, so
+  // this moves with the arrows or straight to a date.
+  const calendarWeeks = useMemo(() => buildCalendarWeeks(calendarAnchor, new Date()), [calendarAnchor]);
   const weekendColumns = useMemo(
     () => weekendColumnsFor(calendarWeeks, (key) => (byDate.get(key) || []).length > 0),
     [calendarWeeks, byDate]
@@ -192,7 +196,7 @@ function SchedulingPageContent() {
         <>
           <div className="list-toolbar">
             <span className="private-note-hint" style={{ margin: 0 }}>
-              Everyone&apos;s work, next 4 weeks. {CREW_CAPACITY} men is a normal day.
+              Everyone&apos;s work, four weeks at a time. {CREW_CAPACITY} men is a normal day.
               {overbooked.length > 0 && (
                 <> <strong style={{ color: "var(--color-warning-strong)" }}>⚠ {overbooked.length} {overbooked.length === 1 ? "day is" : "days are"} over.</strong></>
               )}
@@ -205,6 +209,8 @@ function SchedulingPageContent() {
           </div>
 
           {notice && <p className="private-note-hint">{notice}</p>}
+
+          <CalendarNav anchor={calendarAnchor} onAnchor={setCalendarAnchor} idPrefix="sched-cal" />
 
           <div className="calendar-wrap">
             <div className="calendar-weekday-header" style={{ gridTemplateColumns: `repeat(${labels.length}, 1fr)` }}>
@@ -254,7 +260,7 @@ function SchedulingPageContent() {
           </div>
 
           {calendarDays.every(({ key }) => !(byDate.get(key) || []).length) && (
-            <p className="private-note-hint">No work scheduled in the next 4 weeks. Use Add Manpower to put a job on the calendar.</p>
+            <p className="private-note-hint">No work scheduled in these four weeks. Step through the weeks above, or use Add Manpower to put a job on the calendar.</p>
           )}
         </>
       )}

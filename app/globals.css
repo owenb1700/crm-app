@@ -2270,9 +2270,10 @@ a {
   border-radius: var(--radius);
   padding: 16px;
   box-shadow: var(--shadow-sm);
-  position: sticky;
-  top: 16px;
-  max-height: 50vh;
+  /* Deliberately not sticky. Following the page scroll made the panel
+     drift and judder against the calendar beside it; it sits still and
+     scrolls its own contents instead. */
+  max-height: 60vh;
   overflow-y: auto;
 }
 
@@ -2306,8 +2307,8 @@ a {
   }
 
   .calendar-side-panel {
-    position: static;
     width: 100%;
+    max-height: none;
   }
 }
 
@@ -4049,5 +4050,39 @@ a {
 
   a[href]::after {
     content: "";
+  }
+}
+
+/* ---------- calendar week navigation (Home, Project Scheduling) ---------- */
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.calendar-nav-span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  min-width: 150px;
+}
+
+.calendar-nav-jump {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.calendar-nav-jump .field {
+  width: auto;
+}
+
+@media (max-width: 700px) {
+  .calendar-nav-jump {
+    margin-left: 0;
   }
 }
