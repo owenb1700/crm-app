@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { dateKey, startOfWeek, shiftWeeks, dateFromKey } from "../../lib/calendarDays";
+import { dateKey, startOfWeek, shiftWeeks } from "../../lib/calendarDays";
+import ShortDateInput from "./ShortDateInput";
 
 // Stepping a four-week calendar back and forward, on Home and on Project
 // Scheduling. A week at a time with the arrows, or straight to a date by
@@ -10,25 +10,14 @@ import { dateKey, startOfWeek, shiftWeeks, dateFromKey } from "../../lib/calenda
 //
 // "Today" only appears once you've moved away, so it's a way back rather
 // than a permanent button doing nothing.
+//
+// The date box is ShortDateInput rather than <input type="date">, because
+// a native date input renders its year from the browser's locale and
+// can't be told to show two digits. It still has the calendar popup.
+
 export default function CalendarNav({ anchor, onAnchor, idPrefix = "cal" }) {
   const today = new Date();
 
-  // The typed date is held here rather than read back off the anchor.
-  // Binding the box straight to the anchor rewrote it to that week's
-  // Monday the instant a date was complete, so the next keystroke was
-  // editing a date nobody typed -- which made two-digit months and days
-  // nearly impossible to enter.
-  const [typed, setTyped] = useState(() => dateKey(startOfWeek(anchor)));
-  const fromTyping = useRef(false);
-
-  useEffect(() => {
-    // Arrows and Today should move the box; typing shouldn't fight itself.
-    if (fromTyping.current) {
-      fromTyping.current = false;
-      return;
-    }
-    setTyped(dateKey(startOfWeek(anchor)));
-  }, [anchor]);
   const onThisWeek = dateKey(startOfWeek(anchor)) === dateKey(startOfWeek(today));
 
   const first = startOfWeek(anchor);
@@ -58,27 +47,14 @@ export default function CalendarNav({ anchor, onAnchor, idPrefix = "cal" }) {
 
       <span className="calendar-nav-span">{span}</span>
 
-      <label className="calendar-nav-jump" htmlFor={`${idPrefix}-jump`}>
+      <span className="calendar-nav-jump">
         <span className="private-note-hint">Jump to</span>
-        <input
-          id={`${idPrefix}-jump`}
-          className="field"
-          type="date"
-          style={{ marginBottom: 0 }}
-          value={typed}
-          onChange={e => {
-            const value = e.target.value;
-            setTyped(value);
-            // A native date input reports "" until every part is filled,
-            // so a half-typed date simply doesn't move the calendar.
-            const picked = dateFromKey(value);
-            if (picked) {
-              fromTyping.current = true;
-              onAnchor(picked);
-            }
-          }}
+        <ShortDateInput
+          idPrefix={`${idPrefix}-jump`}
+          value={first}
+          onPick={onAnchor}
         />
-      </label>
+      </span>
 
       {!onThisWeek && (
         <button type="button" className="btn btn-secondary btn-small" onClick={() => onAnchor(new Date())}>
