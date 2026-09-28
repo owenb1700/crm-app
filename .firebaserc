@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "crm-system-staging",
+    "staging": "crm-system-staging",
+    "production": "crm-system-1e521"
+  }
+}
