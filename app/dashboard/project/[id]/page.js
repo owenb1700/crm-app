@@ -33,6 +33,8 @@ import DashboardHeader from "../../../components/DashboardHeader";
 import MoneyInput from "../../../components/MoneyInput";
 import MobileNav from "../../../components/MobileNav";
 import { LeadTimeFields, LeadTimeSummary } from "../../../components/LeadTimeFields";
+import LaborScheduleEditor from "../../../components/LaborScheduleEditor";
+import { blankLaborSchedule, laborDays, hasLabor, describeLabor, firstDay, lastDay, laborForStorage } from "../../../../lib/laborSchedule";
 import ProjectMyReminders from "../../../components/ProjectMyReminders";
 import RecordNotes from "../../../components/RecordNotes";
 import useUnsavedGuard from "../../../components/useUnsavedGuard";
@@ -75,7 +77,9 @@ const EDITABLE_FIELDS = [
   "projectName", "buildingSector", "company", "companyCategory", "contact", "email", "phone", "category", "projectValue", "workType",
   "nextCheckIn", "lastContact", "projectAddress",
   // Equipment lead time and the dates it runs on.
-  "leadTime", "leadTimeAlerts", "orderedOn", "shippedOn", "deliveredOn"
+  "leadTime", "leadTimeAlerts", "orderedOn", "shippedOn", "deliveredOn",
+  // When the work happens and how many men are on it each day.
+  "laborSchedule"
 ];
 
 export default function ProjectDetail() {
@@ -281,6 +285,9 @@ export default function ProjectDetail() {
       workType: customer.workType || "",
       leadTime: customer.leadTime || "",
       leadTimeAlerts: customer.leadTimeAlerts === true,
+      laborSchedule: customer.laborSchedule
+        ? { includeWeekends: customer.laborSchedule.includeWeekends === true, days: laborDays(customer).map(d => ({ ...d })) }
+        : blankLaborSchedule(),
       orderedOn: customer.orderedOn || "",
       shippedOn: customer.shippedOn || "",
       deliveredOn: customer.deliveredOn || "",
@@ -331,6 +338,14 @@ export default function ProjectDetail() {
     EDITABLE_FIELDS.forEach(f => {
       payload[f] = editData[f] || null;
     });
+
+    // Tidied the same way the scheduling calendar tidies it -- sorted,
+    // de-duplicated, days with nobody on them dropped -- so it doesn't
+    // matter which of the two saved it last.
+    const labor = laborForStorage(editData.laborSchedule);
+    payload.laborSchedule = labor.days.length
+      ? { ...labor, updatedAt: new Date().toISOString(), updatedBy: uid }
+      : null;
 
     const equipment = equipmentRows.filter(r => r.type || r.manufacturer || r.model || r.serial || r.yearInstalled);
     const first = equipment[0] || {};
@@ -662,6 +677,16 @@ export default function ProjectDetail() {
             <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
             <LeadTimeFields idPrefix="project-detail" values={editData} setValues={setEditData} />
 
+            <h4 className="field-label" style={{ marginTop: 16 }}>Labor &amp; Work Dates</h4>
+            <p className="private-note-hint" style={{ marginTop: -4 }}>
+              These days show on Project Scheduling, where anyone can see and change them.
+            </p>
+            <LaborScheduleEditor
+              idPrefix="project-detail-labor"
+              value={editData.laborSchedule || blankLaborSchedule()}
+              onChange={v => setEditData(prev => ({ ...prev, laborSchedule: v }))}
+            />
+
             <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split</h4>
             <CreditSplitEditor idPrefix="project-detail-split" users={users} value={splitRows} onChange={setSplitRows} ownerId={customer.ownerId} ownerLabel="the project owner" />
             <div className="form-grid-3">
@@ -804,6 +829,25 @@ export default function ProjectDetail() {
                   </>
                 )}
                 <dt>Work Type</dt><dd>{customer.workType || "—"}</dd>
+                {hasLabor(customer) && (
+                  <>
+                    <dt>Labor</dt>
+                    <dd>
+                      {describeLabor(customer)}
+                      <div className="private-note-hint">
+                        {firstDay(customer)}{lastDay(customer) !== firstDay(customer) ? ` to ${lastDay(customer)}` : ""}
+                        {" · "}
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => router.push("/dashboard/scheduling")}
+                        >
+                          see it on Project Scheduling
+                        </button>
+                      </div>
+                    </dd>
+                  </>
+                )}
                 {customer.leadTime && (
                   <>
                     <dt>Lead Time (longest component)</dt>

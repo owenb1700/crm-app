@@ -38,6 +38,13 @@ export default function ViewTabs({ profile, role, view, onSelectView, onAddRemin
         <button className={tabClass("team")} onClick={() => open("team")}>Team</button>
       )}
 
+      {/* Scheduling sits after Team: it's the whole company's work laid out
+          on a calendar, so it belongs with the shared views rather than
+          with someone's own list. Everyone's, like Parts -- no gate. */}
+      <button className={tabClass("scheduling")} onClick={() => router.push("/dashboard/scheduling")}>
+        Project Scheduling
+      </button>
+
       <button className={tabClass("pastProjects")} onClick={() => open("pastProjects")}>Past Projects</button>
 
       {canViewAnalytics(profile) && (
