@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { exportProjects, exportPipeline, exportPastProjects, exportMyReminders, personName, canExportPerson } from "../../lib/personalExport";
+import { exportProjects, exportPipeline, exportPastProjects, exportParts, exportMyReminders, personName, canExportPerson } from "../../lib/personalExport";
 import ExportButtons from "./ExportButtons";
 
 const FORMAT_NAMES = { csv: "CSV", xlsx: "Excel", pdf: "PDF" };
@@ -20,6 +20,7 @@ export default function ExportDataModal({ viewer, target, onClose }) {
     { key: "projects", label: "Projects", desc: isSelf ? "Active projects you own or collaborate on" : "Active projects they own or collaborate on", run: exportProjects, notes: true },
     { key: "pipeline", label: "Pipeline", desc: isSelf ? "Entries you own, are assigned to, or track" : "Entries they own, are assigned to, or track", run: exportPipeline, notes: true },
     { key: "past", label: "Past projects", desc: "Closed projects and resolved pipeline entries", run: exportPastProjects, notes: true },
+    { key: "parts", label: "Parts", desc: isSelf ? "Parts requests you entered" : "Parts requests they entered", run: exportParts },
     ...(isSelf ? [{ key: "reminders", label: "Reminders", desc: "Your reminders and personal pipeline alerts", run: exportMyReminders }] : [])
   ];
 

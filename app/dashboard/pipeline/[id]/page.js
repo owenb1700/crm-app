@@ -542,13 +542,12 @@ export default function PipelineDetail() {
   };
 
   const convertToProject = async () => {
+    // The date is the only thing nobody can work out from the entry.
+    // A thin field is carried across as-is and fixed on the project --
+    // blocking the conversion over it just strands a won job in the
+    // pipeline.
     const missing = [];
-    if (!convertData.salespersonId) missing.push("Salesperson");
-    if (!convertData.company?.trim()) missing.push(convertData.companyCategory || "Contractor");
-    if (!convertData.buildingSector) missing.push("Building Sector");
-    if (!convertData.workType) missing.push("Work Type");
     if (!convertNextDate) missing.push("Next Check-In Date");
-    if (!convertProjectAddress) missing.push("Project Address");
     if (missing.length) {
       return alert(`Please fill in: ${missing.join(", ")}`);
     }
@@ -1214,43 +1213,16 @@ export default function PipelineDetail() {
               <dt>Address</dt><dd>{convertProjectAddress || "—"}</dd>
             </dl>
 
-            <div className="form-grid-2">
-              {!convertData.salespersonId && (
-                <div>
-                  <label className="field-label" htmlFor="convert-salesperson">Salesperson (project owner)</label>
-                  <select id="convert-salesperson" className="field" value={convertData.salespersonId} onChange={e => setConvertData({ ...convertData, salespersonId: e.target.value })}>
-                    <option value="">Select salesperson...</option>
-                    {users.filter(u => !u.disabled).map(u => (
-                      <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              {!convertData.buildingSector && (
-                <BuildingSectorSelect id="convert-sector" value={convertData.buildingSector} onChange={v => setConvertData({ ...convertData, buildingSector: v })} />
-              )}
-              {!convertData.workType && (
-                <WorkTypeSelect id="convert-work-type" value={convertData.workType} onChange={v => setConvertData({ ...convertData, workType: v })} />
-              )}
-              {!convertData.company && (
-                <div>
-                  <label className="field-label" htmlFor="convert-company">Firm</label>
-                  <input id="convert-company" className="field" value={convertData.company || ""} onChange={e => setConvertData(prev => ({ ...prev, company: e.target.value }))} />
-                </div>
-              )}
-              {!convertProjectAddress && (
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label className="field-label" htmlFor="convert-address">Project Address</label>
-                  <AddressAutocomplete id="convert-address" name="convert-projectAddress" value={convertProjectAddress} onChange={setConvertProjectAddress} />
-                </div>
-              )}
-
-              {/* The one thing nobody can work out for them. */}
-              <div>
-                <label className="field-label" htmlFor="convert-next-date">Next check-in date</label>
-                <input id="convert-next-date" className="field" type="date" value={convertNextDate} onChange={e => setConvertNextDate(e.target.value)} />
-                <p className="private-note-hint">When it should come back round on your schedule.</p>
-              </div>
+            {/* One field. Everything else came off the entry -- the
+                winning bidder is the firm and the contact, the address,
+                sector and work type are the entry's own. Anything thin
+                gets fixed on the project afterwards; asking here just
+                invited someone to type something different from what
+                they had already recorded. */}
+            <div>
+              <label className="field-label" htmlFor="convert-next-date">Next check-in date</label>
+              <input id="convert-next-date" className="field" type="date" value={convertNextDate} onChange={e => setConvertNextDate(e.target.value)} />
+              <p className="private-note-hint">When it should come back round on your schedule. Everything else is editable on the project.</p>
             </div>
 
             <div className="modal-actions">
