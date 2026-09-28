@@ -3,12 +3,14 @@
 import { useRouter } from "next/navigation";
 import { effectivePermissions } from "../../lib/permissions";
 import { OWNER_CATEGORY } from "../../lib/directory";
-import { canViewAnalytics } from "../../lib/analytics";
 import RemindersMenu from "./RemindersMenu";
 import GlobalSearch from "./GlobalSearch";
 
-// The row of tabs under the header -- Home, My Projects, Pipeline,
-// Directory, Analytics, Team, Past Projects, plus reminders and search.
+// The row of tabs under the header -- Home, My Projects, Pipeline, Team,
+// Project Scheduling, Past Projects, Parts and Directory, plus reminders
+// and search. Analytics isn't here: it sits in the avatar menu, since
+// it's somewhere people go now and then rather than a view they switch
+// between.
 // The dashboard passes onSelectView and switches tabs in place; every other
 // page (Analytics, for one) leaves it out, and the tabs navigate back to
 // the dashboard with the view in the hash instead. Each tab still respects
@@ -46,12 +48,6 @@ export default function ViewTabs({ profile, role, view, onSelectView, onAddRemin
       </button>
 
       <button className={tabClass("pastProjects")} onClick={() => open("pastProjects")}>Past Projects</button>
-
-      {canViewAnalytics(profile) && (
-        <button className={tabClass("analytics")} onClick={() => router.push("/dashboard/analytics")}>
-          Analytics
-        </button>
-      )}
 
       {/* Parts is everyone's -- no permission gate. */}
       <button className={tabClass("parts")} onClick={() => router.push("/dashboard/parts")}>Parts</button>

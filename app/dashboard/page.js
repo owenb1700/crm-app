@@ -1848,11 +1848,23 @@ export default function Dashboard() {
                 <div className="avatar-dropdown-role">
                   <span className={`role-badge ${role === "admin" ? "role-badge-admin" : ""}`}>{roleLabel(role)}</span>
                 </div>
-                <button className="btn btn-secondary btn-block" onClick={() => setShowUserSettings(true)}>
-                  User Settings
-                </button>
-                <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={() => setExportFor({ self: true })}>
+                {/* Same order as the shared header's menu in
+                    DashboardHeader.js -- this page has its own copy of
+                    this dropdown, so the two have to be changed together. */}
+                {canViewAnalytics(myProfile) && (
+                  <button className="btn btn-secondary btn-block" onClick={() => router.push("/dashboard/analytics")}>
+                    Analytics
+                  </button>
+                )}
+                <button
+                  className="btn btn-secondary btn-block"
+                  style={canViewAnalytics(myProfile) ? { marginTop: 8 } : undefined}
+                  onClick={() => setExportFor({ self: true })}
+                >
                   Export My Data
+                </button>
+                <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={() => setShowUserSettings(true)}>
+                  User Settings
                 </button>
                 <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={logout}>
                   Logout

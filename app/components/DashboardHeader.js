@@ -7,6 +7,7 @@ import { auth, db } from "../../lib/firebase";
 import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import UserSettingsModal from "./UserSettingsModal";
 import ExportDataModal from "./ExportDataModal";
+import { canViewAnalytics } from "../../lib/analytics";
 
 const ROLE_LABELS = { admin: "Admin", member: "Salesperson", estimating: "Estimating Department" };
 const roleLabel = (role) => ROLE_LABELS[role] || role;
@@ -171,11 +172,23 @@ export default function DashboardHeader({ uid, pendingRequests = [], onApproveRe
             <div className="avatar-dropdown-role">
               <span className={`role-badge ${role === "admin" ? "role-badge-admin" : ""}`}>{roleLabel(role)}</span>
             </div>
-            <button className="btn btn-secondary btn-block" onClick={() => setShowUserSettings(true)}>
-              User Settings
-            </button>
-            <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={() => setShowExport(true)}>
+            {/* Analytics lives here rather than in the tab bar: it's
+                something people go to now and then, not a view of their
+                work they switch between. */}
+            {canViewAnalytics(profile) && (
+              <button className="btn btn-secondary btn-block" onClick={() => router.push("/dashboard/analytics")}>
+                Analytics
+              </button>
+            )}
+            <button
+              className="btn btn-secondary btn-block"
+              style={canViewAnalytics(profile) ? { marginTop: 8 } : undefined}
+              onClick={() => setShowExport(true)}
+            >
               Export My Data
+            </button>
+            <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={() => setShowUserSettings(true)}>
+              User Settings
             </button>
             <button className="btn btn-secondary btn-block" style={{ marginTop: 8 }} onClick={logout}>
               Logout
