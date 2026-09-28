@@ -173,9 +173,19 @@ export function LeadTimeSummary({ record, subject = "This job", defaultUnit = "w
   const late = alertsOn && (status.state === "ship-late" || status.state === "delivery-due");
   const due = alertsOn && status.state === "ship-due";
 
+  // A span, not a div: this sits inside a <p> on the pipeline header, and
+  // a div in a paragraph is invalid HTML -- the browser moves it and
+  // hydration then mismatches. display:block keeps it on its own line
+  // everywhere it's used.
   return (
-    <div className={className} style={late ? { color: "var(--color-danger)" } : due ? { color: "var(--color-warning-strong)" } : undefined}>
+    <span
+      className={className}
+      style={{
+        display: "block",
+        ...(late ? { color: "var(--color-danger)" } : due ? { color: "var(--color-warning-strong)" } : {})
+      }}
+    >
       {late || due ? "\u26a0 " : ""}{describeLeadTime(status, { subject })}
-    </div>
+    </span>
   );
 }

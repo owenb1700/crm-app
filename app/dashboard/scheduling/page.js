@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
@@ -385,6 +385,12 @@ function SchedulingPageContent() {
   );
 }
 
+// MobileNav reads the URL's query string, which Next wants wrapped --
+// without this the production build refuses to prerender the page.
 export default function SchedulingPage() {
-  return <SchedulingPageContent />;
+  return (
+    <Suspense fallback={<div className="dashboard-page">Loading the schedule...</div>}>
+      <SchedulingPageContent />
+    </Suspense>
+  );
 }

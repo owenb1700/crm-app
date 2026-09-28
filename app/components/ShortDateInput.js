@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { dateFromSegments } from "../../lib/calendarDays";
 
 // A date box that behaves like the browser's own -- three segments you
 // tab and type straight through, arrow keys to nudge a number, backspace
@@ -17,18 +18,6 @@ const pad2 = (n) => String(n).padStart(2, "0");
 const digitsOnly = (v) => String(v || "").replace(/\D/g, "").slice(0, 2);
 
 const LIMITS = { month: [1, 12], day: [1, 31], year: [0, 99] };
-
-// Segments -> a Date, or null if it isn't a real one. Two-digit years are
-// this century. 02/31 is rejected rather than rolled into March.
-export function dateFromSegments({ month, day, year }) {
-  if (month.length !== 2 || day.length !== 2 || year.length !== 2) return null;
-  const m = Number(month);
-  const d = Number(day);
-  const y = 2000 + Number(year);
-  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
-  const out = new Date(y, m - 1, d);
-  return out.getMonth() === m - 1 && out.getDate() === d ? out : null;
-}
 
 export default function ShortDateInput({ idPrefix, value, onPick, ariaLabel = "Jump to date" }) {
   const [month, setMonth] = useState(() => pad2(value.getMonth() + 1));
