@@ -839,7 +839,8 @@ export default function ProjectDetail() {
                         {" · "}
                         <button
                           type="button"
-                          className="link-button"
+                          className="link-muted"
+                          style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
                           onClick={() => router.push("/dashboard/scheduling")}
                         >
                           see it on Project Scheduling
