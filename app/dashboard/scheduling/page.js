@@ -7,6 +7,7 @@ import { collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore"
 import { auth, db } from "../../../lib/firebase";
 import { withoutTrashed } from "../../../lib/trash";
 import { personName } from "../../../lib/people";
+import { hasShare } from "../../../lib/splits";
 import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabels } from "../../../lib/calendarDays";
 import CalendarNav from "../../components/CalendarNav";
 import {
@@ -118,6 +119,14 @@ function SchedulingPageContent() {
   const overbooked = useMemo(() => overbookedDates(byDate), [byDate]);
 
   const projectById = (id) => projects.find(p => p.id === id);
+
+  // Work that's yours: your own jobs, and anything you hold a share of.
+  // The board shows everybody's, so the ones you're accountable for need
+  // to be findable at a glance.
+  const myProjectIds = useMemo(
+    () => new Set(projects.filter(p => p.ownerId === uid || hasShare(p, uid)).map(p => p.id)),
+    [projects, uid]
+  );
 
   const startEditing = (projectId, date) => {
     const project = projectById(projectId);
@@ -245,7 +254,8 @@ function SchedulingPageContent() {
                       {entries.slice(0, 3).map(e => (
                         <div
                           key={`${e.projectId}-${e.date}`}
-                          className="calendar-event-pill"
+                          className={`calendar-event-pill ${myProjectIds.has(e.projectId) ? "calendar-event-pill-mine" : ""}`}
+                          title={myProjectIds.has(e.projectId) ? "Yours" : undefined}
                           onClick={(ev) => { ev.stopPropagation(); setOpenDay(key); }}
                         >
                           {e.name} · {e.men}
@@ -283,7 +293,10 @@ function SchedulingPageContent() {
               const project = projectById(e.projectId);
               return (
                 <div key={e.projectId} className="admin-card" style={{ marginBottom: 10 }}>
-                  <div className="customer-name">{e.name}</div>
+                  <div className="customer-name">
+                    {e.name}
+                    {myProjectIds.has(e.projectId) && <span className="role-badge" style={{ marginLeft: 6 }}>Yours</span>}
+                  </div>
                   <div className="customer-meta">{e.men} {e.men === 1 ? "man" : "men"} on this day</div>
                   {project && (
                     <>

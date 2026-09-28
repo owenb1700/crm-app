@@ -1581,6 +1581,15 @@ a {
   color: #78350f;
 }
 
+/* Project Scheduling shows the whole company's work. Your own jobs --
+   the ones you own or hold a share of -- carry the house blue so they
+   stand out of everybody else's grey. */
+.calendar-event-pill.calendar-event-pill-mine {
+  background: #e4ebfd;
+  color: #1c3aa9;
+  font-weight: 600;
+}
+
 /* Quick view for anything clicked on the Home calendar. */
 .modal-card.calendar-popup {
   max-width: 460px;

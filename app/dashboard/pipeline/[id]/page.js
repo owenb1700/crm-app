@@ -20,11 +20,10 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { ensureCompanyAndContactBatch, firmTypeOf, salespersonAfterFirmChange } from "../../../../lib/directory";
 import { notifyUsers, firmOwnersFor, newlyAddedFirms, newSplitMembers } from "../../../../lib/notify";
 import { stateChanges, activityEntry, withActivity } from "../../../../lib/activityLog";
-import { movedToPostBid, postBidCheckIn } from "../../../../lib/pipelineStages";
-import FirmTypeSelect from "../../../components/FirmTypeSelect";
+import { movedToPostBid, postBidCheckIn, POST_BID } from "../../../../lib/pipelineStages";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
-import { LeadTimeFields, LeadTimeSummary } from "../../../components/LeadTimeFields";
+import { LeadTimeFields, LeadTimeSummary, LeadTimeInput } from "../../../components/LeadTimeFields";
 import BidderEditor from "../../../components/BidderEditor";
 import { bidderRowsForEditing, biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson, groupBidders, contactsOf } from "../../../../lib/bidders";
 import { buildBidSnapshot } from "../../../../lib/bidHistory";
@@ -96,6 +95,12 @@ export default function PipelineDetail() {
 
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [showWonModal, setShowWonModal] = useState(false);
+  // Bids Sent: the step between sending a number and hearing anything.
+  const [showBidsSentModal, setShowBidsSentModal] = useState(false);
+  const [bidsSentDate, setBidsSentDate] = useState("");
+  // Filled on the Won modal when the entry has no lead time yet.
+  const [wonLeadTime, setWonLeadTime] = useState("");
+  const [wonOrderedOn, setWonOrderedOn] = useState("");
   const [wonContractor, setWonContractor] = useState("");
   // "Lost" or "Did Not Bid" while that form is open; both record why and
   // who won, and both end the entry with no follow-up.
@@ -429,8 +434,26 @@ export default function PipelineDetail() {
     await loadPipelineEntry(uid, role);
   };
 
+  // Two weeks out by default, and changeable -- some jobs you chase in a
+  // week, some sit for a month.
+  const openBidsSent = () => {
+    setBidsSentDate(postBidCheckIn());
+    setShowBidsSentModal(true);
+  };
+
+  const confirmBidsSent = async () => {
+    if (!bidsSentDate) return alert("Pick a date to follow up on");
+    await updateDoc(doc(db, "pipeline", pipelineId), {
+      stage: POST_BID,
+      nextCheckIn: bidsSentDate,
+      bidsSentAt: new Date().toISOString()
+    });
+    setShowBidsSentModal(false);
+    await loadPipelineEntry(uid, role);
+  };
+
   const confirmMarkWon = async () => {
-    if (!wonContractor.trim()) return alert("Enter or select the winning contractor");
+    if (!wonContractor.trim()) return alert("Select which of the bidders won the job");
 
     // Won work gets a 1-year check-in with whoever's actually responsible
     // for the relationship (point person, then salesperson, then owner) --
@@ -443,11 +466,20 @@ export default function PipelineDetail() {
       outcome: "Won",
       wonByContractor: wonContractor.trim(),
       resolvedAt: new Date().toISOString(),
-      nextCheckIn: adjustWeekend(followUp.toISOString())
+      nextCheckIn: adjustWeekend(followUp.toISOString()),
+      // Asked for on the Won box when the entry doesn't already carry
+      // them, so the ship date is known before the job is even set up.
+      ...(wonLeadTime.trim() ? { leadTime: wonLeadTime.trim() } : {}),
+      ...(wonOrderedOn ? { orderedOn: wonOrderedOn } : {})
     });
     setShowWonModal(false);
     setWonContractor("");
+    setWonLeadTime("");
+    setWonOrderedOn("");
     await loadPipelineEntry(uid, role);
+    // Won work becomes a project; there's no reason to make someone go
+    // looking for the button.
+    openConvert();
   };
 
   const confirmMarkLost = async () => {
@@ -532,7 +564,8 @@ export default function PipelineDetail() {
         email: convertData.email || "",
         phone: convertData.phone || "",
         owners: [],
-        category: "Ongoing Project",
+        // Won work is equipment on order, not a job already running.
+        category: "Order",
         buildingSector: convertData.buildingSector,
         projectValue: pipeline.value || null,
         workType: convertData.workType,
@@ -548,6 +581,12 @@ export default function PipelineDetail() {
         splits: normalizeSplits(pipeline.splits),
         collaboratorIds: withSplitMembers([], pipeline.splits, convertData.salespersonId),
         projectPointPersonId: pipeline.projectPointPersonId || null,
+        // The lead time and its dates follow the work across.
+        leadTime: pipeline.leadTime || null,
+        leadTimeAlerts: pipeline.leadTimeAlerts === true,
+        orderedOn: pipeline.orderedOn || null,
+        shippedOn: pipeline.shippedOn || null,
+        deliveredOn: pipeline.deliveredOn || null,
         sourcePipelineId: pipeline.id,
         bidHistory: buildBidSnapshot(pipeline),
         createdAt: now
@@ -617,6 +656,12 @@ export default function PipelineDetail() {
 
   // Firms for "who won it": everything in the Directory plus any bidder on
   // this entry that isn't in it yet.
+  // Who can be marked as having won: the firms on this entry's bidder
+  // list, nobody else.
+  const wonCandidates = [...new Set(
+    groupBidders(pipeline.biddingCompanies).map(b => (b.company || "").trim()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b));
+
   const firmsWithBidders = [
     ...companies,
     ...(pipeline.biddingCompanies || [])
@@ -628,14 +673,33 @@ export default function PipelineDetail() {
   const outcomeSection = (
     <div className="project-section">
       <h4 className="field-label">Outcome</h4>
-      {!pipeline.outcome && (
+      {/* Two steps, not three buttons at once. Before the bid goes out the
+          only honest answers are "we're bidding it" or "we're not"; asking
+          won or lost then left an entry with three buttons nobody could
+          press for weeks. Once bids are sent it's Post-Bid, and the only
+          question left is how it went. */}
+      {!pipeline.outcome && pipeline.stage !== POST_BID && (
         <>
-          <p className="private-note-hint">Still in progress.</p>
+          <p className="private-note-hint">Bids haven&apos;t gone out yet.</p>
+          {canEdit && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn btn-primary" onClick={openBidsSent}>Bids Sent</button>
+              <button className="btn btn-secondary" onClick={() => setLostModalOutcome("Did Not Bid")}>Not Bidding</button>
+            </div>
+          )}
+        </>
+      )}
+
+      {!pipeline.outcome && pipeline.stage === POST_BID && (
+        <>
+          <p className="private-note-hint">
+            Bid is in — waiting to hear.
+            {pipeline.nextCheckIn ? ` Following up ${String(pipeline.nextCheckIn).slice(0, 10)}.` : ""}
+          </p>
           {canEdit && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button className="btn btn-primary" onClick={() => setShowWonModal(true)}>Mark Won</button>
               <button className="btn btn-danger" onClick={() => setLostModalOutcome("Lost")}>Mark Lost</button>
-              <button className="btn btn-secondary" onClick={() => setLostModalOutcome("Did Not Bid")}>Not Bidding</button>
             </div>
           )}
         </>
@@ -986,6 +1050,33 @@ export default function PipelineDetail() {
 
       </div>
 
+      {showBidsSentModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <button className="modal-close" onClick={() => setShowBidsSentModal(false)}>✕</button>
+            <h3 className="modal-title">Bids Sent</h3>
+            <p className="modal-subtitle">
+              Moves this to Post-Bid and puts a follow-up on your calendar. Mark it won or lost
+              whenever you hear — before this date or long after.
+            </p>
+
+            <label className="field-label" htmlFor="bids-sent-follow-up">Follow up on</label>
+            <input
+              id="bids-sent-follow-up"
+              className="field"
+              type="date"
+              value={bidsSentDate}
+              onChange={e => setBidsSentDate(e.target.value)}
+            />
+            <p className="private-note-hint">Two weeks out by default.</p>
+
+            <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={confirmBidsSent}>
+              Confirm
+            </button>
+          </div>
+        </div>
+      )}
+
       {showWonModal && (
         <div className="modal-overlay">
           <div className="modal-card">
@@ -994,9 +1085,64 @@ export default function PipelineDetail() {
             <p className="modal-subtitle">Which contractor or owner won the job?</p>
 
             <label className="field-label" htmlFor="won-contractor">Winning Firm</label>
-            <FirmSelect id="won-contractor" companies={firmsWithBidders} category="Contractor" value={wonContractor} onChange={setWonContractor} placeholder="Select or search firm..." newLabel="firm" />
+            {/* Only the firms that actually bid this job, and picked from
+                a list rather than typed. A winner who was never a bidder
+                means the bidder list is wrong, and that's worth fixing
+                there instead of quietly inventing a firm here. */}
+            {wonCandidates.length === 0 ? (
+              <p className="private-note-hint">
+                Nobody is listed as bidding this job yet. Add them under Contractors &amp; Owners
+                Bidding first, then come back and mark it won.
+              </p>
+            ) : (
+              <select
+                id="won-contractor"
+                className="field"
+                value={wonContractor}
+                onChange={e => setWonContractor(e.target.value)}
+              >
+                <option value="">Select the winning bidder...</option>
+                {wonCandidates.map(name => <option key={name} value={name}>{name}</option>)}
+              </select>
+            )}
 
-            <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={confirmMarkWon}>Confirm</button>
+            {/* Only asked when the entry doesn't already carry them --
+                there's no sense making someone retype a lead time they
+                put on at quote time. */}
+            {!pipeline.leadTime && (
+              <>
+                <h4 className="field-label" style={{ marginTop: 16 }}>Lead time (longest component)</h4>
+                <LeadTimeInput
+                  idPrefix="won-lead"
+                  value={wonLeadTime}
+                  onChange={setWonLeadTime}
+                  defaultUnit="weeks"
+                />
+                <p className="private-note-hint">Optional now — it can go on the project later.</p>
+              </>
+            )}
+            {!pipeline.orderedOn && (
+              <>
+                <label className="field-label" htmlFor="won-ordered-on" style={{ marginTop: 12 }}>Ordered on</label>
+                <input
+                  id="won-ordered-on"
+                  className="field"
+                  type="date"
+                  value={wonOrderedOn}
+                  onChange={e => setWonOrderedOn(e.target.value)}
+                />
+                <p className="private-note-hint">The ship date is figured from here.</p>
+              </>
+            )}
+
+            <button
+              className="btn btn-primary btn-block"
+              style={{ marginTop: 12 }}
+              disabled={!wonContractor}
+              onClick={confirmMarkWon}
+            >
+              Confirm
+            </button>
           </div>
         </div>
       )}
@@ -1036,48 +1182,68 @@ export default function PipelineDetail() {
             <button className="modal-close" onClick={() => setShowConvertModal(false)}>✕</button>
             <h3 className="modal-title">Convert to Project</h3>
             <p className="modal-subtitle" style={{ marginBottom: 12 }}>
-              Creates an Ongoing Project from "{pipeline.title}" on the salesperson's dashboard. All of the bid
-              details, bidders, notes, and files are kept on the project's Bid History tab.
+              Files &quot;{pipeline.title}&quot; as a project on order. The bid details, bidders, notes
+              and files stay with it on its Bid History tab.
             </p>
 
+            {/* Everything here is already known -- the winning bidder is
+                the firm and the contact, and the rest came off the entry.
+                Re-asking for it invited someone to type something
+                different from what they'd just recorded. Only what's
+                genuinely missing gets a field. */}
+            <dl className="detail-list">
+              <dt>Firm</dt>
+              <dd>{convertData.company || "—"}{convertData.companyCategory ? ` (${convertData.companyCategory})` : ""}</dd>
+              <dt>Contact</dt>
+              <dd>
+                {convertData.contact || "—"}
+                {(convertData.email || convertData.phone) && (
+                  <div className="private-note-hint">{[convertData.email, convertData.phone].filter(Boolean).join(" · ")}</div>
+                )}
+              </dd>
+              <dt>Salesperson</dt>
+              <dd>{ownerLabel(convertData.salespersonId) || "—"}</dd>
+              <dt>Sector</dt><dd>{convertData.buildingSector || "—"}</dd>
+              <dt>Work type</dt><dd>{convertData.workType || "—"}</dd>
+              <dt>Address</dt><dd>{convertProjectAddress || "—"}</dd>
+            </dl>
+
             <div className="form-grid-2">
-              <div>
-                <label className="field-label" htmlFor="convert-salesperson">Salesperson (project owner)</label>
-                <select id="convert-salesperson" className="field" value={convertData.salespersonId} onChange={e => setConvertData({ ...convertData, salespersonId: e.target.value })}>
-                  <option value="">Select salesperson...</option>
-                  {users.filter(u => !u.disabled).map(u => (
-                    <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
-                  ))}
-                </select>
-              </div>
-              <BuildingSectorSelect id="convert-sector" value={convertData.buildingSector} onChange={v => setConvertData({ ...convertData, buildingSector: v })} />
-              <WorkTypeSelect id="convert-work-type" value={convertData.workType} onChange={v => setConvertData({ ...convertData, workType: v })} />
+              {!convertData.salespersonId && (
+                <div>
+                  <label className="field-label" htmlFor="convert-salesperson">Salesperson (project owner)</label>
+                  <select id="convert-salesperson" className="field" value={convertData.salespersonId} onChange={e => setConvertData({ ...convertData, salespersonId: e.target.value })}>
+                    <option value="">Select salesperson...</option>
+                    {users.filter(u => !u.disabled).map(u => (
+                      <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {!convertData.buildingSector && (
+                <BuildingSectorSelect id="convert-sector" value={convertData.buildingSector} onChange={v => setConvertData({ ...convertData, buildingSector: v })} />
+              )}
+              {!convertData.workType && (
+                <WorkTypeSelect id="convert-work-type" value={convertData.workType} onChange={v => setConvertData({ ...convertData, workType: v })} />
+              )}
+              {!convertData.company && (
+                <div>
+                  <label className="field-label" htmlFor="convert-company">Firm</label>
+                  <input id="convert-company" className="field" value={convertData.company || ""} onChange={e => setConvertData(prev => ({ ...prev, company: e.target.value }))} />
+                </div>
+              )}
+              {!convertProjectAddress && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label className="field-label" htmlFor="convert-address">Project Address</label>
+                  <AddressAutocomplete id="convert-address" name="convert-projectAddress" value={convertProjectAddress} onChange={setConvertProjectAddress} />
+                </div>
+              )}
 
-              <FirmTypeSelect id="convert-firm-type" value={convertData.companyCategory || "Contractor"} onChange={v => setConvertData({ ...convertData, companyCategory: v })} />
-              <div />
-              <CompanyContactFields
-                idPrefix="convert"
-                companies={companies}
-                contacts={contacts}
-                companyLabel={convertData.companyCategory || "Contractor"}
-                companyCategory={convertData.companyCategory || "Contractor"}
-                companyValue={convertData.company || ""}
-                contactValue={convertData.contact || ""}
-                emailValue={convertData.email || ""}
-                phoneValue={convertData.phone || ""}
-                onCompanyChange={v => setConvertData(prev => ({ ...prev, company: v }))}
-                onContactChange={v => setConvertData(prev => ({ ...prev, contact: v }))}
-                onEmailChange={v => setConvertData(prev => ({ ...prev, email: v }))}
-                onPhoneChange={v => setConvertData(prev => ({ ...prev, phone: v }))}
-              />
-
+              {/* The one thing nobody can work out for them. */}
               <div>
-                <label className="field-label" htmlFor="convert-next-date">Next Check-In Date</label>
+                <label className="field-label" htmlFor="convert-next-date">Next check-in date</label>
                 <input id="convert-next-date" className="field" type="date" value={convertNextDate} onChange={e => setConvertNextDate(e.target.value)} />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="convert-address">Project Address</label>
-                <AddressAutocomplete id="convert-address" name="convert-projectAddress" value={convertProjectAddress} onChange={setConvertProjectAddress} />
+                <p className="private-note-hint">When it should come back round on your schedule.</p>
               </div>
             </div>
 
