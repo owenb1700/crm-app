@@ -8,7 +8,7 @@ import { auth, db } from "../../../lib/firebase";
 import { withoutTrashed } from "../../../lib/trash";
 import { personName } from "../../../lib/people";
 import { hasShare } from "../../../lib/splits";
-import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabels } from "../../../lib/calendarDays";
+import { buildCalendarWeeks, visibleCalendarDays, columnLabels } from "../../../lib/calendarDays";
 import CalendarNav from "../../components/CalendarNav";
 import {
   laborByDate, laborForStorage, blankLaborSchedule, laborDays, menOnDate,
@@ -110,10 +110,12 @@ function SchedulingPageContent() {
   // Which four weeks are on screen. Work gets scheduled months out, so
   // this moves with the arrows or straight to a date.
   const calendarWeeks = useMemo(() => buildCalendarWeeks(calendarAnchor, new Date()), [calendarAnchor]);
-  const weekendColumns = useMemo(
-    () => weekendColumnsFor(calendarWeeks, (key) => (byDate.get(key) || []).length > 0),
-    [calendarWeeks, byDate]
-  );
+  // Always seven columns here, unlike Home. Home hides an empty Saturday
+  // or Sunday because its weeks are mostly weekdays and the grid stays
+  // tidy; this board is crews and shipments, where weekend work is
+  // ordinary, and columns appearing and vanishing as jobs move made the
+  // whole calendar jump about. A fixed week reads evenly.
+  const weekendColumns = useMemo(() => new Set([5, 6]), []);
   const calendarDays = useMemo(() => visibleCalendarDays(calendarWeeks, weekendColumns), [calendarWeeks, weekendColumns]);
   const labels = useMemo(() => columnLabels(weekendColumns), [weekendColumns]);
   const overbooked = useMemo(() => overbookedDates(byDate), [byDate]);
