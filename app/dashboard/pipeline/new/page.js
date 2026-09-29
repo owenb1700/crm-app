@@ -352,7 +352,7 @@ export default function NewPipelineEntry() {
             <WorkTypeSelect id="new-pipeline-work-type" value={workType} onChange={setWorkType} />
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
-            <LeadTimeFields idPrefix="new-pipeline" values={leadTimeData} setValues={setLeadTimeData} defaultUnit="weeks" subject="This job" />
+            <LeadTimeFields idPrefix="new-pipeline" values={leadTimeData} setValues={setLeadTimeData} defaultUnit="weeks" subject="This job" allowAlerts={false} />
 
             <div>
               <label className="field-label">Engineering Firm</label>

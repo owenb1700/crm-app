@@ -901,7 +901,7 @@ export default function PipelineDetail() {
               </div>
               <WorkTypeSelect id="pipeline-detail-work-type" value={editData.workType} onChange={v => setEditData({ ...editData, workType: v })} />
               <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
-              <LeadTimeFields idPrefix="pipeline-detail" values={editData} setValues={setEditData} />
+              <LeadTimeFields idPrefix="pipeline-detail" values={editData} setValues={setEditData} allowAlerts={false} />
               <CompanyContactFields
                 idPrefix="pipeline-detail"
                 companies={companies}

@@ -59,7 +59,23 @@ export function LeadTimeInput({ idPrefix, value, onChange, defaultUnit = "weeks"
   );
 }
 
-export function LeadTimeFields({ idPrefix, values, setValues, defaultUnit = "weeks", subject = "This job" }) {
+// `allowAlerts` is whether there is yet anything to be alerted about.
+// Entering a job, nobody knows when it will be ordered -- the lead time
+// is a note, not a clock -- so the create forms pass false and only the
+// figure is asked for. It turns true once the job reaches Order, which
+// is when an order date exists to count from.
+//
+// Parts keep asking straight away: a part is quoted and ordered on the
+// same screen, so `allowAlerts` defaults to true and only the callers
+// that want it off say so.
+export function LeadTimeFields({
+  idPrefix,
+  values,
+  setValues,
+  defaultUnit = "weeks",
+  subject = "This job",
+  allowAlerts = true
+}) {
   const set = (field) => (e) => setValues(prev => ({ ...prev, [field]: e.target.value }));
   const stamp = (field) => () => setValues(prev => ({ ...prev, [field]: todayKey() }));
 
@@ -70,6 +86,10 @@ export function LeadTimeFields({ idPrefix, values, setValues, defaultUnit = "wee
   const parsed = parseLeadTime(values.leadTime, { defaultUnit });
   const alertsOn = values.leadTimeAlerts === true;
   const status = leadTimeStatus(values, todayKey(), { defaultUnit });
+  // Never hide a control that is already doing something: a record with
+  // alerts on, or a date already recorded, keeps its section so it can
+  // still be turned off or corrected.
+  const showAlerts = allowAlerts || alertsOn || !!values.orderedOn;
 
   // Switching alerts on needs a day to count from, so it fills in today's
   // date -- right most of the time, and editable when it isn't.
@@ -104,6 +124,7 @@ export function LeadTimeFields({ idPrefix, values, setValues, defaultUnit = "wee
           <p className="private-note-hint" style={{ marginTop: 4 }}>{hint}</p>
         </div>
 
+        {showAlerts && (
         <div>
           <span className="field-label">Alerts</span>
           <label className="export-notes-toggle" htmlFor={`${idPrefix}-lead-alerts`} style={{ marginBottom: 0 }}>
@@ -124,17 +145,22 @@ export function LeadTimeFields({ idPrefix, values, setValues, defaultUnit = "wee
             </span>
           </label>
         </div>
+        )}
       </div>
 
-      {hasLeadTime && alertsOn && (
+      {/* Once it has been ordered the dates stand on their own: when it
+          was ordered is worth recording, and the ship date is worked out
+          from it, whether or not anybody asked to be told about it.
+          Ticking alerts decides who gets nudged, not what gets kept. */}
+      {showAlerts && hasLeadTime && (
         <div className="form-grid-3">
           <div>
-            <label className="field-label" htmlFor={`${idPrefix}-ordered-on`}>Lead time starts</label>
+            <label className="field-label" htmlFor={`${idPrefix}-ordered-on`}>Order date</label>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input id={`${idPrefix}-ordered-on`} className="field" type="date" style={{ marginBottom: 0 }} value={values.orderedOn || ""} onChange={set("orderedOn")} />
               <button type="button" className="btn btn-secondary btn-small" onClick={stamp("orderedOn")}>Today</button>
             </div>
-            <p className="private-note-hint" style={{ marginTop: 4 }}>Usually the day it was ordered.</p>
+            <p className="private-note-hint" style={{ marginTop: 4 }}>The lead time is counted from here.</p>
           </div>
           <div>
             <label className="field-label" htmlFor={`${idPrefix}-shipped-on`}>Shipped on</label>

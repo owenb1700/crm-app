@@ -710,7 +710,12 @@ export default function ProjectDetail() {
             </div>
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
-            <LeadTimeFields idPrefix="project-detail" values={editData} setValues={setEditData} />
+            <LeadTimeFields
+              idPrefix="project-detail"
+              values={editData}
+              setValues={setEditData}
+              allowAlerts={editData.category === "Order"}
+            />
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Labor &amp; Work Dates</h4>
             <p className="private-note-hint" style={{ marginTop: -4 }}>
