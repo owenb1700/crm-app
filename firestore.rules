@@ -68,6 +68,15 @@ service cloud.firestore {
     // active can add one and anyone can edit one (a teammate updating a
     // stage is the normal case); only whoever entered it, or an admin, can
     // delete it.
+    // The crew list: the names of the people who actually do the work.
+    // Not accounts -- nobody here signs in. Everyone reads it, because
+    // anyone scheduling a job needs to pick from it; only an admin
+    // changes who is on it.
+    match /crew/{memberId} {
+      allow read: if isActive();
+      allow write: if isActive() && isAdmin();
+    }
+
     match /parts/{partId} {
       allow read: if isActive();
       allow create: if isActive() && request.resource.data.ownerId == request.auth.uid;

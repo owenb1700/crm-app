@@ -5,6 +5,7 @@ import {
   rebuildDays, withSameMen, laborDays, totalManDays, peakMen,
   dayLoad, describeDayLoad, MAX_DAYS
 } from "../../lib/laborSchedule";
+import { crewNames, peopleOn, peopleForStorage } from "../../lib/crew";
 
 // When the work happens and how many men are on it each day.
 //
@@ -15,7 +16,7 @@ import {
 // A day that would put the company over its usual crew says so, per day,
 // but never blocks the save: jobs get booked over capacity all the time
 // and then sorted out. The warning is there so it's a decision.
-export default function LaborScheduleEditor({ value, onChange, byDate, projectId, idPrefix = "labor" }) {
+export default function LaborScheduleEditor({ value, onChange, byDate, projectId, crew = [], idPrefix = "labor" }) {
   const days = laborDays({ laborSchedule: value });
   const includeWeekends = value?.includeWeekends === true;
 
@@ -43,6 +44,33 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
     push({ days: days.map(d => (d.date === date ? { ...d, men: Math.max(0, Math.round(Number(men) || 0)) } : d)) });
 
   const applyToAll = () => push({ days: withSameMen(days, sameMen) });
+
+  // Who's on a given day. The list is the crew an admin keeps, plus a box
+  // for anyone who isn't on it -- outside labour gets hired for a week and
+  // there's no sense making someone wait on an admin to add them.
+  const roster = crewNames(crew);
+  const setPeopleOn = (date, names) =>
+    push({
+      days: days.map(d => {
+        if (d.date !== date) return d;
+        const people = peopleForStorage(names);
+        return { ...d, people, men: Math.max(Number(d.men) || 0, people.length) };
+      })
+    });
+
+  // A day can be taken off without disturbing the rest -- a job that ran
+  // Monday to Thursday and lost the Wednesday shouldn't have to be
+  // retyped. The rows are the truth; the "how many days" box only ever
+  // generates them.
+  const removeDay = (date) => push({ days: days.filter(d => d.date !== date) });
+  const clearAllDays = () => push({ days: [] });
+
+  const togglePerson = (day, name) => {
+    const on = peopleOn(day);
+    setPeopleOn(day.date, on.some(n => n.toLowerCase() === name.toLowerCase())
+      ? on.filter(n => n.toLowerCase() !== name.toLowerCase())
+      : [...on, name]);
+  };
 
   return (
     <div>
@@ -117,6 +145,15 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
                   <tr key={d.date}>
                     <td style={{ padding: "6px 8px 6px 0", whiteSpace: "nowrap", verticalAlign: "top" }}>
                       <strong>{d.date}</strong>
+                      <button
+                        type="button"
+                        className="crew-chip-remove"
+                        aria-label={`Remove ${d.date} from this job`}
+                        title="Take this day off the job"
+                        onClick={() => removeDay(d.date)}
+                      >
+                        ✕
+                      </button>
                     </td>
                     <td style={{ padding: "6px 8px", width: 90, verticalAlign: "top" }}>
                       <input
@@ -135,12 +172,60 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
                           {load.over ? "⚠ " : ""}{describeDayLoad(load)}
                         </span>
                       )}
+                      <div className="crew-pick">
+                        {roster.map(name => {
+                          const on = peopleOn(d).some(n => n.toLowerCase() === name.toLowerCase());
+                          return (
+                            <button
+                              key={name}
+                              type="button"
+                              className={`crew-chip ${on ? "crew-chip-on" : ""}`}
+                              aria-pressed={on}
+                              onClick={() => togglePerson(d, name)}
+                            >
+                              {name}
+                            </button>
+                          );
+                        })}
+                        {peopleOn(d).filter(n => !roster.some(r => r.toLowerCase() === n.toLowerCase())).map(name => (
+                          <button
+                            key={name}
+                            type="button"
+                            className="crew-chip crew-chip-on crew-chip-outside"
+                            title="Outside labour — not on the crew list"
+                            onClick={() => togglePerson(d, name)}
+                          >
+                            {name}
+                          </button>
+                        ))}
+                        <input
+                          className="crew-add"
+                          placeholder="+ someone else"
+                          aria-label={`Add someone not on the crew list to ${d.date}`}
+                          onKeyDown={e => {
+                            if (e.key !== "Enter") return;
+                            e.preventDefault();
+                            const name = e.currentTarget.value.trim();
+                            if (!name) return;
+                            setPeopleOn(d.date, [...peopleOn(d), name]);
+                            e.currentTarget.value = "";
+                          }}
+                        />
+                      </div>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+
+          {days.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <button type="button" className="btn btn-secondary btn-small" onClick={clearAllDays}>
+                Remove all manpower
+              </button>
+            </div>
+          )}
 
           {days.length > 0 && (
             <p className="private-note-hint" style={{ marginTop: 8 }}>

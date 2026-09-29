@@ -4227,3 +4227,73 @@ a {
 .overdue-fold-list {
   margin-top: 8px;
 }
+
+/* Who is on a day of work. The crew an admin keeps is a row of toggles;
+   anyone hired in from outside is added on the end and marked, so the
+   list never looks more complete than it is. */
+
+.crew-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.crew-chip {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-pill);
+  padding: 2px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1.6;
+}
+
+.crew-chip:hover {
+  border-color: var(--color-primary);
+}
+
+.crew-chip-on {
+  background: #e4ebfd;
+  border-color: #c3d2fb;
+  color: #1c3aa9;
+  font-weight: 600;
+}
+
+/* Outside labour: on the day, not on the list. */
+.crew-chip-outside {
+  background: var(--color-warning-bg);
+  border-color: #f0d9a0;
+  color: var(--color-warning-strong);
+}
+
+.crew-add {
+  border: 1px dashed var(--color-border);
+  background: transparent;
+  border-radius: var(--radius-pill);
+  padding: 2px 10px;
+  font-size: 12px;
+  width: 130px;
+  color: var(--color-text);
+}
+
+.crew-add:focus {
+  outline: none;
+  border-style: solid;
+  border-color: var(--color-primary);
+}
+
+.crew-chip-remove {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 0 0 6px;
+  opacity: 0.6;
+}
+
+.crew-chip-remove:hover {
+  opacity: 1;
+}

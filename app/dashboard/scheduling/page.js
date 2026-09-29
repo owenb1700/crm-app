@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../../lib/firebase";
 import { withoutTrashed } from "../../../lib/trash";
 import { personName } from "../../../lib/people";
@@ -18,7 +18,9 @@ import DashboardHeader from "../../components/DashboardHeader";
 import MobileNav from "../../components/MobileNav";
 import ViewTabs from "../../components/ViewTabs";
 import LaborScheduleEditor from "../../components/LaborScheduleEditor";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import JobPicker from "../../components/JobPicker";
+import { CREW_COLLECTION, crewNames, crewForStorage, crewError, describePeople } from "../../../lib/crew";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -42,6 +44,15 @@ function SchedulingPageContent() {
 
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
+  // The people who actually do the work. Names only -- no accounts, no
+  // logins. An admin keeps the list; anyone can put them on a day.
+  const [crew, setCrew] = useState([]);
+  const [showCrew, setShowCrew] = useState(false);
+  const [newCrewName, setNewCrewName] = useState("");
+  const [crewSaving, setCrewSaving] = useState(false);
+  const [crewProblem, setCrewProblem] = useState("");
+  // Clearing a whole job's schedule is worth a second look.
+  const [confirmClear, setConfirmClear] = useState(null);
 
   // The popup: either a day that was clicked, or a job being scheduled.
   const [openDay, setOpenDay] = useState(null);       // "YYYY-MM-DD"
@@ -52,10 +63,12 @@ function SchedulingPageContent() {
   const [calendarAnchor, setCalendarAnchor] = useState(() => new Date());
 
   const load = async () => {
-    const [projectsSnap, usersSnap] = await Promise.all([
+    const [projectsSnap, usersSnap, crewSnap] = await Promise.all([
       getDocs(collection(db, "customers")),
-      getDocs(collection(db, "users"))
+      getDocs(collection(db, "users")),
+      getDocs(collection(db, CREW_COLLECTION))
     ]);
+    setCrew(crewSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     // Closed jobs stay on the board. The calendar is a record of when
     // work happened as much as a plan for what's coming, and dropping a
     // job the day it closed took its crew days off the days they were
@@ -157,6 +170,83 @@ function SchedulingPageContent() {
     setEditing({ projectId, draft });
   };
 
+  const addCrewMember = async () => {
+    const problem = crewError({ name: newCrewName }, crew);
+    if (problem) return setCrewProblem(problem);
+    setCrewSaving(true);
+    setCrewProblem("");
+    try {
+      await addDoc(collection(db, CREW_COLLECTION), {
+        ...crewForStorage({ name: newCrewName }),
+        createdAt: new Date().toISOString(),
+        createdBy: uid
+      });
+      setNewCrewName("");
+      await load();
+    } catch (err) {
+      setCrewProblem(
+        /permission|insufficient/i.test(err.message || "")
+          ? "Only an admin can change the crew list."
+          : `Couldn't add them: ${err.message}`
+      );
+    } finally {
+      setCrewSaving(false);
+    }
+  };
+
+  const removeCrewMember = async (member) => {
+    setCrewProblem("");
+    try {
+      await deleteDoc(doc(db, CREW_COLLECTION, member.id));
+      await load();
+    } catch (err) {
+      setCrewProblem(
+        /permission|insufficient/i.test(err.message || "")
+          ? "Only an admin can change the crew list."
+          : `Couldn't remove them: ${err.message}`
+      );
+    }
+  };
+
+  // Straight from the day popup: take this job off this one day, or off
+  // the calendar entirely. Going through the editor for it meant opening
+  // a form to delete something.
+  const writeLabor = async (projectId, days, includeWeekends, message) => {
+    setSaveError("");
+    try {
+      const payload = laborForStorage({ days, includeWeekends });
+      await updateDoc(doc(db, "customers", projectId), {
+        laborSchedule: payload.days.length
+          ? { ...payload, updatedAt: new Date().toISOString(), updatedBy: uid }
+          : null
+      });
+      setNotice(message);
+      setOpenDay(null);
+      await load();
+    } catch (err) {
+      setSaveError(
+        /permission|insufficient/i.test(err.message || "")
+          ? "You don't have permission to change this job's schedule."
+          : `Couldn't change this schedule: ${err.message}`
+      );
+    }
+  };
+
+  const removeDayFromJob = (projectId, date) => {
+    const project = projectById(projectId);
+    writeLabor(
+      projectId,
+      laborDays(project).filter(d => d.date !== date),
+      project?.laborSchedule?.includeWeekends,
+      `Taken off ${date}.`
+    );
+  };
+
+  const clearJobLabor = (projectId) => {
+    const project = projectById(projectId);
+    writeLabor(projectId, [], project?.laborSchedule?.includeWeekends, "All manpower removed from this job.");
+  };
+
   const saveLabor = async () => {
     if (!editing?.projectId) return;
     setSaving(true);
@@ -230,7 +320,10 @@ function SchedulingPageContent() {
                 <> <strong style={{ color: "var(--color-warning-strong)" }}>⚠ {overbooked.length} {overbooked.length === 1 ? "day is" : "days are"} over.</strong></>
               )}
             </span>
-            <span className="list-toolbar-add">
+            <span className="list-toolbar-add" style={{ display: "flex", gap: 10 }}>
+              <button className="btn btn-secondary" onClick={() => setShowCrew(v => !v)}>
+                Crew ({crewNames(crew).length}) {showCrew ? "▾" : "▸"}
+              </button>
               <button className="btn btn-primary" onClick={() => { setOpenDay(null); startEditing("", ""); }}>
                 Add Manpower
               </button>
@@ -238,6 +331,68 @@ function SchedulingPageContent() {
           </div>
 
           {notice && <p className="private-note-hint">{notice}</p>}
+
+          {/* The crew list. Names only -- these aren't accounts and nobody
+              here signs in. An admin keeps it; everyone reads it, because
+              anyone scheduling a job picks from it. */}
+          {showCrew && (
+            <div className="admin-card" style={{ marginBottom: 16 }}>
+              <h4 className="field-label" style={{ marginTop: 0 }}>Crew</h4>
+              <p className="private-note-hint" style={{ marginTop: -4 }}>
+                The people who do the work. Names only — no logins, no accounts.
+                {role === "admin" ? " Anyone can put them on a day; only you can change the list." : " Only an admin can change this list."}
+              </p>
+
+              {crewNames(crew).length === 0 && (
+                <p className="private-note-hint">Nobody on the list yet.</p>
+              )}
+
+              <div className="crew-pick" style={{ marginBottom: 10 }}>
+                {[...crew]
+                  .filter(c => (c.name || "").trim())
+                  .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+                  .map(member => (
+                    <span key={member.id} className="crew-chip crew-chip-on">
+                      {member.name}
+                      {role === "admin" && (
+                        <button
+                          type="button"
+                          className="crew-chip-remove"
+                          aria-label={`Remove ${member.name} from the crew list`}
+                          title="Remove from the list"
+                          onClick={() => removeCrewMember(member)}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </span>
+                  ))}
+              </div>
+
+              {role === "admin" && (
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <input
+                    className="field"
+                    style={{ marginBottom: 0, maxWidth: 240 }}
+                    placeholder="Add a name..."
+                    value={newCrewName}
+                    onChange={e => { setNewCrewName(e.target.value); setCrewProblem(""); }}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCrewMember(); } }}
+                  />
+                  <button className="btn btn-secondary" disabled={crewSaving || !newCrewName.trim()} onClick={addCrewMember}>
+                    {crewSaving ? "Adding…" : "Add"}
+                  </button>
+                </div>
+              )}
+
+              {crewProblem && <p className="settings-status is-error" style={{ marginTop: 8 }}>⚠ {crewProblem}</p>}
+
+              <p className="private-note-hint" style={{ marginTop: 10 }}>
+                Someone hired in for a job who isn&apos;t on this list can still be typed onto a day —
+                they show in amber and never join the list.
+              </p>
+            </div>
+          )}
 
           <CalendarNav anchor={calendarAnchor} onAnchor={setCalendarAnchor} idPrefix="sched-cal" />
 
@@ -318,6 +473,13 @@ function SchedulingPageContent() {
                     {myProjectIds.has(e.projectId) && <span className="role-badge" style={{ marginLeft: 6 }}>Yours</span>}
                   </div>
                   <div className="customer-meta">{e.men} {e.men === 1 ? "man" : "men"} on this day</div>
+                  {(() => {
+                    const day = (project?.laborSchedule?.days || []).find(d => d.date === openDay);
+                    const named = describePeople(day, 6);
+                    return named
+                      ? <div className="customer-meta">{named}</div>
+                      : <div className="private-note-hint">Nobody named yet</div>;
+                  })()}
                   {project && (
                     <>
                       {project.company && <div className="customer-meta">{project.company}</div>}
@@ -335,9 +497,11 @@ function SchedulingPageContent() {
                       <div className="customer-meta">{describeLabor(project)}</div>
                     </>
                   )}
-                  <div className="modal-actions" style={{ marginTop: 8 }}>
+                  <div className="modal-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
                     <button className="btn btn-secondary" onClick={() => startEditing(e.projectId, openDay)}>Edit manpower</button>
                     <button className="btn btn-secondary" onClick={() => router.push(`/dashboard/project/${e.projectId}`)}>Open project</button>
+                    <button className="btn btn-secondary" onClick={() => removeDayFromJob(e.projectId, openDay)}>Remove this day</button>
+                    <button className="btn btn-danger" onClick={() => setConfirmClear(e.projectId)}>Remove all days</button>
                   </div>
                 </div>
               );
@@ -349,6 +513,21 @@ function SchedulingPageContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {confirmClear && (
+        <ConfirmDialog
+          title="Remove all manpower from this job?"
+          confirmLabel="Remove all"
+          danger
+          onConfirm={() => { const id = confirmClear; setConfirmClear(null); clearJobLabor(id); }}
+          onCancel={() => setConfirmClear(null)}
+        >
+          <p className="modal-subtitle">
+            Every day booked on &quot;{projectById(confirmClear)?.projectName || projectById(confirmClear)?.company || "this job"}&quot;
+            comes off the calendar, past days included. The job itself isn&apos;t touched.
+          </p>
+        </ConfirmDialog>
       )}
 
       {/* Scheduling a job: pick which one, then set the days and men. */}
@@ -392,6 +571,7 @@ function SchedulingPageContent() {
                   onChange={draft => setEditing(prev => ({ ...prev, draft }))}
                   byDate={byDate}
                   projectId={editing.projectId}
+                  crew={crew}
                 />
                 {saveError && <p className="settings-status is-error">⚠ {saveError}</p>}
                 <div className="modal-actions">
