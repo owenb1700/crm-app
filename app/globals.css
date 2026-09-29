@@ -4790,3 +4790,15 @@ a {
   flex-wrap: wrap;
   margin-bottom: 8px;
 }
+
+/* A note under an equipment row rather than inside it. The row is a
+   fixed-column grid, so anything dropped in as a sibling would take a
+   column away from the fields. */
+.equipment-row-note {
+  grid-column: 1 / -1;
+  margin-top: -4px;
+}
+
+.equipment-row-note p {
+  margin-top: 0;
+}

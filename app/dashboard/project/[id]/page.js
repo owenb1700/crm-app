@@ -47,6 +47,8 @@ import { stateChanges, activityEntry, withActivity } from "../../../../lib/activ
 import { notifyUsers, newSplitMembers } from "../../../../lib/notify";
 import Icon from "../../../components/Icon";
 import ConfirmDialog from "../../../components/ConfirmDialog";
+import { manufacturerForType } from "../../../../lib/learned";
+import Suggested from "../../../components/Suggested";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
@@ -827,6 +829,14 @@ export default function ProjectDetail() {
                   onChange={e => updateEquipmentRow(i, "yearInstalled", e.target.value)}
                 />
                 <button className="btn btn-danger" onClick={() => removeEquipmentRow(i)}>Remove</button>
+                {!row.manufacturer && (
+                  <div className="equipment-row-note">
+                    <Suggested
+                      suggestion={manufacturerForType(row.type, { projects: scheduledProjects })}
+                      onUse={() => updateEquipmentRow(i, "manufacturer", manufacturerForType(row.type, { projects: scheduledProjects }).value)}
+                    />
+                  </div>
+                )}
               </div>
             ))}
             <button className="btn btn-secondary" onClick={addEquipmentRow}>+ Add Equipment</button>

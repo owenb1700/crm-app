@@ -11,7 +11,7 @@ import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import { LeadTimeFields } from "../../../components/LeadTimeFields";
 import { ensureTowerModel } from "../../../../lib/towerModels";
-import { buildingMemory, equipmentBySerial, modelMemory, salespersonForFirm, firmFromEmail, emailFirmMismatch } from "../../../../lib/learned";
+import { buildingMemory, equipmentBySerial, modelMemory, salespersonForFirm, firmFromEmail, emailFirmMismatch, manufacturerForType } from "../../../../lib/learned";
 import { normalizePhone } from "../../../../lib/tidyEntry";
 import { withoutTrashed } from "../../../../lib/trash";
 import Suggested, { SuggestedBlock } from "../../../components/Suggested";
@@ -652,6 +652,14 @@ export default function NewProject() {
                 onChange={e => updateEquipmentRow(i, "yearInstalled", e.target.value)}
               />
               <button className="btn btn-danger" onClick={() => removeEquipmentRow(i)}>Remove</button>
+              {!row.manufacturer && (
+                <div className="equipment-row-note">
+                  <Suggested
+                    suggestion={manufacturerForType(row.type, equipmentHistory)}
+                    onUse={() => updateEquipmentRow(i, "manufacturer", manufacturerForType(row.type, equipmentHistory).value)}
+                  />
+                </div>
+              )}
             </div>
           ))}
           <button className="btn btn-secondary" onClick={addEquipmentRow}>+ Add Equipment</button>
