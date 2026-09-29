@@ -18,6 +18,7 @@ import DashboardHeader from "../../components/DashboardHeader";
 import MobileNav from "../../components/MobileNav";
 import ViewTabs from "../../components/ViewTabs";
 import LaborScheduleEditor from "../../components/LaborScheduleEditor";
+import JobPicker from "../../components/JobPicker";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -122,6 +123,22 @@ function SchedulingPageContent() {
   const overbooked = useMemo(() => overbookedDates(byDate), [byDate]);
 
   const projectById = (id) => projects.find(p => p.id === id);
+
+  // What the search picker offers: every project, closed ones marked, and
+  // whose it is when it isn't yours.
+  const projectOptions = useMemo(
+    () => [...projects]
+      .sort((a, b) => String(a.projectName || a.company || "").localeCompare(String(b.projectName || b.company || "")))
+      .map(p => ({
+        key: `project:${p.id}`,
+        kind: "project",
+        id: p.id,
+        label: `${p.projectName || p.company || "Untitled"}${p.category === "Project Closed" ? " (closed)" : ""}`,
+        sub: [p.company, p.projectAddress, p.ownerId !== uid ? nameOf(p.ownerId) : null].filter(Boolean).join(" · ")
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projects, users, uid]
+  );
 
   // Work that's yours: your own jobs, and anything you hold a share of.
   // The board shows everybody's, so the ones you're accountable for need
@@ -347,23 +364,16 @@ function SchedulingPageContent() {
               <>
                 <p className="modal-subtitle">Manpower always belongs to a job. Pick the one this work is for.</p>
                 <label className="field-label" htmlFor="labor-project">Project</label>
-                <select
+                {/* The same search-as-you-type picker reminders use to
+                    attach a job. A dropdown was fine with a handful of
+                    projects and unusable with a few hundred. */}
+                <JobPicker
                   id="labor-project"
-                  className="field"
+                  options={projectOptions}
                   value=""
-                  onChange={e => e.target.value && startEditing(e.target.value, openDay)}
-                >
-                  <option value="">Select a project...</option>
-                  {[...projects]
-                    .sort((a, b) => String(a.projectName || a.company || "").localeCompare(String(b.projectName || b.company || "")))
-                    .map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.projectName || p.company || "Untitled"}
-                        {p.category === "Project Closed" ? " (closed)" : ""}
-                        {p.ownerId !== uid ? ` — ${nameOf(p.ownerId) || "someone else"}` : ""}
-                      </option>
-                    ))}
-                </select>
+                  onChange={key => key && startEditing(key.replace(/^project:/, ""), openDay)}
+                  placeholder="Search projects..."
+                />
                 <p className="private-note-hint">
                   You can schedule a job that isn&apos;t yours. You still won&apos;t see its private notes.
                 </p>
