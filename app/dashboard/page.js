@@ -1791,13 +1791,32 @@ export default function Dashboard() {
 
             {/* A bid date that has passed is answered, not rescheduled --
                 the two buttons for that live on the entry itself. */}
-            {isOverdueItem(c) && c._kind === "bid" && !c._done && (
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
-                <button className="btn btn-primary" onClick={() => router.push(`/dashboard/pipeline/${c.id}`)}>
-                  Bids sent or not bidding?
-                </button>
-              </div>
-            )}
+            {isOverdueItem(c) && c._kind === "bid" && !c._done && (() => {
+              // Say whose answer this is. The bid-date alert goes to
+              // everyone on the entry, so without a name it reads as
+              // somebody else's problem to all of them.
+              const toAnswer = [c.salespersonId, c.projectPointPersonId]
+                .filter(Boolean)
+                .filter((v, i, a) => a.indexOf(v) === i);
+              const mine = toAnswer.includes(uid) || (!toAnswer.length && c.ownerId === uid);
+              return (
+                <div onClick={e => e.stopPropagation()}>
+                  <div className="private-note-hint" style={{ marginTop: 6 }}>
+                    {toAnswer.length
+                      ? `${toAnswer.map(id => ownerLabel(id)).join(" and ")} to say whether we bid it.`
+                      : "Nobody is set as salesperson or point person on this entry."}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button
+                      className={mine ? "btn btn-primary" : "btn btn-secondary"}
+                      onClick={() => router.push(`/dashboard/pipeline/${c.id}`)}
+                    >
+                      Bids sent or not bidding?
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
             {c._kind === "project" && isClosedWithCheckIn(c) && c.ownerId === uid && (
               <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
                 <ClosedCheckInActions

@@ -676,6 +676,25 @@ export default function PipelineDetail() {
   ];
 
   // Shown with the details normally, and in the lower row while editing.
+  // The bid date has been and gone and nobody has said what happened.
+  // Until someone answers, the entry sits in Pre-Bid looking like work
+  // that hasn't started, and the bid-date alert nags everyone on it
+  // forever without asking the question that would clear it.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const bidDatePassed =
+    !!pipeline.bidDate &&
+    String(pipeline.bidDate).slice(0, 10) < todayIso &&
+    !pipeline.outcome &&
+    pipeline.stage !== POST_BID;
+
+  // It's the salesperson's and the point person's job to answer, so the
+  // banner says so by name -- a prompt addressed to everybody is a prompt
+  // addressed to nobody.
+  const answerableBy = [pipeline.salespersonId, pipeline.projectPointPersonId]
+    .filter(Boolean)
+    .filter((v, i, a) => a.indexOf(v) === i);
+  const forMe = answerableBy.includes(uid) || (!answerableBy.length && pipeline.ownerId === uid);
+
   const outcomeSection = (
     <div className="project-section">
       <h4 className="field-label">Outcome</h4>
@@ -762,6 +781,28 @@ export default function PipelineDetail() {
       </div>
 
       <div className="project-page">
+        {bidDatePassed && (
+          <div className="duplicate-warning" style={{ marginBottom: 16 }}>
+            <strong>
+              The bid date passed on {String(pipeline.bidDate).slice(0, 10)}
+              {forMe ? " — did we bid it?" : "."}
+            </strong>
+            <div className="private-note-hint" style={{ marginTop: 4 }}>
+              {answerableBy.length
+                ? `${answerableBy.map(id => ownerLabel(id)).join(" and ")} to answer.`
+                : "Nobody is set as salesperson or point person on this entry."}
+              {" "}Saying bids went out moves it to Post-Bid and puts a follow-up on the calendar;
+              won or lost comes later, whenever you hear.
+            </div>
+            {canEdit && (
+              <div className="duplicate-warning-actions">
+                <button className="btn btn-primary" onClick={openBidsSent}>Bids Sent</button>
+                <button className="btn btn-secondary" onClick={() => setLostModalOutcome("Did Not Bid")}>Not Bidding</button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="project-section">
           <div className="detail-header">
             <div>
