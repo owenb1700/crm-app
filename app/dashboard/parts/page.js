@@ -7,7 +7,7 @@ import { addDoc, collection, deleteDoc, doc, getDoc, getDocs } from "firebase/fi
 import { auth, db } from "../../../lib/firebase";
 import { withoutTrashed } from "../../../lib/trash";
 import { COMPANY_CATEGORIES, ensureCompanyAndContactBatch } from "../../../lib/directory";
-import { partFromProject, isPartsProject, blankPart, partPayload, partError, filterParts, partsTotal, logEntry, describeContractors, PART_STAGES, firmTypeLine, stageStamps } from "../../../lib/parts";
+import { partFromProject, isPartsProject, blankPart, partPayload, partError, filterParts, partsTotal, logEntry, describeContractors, PART_STAGES, firmTypeLine, stageStamps, contractorOptions, buildingOptions } from "../../../lib/parts";
 import { todayKey, leadTimeStatus, isLeadTimeAlert } from "../../../lib/leadTimes";
 import { LeadTimeSummary } from "../../components/LeadTimeFields";
 import { formatMoney, withDollar } from "../../../lib/analytics";
@@ -63,7 +63,7 @@ function PartsPageContent() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
-  const [filters, setFilters] = useState({ search: "", stage: "", category: "", firm: "", person: "" });
+  const [filters, setFilters] = useState({ search: "", stage: "", category: "", contractor: "", building: "", person: "" });
   // Projects still filed under the old "Parts" status, waiting to be moved.
   const [oldPartsProjects, setOldPartsProjects] = useState([]);
   const [moving, setMoving] = useState(false);
@@ -240,6 +240,8 @@ function PartsPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [parts, filters, sort]
   );
+  const contractors = useMemo(() => contractorOptions(parts), [parts]);
+  const buildings = useMemo(() => buildingOptions(parts), [parts]);
   const anyFilter = Object.values(filters).some(Boolean);
 
   // Estimated dates for the export, worked out the same way the cards do.
@@ -321,6 +323,14 @@ function PartsPageContent() {
               <option value="">All firm types</option>
               {COMPANY_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
+            <select className="field" style={{ maxWidth: 220, marginBottom: 0 }} aria-label="Contractor" value={filters.contractor} onChange={e => setFilters(prev => ({ ...prev, contractor: e.target.value }))}>
+              <option value="">All contractors</option>
+              {contractors.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select className="field" style={{ maxWidth: 240, marginBottom: 0 }} aria-label="Building" value={filters.building} onChange={e => setFilters(prev => ({ ...prev, building: e.target.value }))}>
+              <option value="">All buildings</option>
+              {buildings.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
             <select className="field" style={{ maxWidth: 200, marginBottom: 0 }} aria-label="Entered by" value={filters.person} onChange={e => setFilters(prev => ({ ...prev, person: e.target.value }))}>
               <option value="">Anyone</option>
               {users.filter(u => !u.disabled).sort((a, b) => personName(a).localeCompare(personName(b))).map(u => (
@@ -328,7 +338,7 @@ function PartsPageContent() {
               ))}
             </select>
             {anyFilter && (
-              <button className="btn btn-secondary" onClick={() => setFilters({ search: "", stage: "", category: "", firm: "", person: "" })}>Clear</button>
+              <button className="btn btn-secondary" onClick={() => setFilters({ search: "", stage: "", category: "", contractor: "", building: "", person: "" })}>Clear</button>
             )}
 
             <SortPicker id="parts-sort" options={PART_SORTS} sort={sort} onChange={setSort} />
