@@ -20,6 +20,7 @@ import MobileNav from "../../components/MobileNav";
 import ViewTabs from "../../components/ViewTabs";
 import LaborScheduleEditor from "../../components/LaborScheduleEditor";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import useUnsavedGuard from "../../components/useUnsavedGuard";
 import JobPicker from "../../components/JobPicker";
 import { CREW_COLLECTION, crewNames, crewForStorage, crewError, peopleOn, crewTitles, crewLabel, titleOf } from "../../../lib/crew";
 
@@ -63,6 +64,7 @@ function SchedulingPageContent() {
   const [saveError, setSaveError] = useState("");
   const [notice, setNotice] = useState("");
   const [calendarAnchor, setCalendarAnchor] = useState(() => new Date());
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const load = async () => {
     const [projectsSnap, usersSnap, crewSnap] = await Promise.all([
@@ -176,7 +178,9 @@ function SchedulingPageContent() {
       ? { includeWeekends: project.laborSchedule.includeWeekends === true, days: laborDays(project).map(d => ({ ...d })) }
       : { ...blankLaborSchedule(), days: date ? [{ date, men: 0 }] : [] };
     setSaveError("");
-    setEditing({ projectId, draft });
+    // Keep what it looked like on open, so "unsaved changes" is something
+    // we know rather than something we assume the moment the box appears.
+    setEditing({ projectId, draft, opened: scheduleFingerprint(draft) });
   };
 
   const addCrewMember = async () => {
@@ -257,6 +261,24 @@ function SchedulingPageContent() {
     writeLabor(projectId, [], project?.laborSchedule?.includeWeekends, "All manpower removed from this job.");
   };
 
+  // Compared the way it would be stored, so re-ordering rows or a men
+  // box that went 2 -> 3 -> 2 doesn't count as a change.
+  const scheduleFingerprint = (draft) => JSON.stringify(laborForStorage(draft || blankLaborSchedule()));
+  const dirty = !!editing && scheduleFingerprint(editing.draft) !== editing.opened;
+
+  // Closing the tab or hitting refresh mid-edit. Cancel and Save are
+  // handled in the app, where a real dialog can be shown instead.
+  useUnsavedGuard(dirty);
+
+  // Every way out of the editor goes through here, so there is exactly one
+  // place that decides whether edits are about to be thrown away.
+  const closeEditing = ({ force = false } = {}) => {
+    if (saving) return;
+    if (dirty && !force) return setConfirmDiscard(true);
+    setConfirmDiscard(false);
+    setEditing(null);
+  };
+
   const saveLabor = async () => {
     if (!editing?.projectId) return;
     setSaving(true);
@@ -267,6 +289,7 @@ function SchedulingPageContent() {
         laborSchedule: { ...payload, updatedAt: new Date().toISOString(), updatedBy: uid }
       });
       setNotice(payload.days.length ? "Schedule saved." : "Schedule cleared.");
+      setConfirmDiscard(false);
       setEditing(null);
       await load();
     } catch (err) {
@@ -621,14 +644,51 @@ function SchedulingPageContent() {
         </ConfirmDialog>
       )}
 
+      {confirmDiscard && (
+        <ConfirmDialog
+          title="Leave without saving?"
+          confirmLabel="Discard changes"
+          danger
+          onCancel={() => setConfirmDiscard(false)}
+          onConfirm={() => closeEditing({ force: true })}
+        >
+          <p>
+            The days and men you&apos;ve changed on{" "}
+            &quot;{editingProject?.projectName || editingProject?.company || "this job"}&quot;{" "}
+            haven&apos;t been saved. Close now and they&apos;re gone.
+          </p>
+        </ConfirmDialog>
+      )}
+
       {/* Scheduling a job: pick which one, then set the days and men. */}
       {editing && (
-        <div className="modal-overlay" onClick={() => !saving && setEditing(null)}>
+        <div className="modal-overlay" onClick={() => closeEditing()}>
           <div className="modal-card labor-sheet" role="dialog" aria-labelledby="labor-title" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => !saving && setEditing(null)} aria-label="Close">✕</button>
-            <h3 id="labor-title" className="modal-title" style={{ marginTop: 0 }}>
-              {editingProject ? editingProject.projectName || editingProject.company : "Add manpower"}
-            </h3>
+            {/* Saving lives at the top and stays there. The schedule below
+                can run to sixty rows, and a Save button at the bottom of
+                that is a button people scroll past and forget. */}
+            <div className="labor-sheet-bar">
+              <div className="labor-sheet-bar-title">
+                <h3 id="labor-title" className="modal-title" style={{ margin: 0 }}>
+                  {editingProject ? editingProject.projectName || editingProject.company : "Add manpower"}
+                </h3>
+                {editing.projectId && (
+                  <span className={`labor-sheet-state ${dirty ? "is-dirty" : ""}`}>
+                    {dirty ? "Unsaved changes" : "Saved"}
+                  </span>
+                )}
+              </div>
+              {editing.projectId && (
+                <div className="labor-sheet-bar-actions">
+                  <button className="btn btn-secondary" disabled={saving} onClick={() => closeEditing()}>Cancel</button>
+                  <button className="btn btn-primary" disabled={saving || !dirty} onClick={saveLabor}>
+                    {saving ? "Saving…" : "Save schedule"}
+                  </button>
+                </div>
+              )}
+              <button className="modal-close labor-sheet-close" onClick={() => closeEditing()} aria-label="Close">✕</button>
+            </div>
+            {saveError && <p className="settings-status is-error">⚠ {saveError}</p>}
 
             {!editing.projectId ? (
               <>
@@ -664,13 +724,9 @@ function SchedulingPageContent() {
                   projectId={editing.projectId}
                   crew={crew}
                 />
-                {saveError && <p className="settings-status is-error">⚠ {saveError}</p>}
-                <div className="modal-actions">
-                  <button className="btn btn-secondary" disabled={saving} onClick={() => setEditing(null)}>Cancel</button>
-                  <button className="btn btn-primary" disabled={saving} onClick={saveLabor}>
-                    {saving ? "Saving…" : "Save schedule"}
-                  </button>
-                </div>
+                <p className="private-note-hint labor-sheet-foot">
+                  Changes aren&apos;t saved until you press Save schedule at the top.
+                </p>
               </>
             )}
           </div>

@@ -4684,3 +4684,68 @@ a {
   color: var(--color-warning-strong);
   font-size: 13px;
 }
+
+/* The manpower editor's own header. It stays put while the day rows
+   scroll under it, because a schedule can run to sixty rows and a Save
+   button at the bottom of that is one people scroll past and forget. */
+.labor-sheet-bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: -24px -24px 16px;
+  padding: 16px 52px 16px 24px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.labor-sheet-bar-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.labor-sheet-bar-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Says plainly whether there is anything to lose. */
+.labor-sheet-state {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.labor-sheet-state.is-dirty {
+  color: var(--color-warning-strong);
+  font-weight: 600;
+}
+
+.labor-sheet-close {
+  top: 16px;
+  right: 16px;
+}
+
+.labor-sheet-foot {
+  margin-top: 14px;
+}
+
+@media (max-width: 640px) {
+  .labor-sheet-bar {
+    margin: -16px -16px 14px;
+    padding: 14px 46px 14px 16px;
+  }
+  .labor-sheet-bar-actions {
+    width: 100%;
+  }
+  .labor-sheet-bar-actions .btn {
+    flex: 1;
+  }
+}
