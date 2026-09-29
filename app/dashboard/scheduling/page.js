@@ -13,7 +13,7 @@ import CalendarNav from "../../components/CalendarNav";
 import {
   laborByDate, laborForStorage, blankLaborSchedule, laborDays, menOnDate,
   isOverbooked, describeLabor, crewCapacity,
-  clashesOn, clashDates, describeClashes
+  clashesOn, describeClashes
 } from "../../../lib/laborSchedule";
 import DashboardHeader from "../../components/DashboardHeader";
 import MobileNav from "../../components/MobileNav";
@@ -141,9 +141,6 @@ function SchedulingPageContent() {
   // own. Before anyone has written the list down there's no number to be
   // over, so those warnings stay quiet.
   const capacity = useMemo(() => crewCapacity(crew), [crew]);
-  // Somebody standing on two jobs at once is a separate problem from the
-  // day being busy, and it's the one that actually strands a job.
-  const clashDays = useMemo(() => clashDates(byDate), [byDate]);
 
   const projectById = (id) => projects.find(p => p.id === id);
 
@@ -351,9 +348,6 @@ function SchedulingPageContent() {
               {capacity > 0
                 ? `${capacity} on the crew.`
                 : "Add the crew list and days over the crew get flagged."}
-              {clashDays.length > 0 && (
-                <> <strong style={{ color: "var(--color-warning-strong)" }}>⚠ {clashDays.length} {clashDays.length === 1 ? "day has" : "days have"} someone on two jobs.</strong></>
-              )}
             </span>
             <span className="list-toolbar-add" style={{ display: "flex", gap: 10 }}>
               <button className="btn btn-secondary" onClick={() => setShowCrew(v => !v)}>
