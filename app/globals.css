@@ -4297,3 +4297,210 @@ a {
 .crew-chip-remove:hover {
   opacity: 1;
 }
+
+/* ---------- a day on the scheduling board ---------- */
+/* Opening a square should answer three things at a glance: which day,
+   how full it is, and who is on what. It used to be a narrow column of
+   grey lines that answered none of them quickly. */
+
+/* Two classes, to beat .modal-card.modal-wide rather than tie with it. */
+.modal-card.day-sheet {
+  max-width: 760px;
+  width: 100%;
+}
+
+.day-sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  /* Clear of the close button, which is absolutely positioned. */
+  padding-right: 34px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.day-sheet-date {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.day-sheet-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/* How heavy the day is, as a number and a bar. */
+.day-sheet-load {
+  min-width: 132px;
+  text-align: right;
+}
+
+.day-sheet-count {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-text);
+}
+
+.day-sheet-of {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.day-sheet-bar {
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+  overflow: hidden;
+  margin: 6px 0 4px;
+}
+
+.day-sheet-bar span {
+  display: block;
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: var(--radius-pill);
+}
+
+.day-sheet-load-label {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.day-sheet-load.is-over .day-sheet-count,
+.day-sheet-load.is-over .day-sheet-load-label {
+  color: var(--color-warning-strong);
+}
+
+.day-sheet-load.is-over .day-sheet-bar span {
+  background: var(--color-warning-strong);
+}
+
+/* One card per job on the day. */
+.day-sheet-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 58vh;
+  overflow-y: auto;
+}
+
+.day-job {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  background: var(--color-surface);
+}
+
+.day-job-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.day-job-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.day-job-firm {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.day-job-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.day-job-men {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.day-job-crew {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 10px 0;
+}
+
+/* Two columns of label/value, so the details scan rather than stack. */
+.day-job-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.day-job-facts dt {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.day-job-facts dd {
+  margin: 0;
+  color: var(--color-text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.day-job-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.day-job-danger {
+  color: var(--color-danger);
+}
+
+.day-job-danger:hover {
+  border-color: var(--color-danger);
+}
+
+.day-sheet-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  margin-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 700px) {
+  .day-sheet-head,
+  .day-sheet-foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .day-sheet-load {
+    text-align: left;
+  }
+
+  .day-job-facts {
+    grid-template-columns: 1fr;
+    gap: 0 0;
+  }
+
+  .day-job-facts dt {
+    margin-top: 6px;
+  }
+}

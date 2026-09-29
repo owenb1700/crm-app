@@ -20,7 +20,7 @@ import ViewTabs from "../../components/ViewTabs";
 import LaborScheduleEditor from "../../components/LaborScheduleEditor";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import JobPicker from "../../components/JobPicker";
-import { CREW_COLLECTION, crewNames, crewForStorage, crewError, describePeople } from "../../../lib/crew";
+import { CREW_COLLECTION, crewNames, crewForStorage, crewError, peopleOn } from "../../../lib/crew";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -455,60 +455,94 @@ function SchedulingPageContent() {
           never read in the first place. */}
       {openDay && !editing && (
         <div className="modal-overlay" onClick={() => setOpenDay(null)}>
-          <div className="modal-card" role="dialog" aria-labelledby="day-title" onClick={e => e.stopPropagation()}>
+          <div className="modal-card modal-wide day-sheet" role="dialog" aria-labelledby="day-title" onClick={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setOpenDay(null)} aria-label="Close">✕</button>
-            <h3 id="day-title" className="modal-title" style={{ marginTop: 0 }}>{openDay}</h3>
-            <p className={`modal-subtitle ${isOverbooked(byDate, openDay) ? "" : ""}`} style={isOverbooked(byDate, openDay) ? { color: "var(--color-warning-strong)" } : undefined}>
-              {isOverbooked(byDate, openDay) ? "⚠ " : ""}
-              {menOnDate(byDate, openDay)} of {CREW_CAPACITY} men booked
-              {isOverbooked(byDate, openDay) ? ` — ${menOnDate(byDate, openDay) - CREW_CAPACITY} over` : ""}
-            </p>
 
-            {dayEntries.map(e => {
-              const project = projectById(e.projectId);
-              return (
-                <div key={e.projectId} className="admin-card" style={{ marginBottom: 10 }}>
-                  <div className="customer-name">
-                    {e.name}
-                    {myProjectIds.has(e.projectId) && <span className="role-badge" style={{ marginLeft: 6 }}>Yours</span>}
-                  </div>
-                  <div className="customer-meta">{e.men} {e.men === 1 ? "man" : "men"} on this day</div>
-                  {(() => {
-                    const day = (project?.laborSchedule?.days || []).find(d => d.date === openDay);
-                    const named = describePeople(day, 6);
-                    return named
-                      ? <div className="customer-meta">{named}</div>
-                      : <div className="private-note-hint">Nobody named yet</div>;
-                  })()}
-                  {project && (
-                    <>
-                      {project.company && <div className="customer-meta">{project.company}</div>}
-                      {project.projectAddress && <div className="customer-meta">{project.projectAddress}</div>}
-                      {project.workType && <div className="customer-meta">{project.workType}</div>}
-                      {project.category && (
-                        <div className="customer-meta">
-                          {project.category}
-                          {project.category === "Project Closed" && project.closedAt
-                            ? ` — closed ${String(project.closedAt).slice(0, 10)}`
-                            : ""}
-                        </div>
-                      )}
-                      <div className="customer-meta">Owner: {nameOf(project.ownerId) || "—"}</div>
-                      <div className="customer-meta">{describeLabor(project)}</div>
-                    </>
-                  )}
-                  <div className="modal-actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
-                    <button className="btn btn-secondary" onClick={() => startEditing(e.projectId, openDay)}>Edit manpower</button>
-                    <button className="btn btn-secondary" onClick={() => router.push(`/dashboard/project/${e.projectId}`)}>Open project</button>
-                    <button className="btn btn-secondary" onClick={() => removeDayFromJob(e.projectId, openDay)}>Remove this day</button>
-                    <button className="btn btn-danger" onClick={() => setConfirmClear(e.projectId)}>Remove all days</button>
-                  </div>
+            {/* The day itself, and how full it is, read first -- that's
+                what somebody opening a square wants to know. */}
+            <div className="day-sheet-head">
+              <div>
+                <h3 id="day-title" className="day-sheet-date">
+                  {new Date(`${openDay}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                </h3>
+                <p className="day-sheet-sub">
+                  {dayEntries.length} {dayEntries.length === 1 ? "job" : "jobs"} on this day
+                </p>
+              </div>
+              <div className={`day-sheet-load ${isOverbooked(byDate, openDay) ? "is-over" : ""}`}>
+                <div className="day-sheet-count">
+                  {menOnDate(byDate, openDay)}<span className="day-sheet-of"> / {CREW_CAPACITY}</span>
                 </div>
-              );
-            })}
+                <div className="day-sheet-bar">
+                  <span style={{ width: `${Math.min(100, (menOnDate(byDate, openDay) / CREW_CAPACITY) * 100)}%` }} />
+                </div>
+                <div className="day-sheet-load-label">
+                  {isOverbooked(byDate, openDay)
+                    ? `${menOnDate(byDate, openDay) - CREW_CAPACITY} over a normal day`
+                    : "men booked"}
+                </div>
+              </div>
+            </div>
 
-            <p className="private-note-hint">Private notes stay on the project and aren&apos;t shown here.</p>
-            <div className="modal-actions">
+            <div className="day-sheet-jobs">
+              {dayEntries.map(e => {
+                const project = projectById(e.projectId);
+                const day = (project?.laborSchedule?.days || []).find(d => d.date === openDay);
+                const named = peopleOn(day);
+                const closed = project?.category === "Project Closed";
+                return (
+                  <div key={e.projectId} className="day-job">
+                    <div className="day-job-head">
+                      <div>
+                        <div className="day-job-name">{e.name}</div>
+                        {project?.company && <div className="day-job-firm">{project.company}</div>}
+                      </div>
+                      <div className="day-job-tags">
+                        {myProjectIds.has(e.projectId) && <span className="role-badge role-badge-admin">Yours</span>}
+                        {closed && <span className="role-badge">Closed</span>}
+                        <span className="day-job-men">{e.men} {e.men === 1 ? "man" : "men"}</span>
+                      </div>
+                    </div>
+
+                    <div className="day-job-crew">
+                      {named.length
+                        ? named.map(n => (
+                            <span
+                              key={n}
+                              className={`crew-chip crew-chip-on ${crewNames(crew).some(c => c.toLowerCase() === n.toLowerCase()) ? "" : "crew-chip-outside"}`}
+                            >
+                              {n}
+                            </span>
+                          ))
+                        : <span className="private-note-hint">Nobody named on this day yet</span>}
+                    </div>
+
+                    <dl className="day-job-facts">
+                      {project?.projectAddress && <><dt>Address</dt><dd>{project.projectAddress}</dd></>}
+                      {project?.workType && <><dt>Work</dt><dd>{project.workType}</dd></>}
+                      <dt>Owner</dt><dd>{nameOf(project?.ownerId) || "—"}</dd>
+                      {project?.category && (
+                        <>
+                          <dt>Status</dt>
+                          <dd>{project.category}{closed && project.closedAt ? ` — closed ${String(project.closedAt).slice(0, 10)}` : ""}</dd>
+                        </>
+                      )}
+                      {project && describeLabor(project) && <><dt>Whole job</dt><dd>{describeLabor(project)}</dd></>}
+                    </dl>
+
+                    <div className="day-job-actions">
+                      <button className="btn btn-secondary btn-small" onClick={() => startEditing(e.projectId, openDay)}>Edit manpower</button>
+                      <button className="btn btn-secondary btn-small" onClick={() => router.push(`/dashboard/project/${e.projectId}`)}>Open project</button>
+                      <button className="btn btn-secondary btn-small" onClick={() => removeDayFromJob(e.projectId, openDay)}>Remove this day</button>
+                      <button className="btn btn-secondary btn-small day-job-danger" onClick={() => setConfirmClear(e.projectId)}>Remove all days</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="day-sheet-foot">
+              <span className="private-note-hint">Private notes stay on the project and aren&apos;t shown here.</span>
               <button className="btn btn-primary" onClick={() => startEditing("", openDay)}>Add another job to this day</button>
             </div>
           </div>
