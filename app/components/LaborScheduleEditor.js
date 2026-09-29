@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   rebuildDays, withSameMen, laborDays, totalManDays, peakMen,
-  dayLoad, describeDayLoad, MAX_DAYS
+  dayLoad, describeDayLoad, describeClashes, crewCapacity, MAX_DAYS
 } from "../../lib/laborSchedule";
 import { crewNames, peopleOn, peopleForStorage, titleOf } from "../../lib/crew";
 
@@ -13,9 +13,11 @@ import { crewNames, peopleOn, peopleForStorage, titleOf } from "../../lib/crew";
 // calendar's popup, so the two can never drift -- and both write to the
 // project itself, which is the only copy there is.
 //
-// A day that would put the company over its usual crew says so, per day,
-// but never blocks the save: jobs get booked over capacity all the time
-// and then sorted out. The warning is there so it's a decision.
+// Two things get warned about per day and neither blocks the save: more
+// men booked than there are people on the crew list, and one person
+// standing on two jobs at once. Both happen on purpose -- jobs get
+// booked over and sorted out, and somebody splits a day between two
+// sites -- so the warning is there to make it a decision, not a wall.
 export default function LaborScheduleEditor({ value, onChange, byDate, projectId, crew = [], idPrefix = "labor" }) {
   const days = laborDays({ laborSchedule: value });
   const includeWeekends = value?.includeWeekends === true;
@@ -52,6 +54,8 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
   // for anyone who isn't on it -- outside labour gets hired for a week and
   // there's no sense making someone wait on an admin to add them.
   const roster = crewNames(crew);
+  // The crew list is the capacity. Hire someone and the number moves.
+  const capacity = crewCapacity(crew);
   const setPeopleOn = (date, names) =>
     push({
       days: days.map(d => {
@@ -150,7 +154,15 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
           <table className="labor-days">
             <tbody>
               {days.map(d => {
-                const load = byDate ? dayLoad(byDate, d.date, { excludeProjectId: projectId, adding: d.men }) : null;
+                const load = byDate
+                  ? dayLoad(byDate, d.date, {
+                      excludeProjectId: projectId,
+                      adding: d.men,
+                      people: peopleOn(d),
+                      jobName: "this job",
+                      capacity
+                    })
+                  : null;
                 return (
                   <tr key={d.date}>
                     <td className="labor-days-date">
@@ -180,6 +192,14 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
                       {load && (
                         <span className="private-note-hint" style={load.over ? { color: "var(--color-warning-strong)" } : undefined}>
                           {load.over ? "⚠ " : ""}{describeDayLoad(load)}
+                        </span>
+                      )}
+                      {/* Being in two places is its own problem: a day can
+                          be well under the crew count and still have
+                          somebody booked twice. */}
+                      {load?.clashes?.length > 0 && (
+                        <span className="private-note-hint labor-clash">
+                          ⚠ {describeClashes(load.clashes)}
                         </span>
                       )}
                       <div className="crew-pick">

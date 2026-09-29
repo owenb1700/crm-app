@@ -4659,3 +4659,28 @@ a {
   opacity: 0.4;
   cursor: default;
 }
+
+/* One person booked onto two jobs the same day. Allowed, but never
+   silent. */
+.labor-clash {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-warning-strong);
+}
+
+/* A day where somebody is on two jobs, marked apart from the man count
+   because it can happen on a quiet day. */
+.calendar-day-clash {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--color-warning-strong);
+}
+
+.day-sheet-clash {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-bg);
+  color: var(--color-warning-strong);
+  font-size: 13px;
+}

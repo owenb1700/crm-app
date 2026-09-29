@@ -12,7 +12,8 @@ import { buildCalendarWeeks, visibleCalendarDays, columnLabels, WEEKEND_COLUMNS 
 import CalendarNav from "../../components/CalendarNav";
 import {
   laborByDate, laborForStorage, blankLaborSchedule, laborDays, menOnDate,
-  isOverbooked, overbookedDates, describeLabor, CREW_CAPACITY
+  isOverbooked, overbookedDates, describeLabor, crewCapacity,
+  clashesOn, clashDates, describeClashes
 } from "../../../lib/laborSchedule";
 import DashboardHeader from "../../components/DashboardHeader";
 import MobileNav from "../../components/MobileNav";
@@ -134,7 +135,14 @@ function SchedulingPageContent() {
   const weekendColumns = useMemo(() => new Set(WEEKEND_COLUMNS), []);
   const calendarDays = useMemo(() => visibleCalendarDays(calendarWeeks, weekendColumns), [calendarWeeks, weekendColumns]);
   const labels = useMemo(() => columnLabels(weekendColumns), [weekendColumns]);
-  const overbooked = useMemo(() => overbookedDates(byDate), [byDate]);
+  // The crew list is the capacity: hire two and the number moves on its
+  // own. Before anyone has written the list down there's no number to be
+  // over, so those warnings stay quiet.
+  const capacity = useMemo(() => crewCapacity(crew), [crew]);
+  const overbooked = useMemo(() => overbookedDates(byDate, capacity), [byDate, capacity]);
+  // Somebody standing on two jobs at once is a separate problem from the
+  // day being busy, and it's the one that actually strands a job.
+  const clashDays = useMemo(() => clashDates(byDate), [byDate]);
 
   const projectById = (id) => projects.find(p => p.id === id);
 
@@ -317,9 +325,15 @@ function SchedulingPageContent() {
         <>
           <div className="list-toolbar">
             <span className="private-note-hint" style={{ margin: 0 }}>
-              Everyone&apos;s work, four weeks at a time. {CREW_CAPACITY} men is a normal day.
+              Everyone&apos;s work, four weeks at a time.{" "}
+              {capacity > 0
+                ? `${capacity} on the crew.`
+                : "Add the crew list and days over the crew get flagged."}
               {overbooked.length > 0 && (
-                <> <strong style={{ color: "var(--color-warning-strong)" }}>⚠ {overbooked.length} {overbooked.length === 1 ? "day is" : "days are"} over.</strong></>
+                <> <strong style={{ color: "var(--color-warning-strong)" }}>⚠ {overbooked.length} {overbooked.length === 1 ? "day is" : "days are"} over the crew.</strong></>
+              )}
+              {clashDays.length > 0 && (
+                <> <strong style={{ color: "var(--color-warning-strong)" }}>⚠ {clashDays.length} {clashDays.length === 1 ? "day has" : "days have"} someone on two jobs.</strong></>
               )}
             </span>
             <span className="list-toolbar-add" style={{ display: "flex", gap: 10 }}>
@@ -422,7 +436,8 @@ function SchedulingPageContent() {
               {calendarDays.map(({ date, key, isToday }) => {
                 const entries = byDate.get(key) || [];
                 const total = menOnDate(byDate, key);
-                const over = isOverbooked(byDate, key);
+                const over = isOverbooked(byDate, key, capacity);
+                const clashes = clashesOn(byDate, key);
                 return (
                   <div
                     key={key}
@@ -436,9 +451,23 @@ function SchedulingPageContent() {
                         <span
                           className="role-badge"
                           style={{ marginLeft: 6, background: over ? "var(--color-warning-bg)" : undefined, color: over ? "var(--color-warning-strong)" : undefined }}
-                          title={over ? `${total} men booked — over the usual ${CREW_CAPACITY}` : `${total} of ${CREW_CAPACITY} men booked`}
+                          title={
+                            over
+                              ? `${total} men booked — ${total - capacity} more than the crew`
+                              : capacity > 0 ? `${total} of ${capacity} men booked` : `${total} men booked`
+                          }
                         >
                           {over ? "⚠ " : ""}{total}
+                        </span>
+                      )}
+                      {/* A separate mark, because a double booking can
+                          sit on a day that's nowhere near capacity. */}
+                      {clashes.length > 0 && (
+                        <span
+                          className="calendar-day-clash"
+                          title={describeClashes(clashes)}
+                        >
+                          ⚠
                         </span>
                       )}
                     </div>
@@ -486,20 +515,29 @@ function SchedulingPageContent() {
                   {dayEntries.length} {dayEntries.length === 1 ? "job" : "jobs"} on this day
                 </p>
               </div>
-              <div className={`day-sheet-load ${isOverbooked(byDate, openDay) ? "is-over" : ""}`}>
+              <div className={`day-sheet-load ${isOverbooked(byDate, openDay, capacity) ? "is-over" : ""}`}>
                 <div className="day-sheet-count">
-                  {menOnDate(byDate, openDay)}<span className="day-sheet-of"> / {CREW_CAPACITY}</span>
+                  {menOnDate(byDate, openDay)}
+                  {capacity > 0 && <span className="day-sheet-of"> / {capacity}</span>}
                 </div>
-                <div className="day-sheet-bar">
-                  <span style={{ width: `${Math.min(100, (menOnDate(byDate, openDay) / CREW_CAPACITY) * 100)}%` }} />
-                </div>
+                {capacity > 0 && (
+                  <div className="day-sheet-bar">
+                    <span style={{ width: `${Math.min(100, (menOnDate(byDate, openDay) / capacity) * 100)}%` }} />
+                  </div>
+                )}
                 <div className="day-sheet-load-label">
-                  {isOverbooked(byDate, openDay)
-                    ? `${menOnDate(byDate, openDay) - CREW_CAPACITY} over a normal day`
+                  {isOverbooked(byDate, openDay, capacity)
+                    ? `${menOnDate(byDate, openDay) - capacity} more than the crew`
                     : "men booked"}
                 </div>
               </div>
             </div>
+
+            {clashesOn(byDate, openDay).length > 0 && (
+              <p className="day-sheet-clash">
+                ⚠ {describeClashes(clashesOn(byDate, openDay))}
+              </p>
+            )}
 
             <div className="day-sheet-jobs">
               {dayEntries.map(e => {

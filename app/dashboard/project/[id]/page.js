@@ -34,7 +34,8 @@ import MoneyInput from "../../../components/MoneyInput";
 import MobileNav from "../../../components/MobileNav";
 import { LeadTimeFields, LeadTimeSummary } from "../../../components/LeadTimeFields";
 import LaborScheduleEditor from "../../../components/LaborScheduleEditor";
-import { blankLaborSchedule, laborDays, hasLabor, describeLabor, firstDay, lastDay, laborForStorage } from "../../../../lib/laborSchedule";
+import { blankLaborSchedule, laborDays, hasLabor, describeLabor, firstDay, lastDay, laborForStorage, laborByDate } from "../../../../lib/laborSchedule";
+import { CREW_COLLECTION } from "../../../../lib/crew";
 import ProjectMyReminders from "../../../components/ProjectMyReminders";
 import RecordNotes from "../../../components/RecordNotes";
 import useUnsavedGuard from "../../../components/useUnsavedGuard";
@@ -99,6 +100,11 @@ export default function ProjectDetail() {
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [towerModels, setTowerModels] = useState([]);
+  // The crew list and everyone else's booked days, so the labour editor
+  // here warns about the same things the scheduling board does.
+  const [crew, setCrew] = useState([]);
+  const [scheduledProjects, setScheduledProjects] = useState([]);
+  const [boardProblem, setBoardProblem] = useState("");
   const [notesData, setNotesData] = useState(null);
   const [drawingsData, setDrawingsData] = useState(null);
   const [uploadingDrawing, setUploadingDrawing] = useState(false);
@@ -160,16 +166,29 @@ export default function ProjectDetail() {
     }
     setCustomer(data);
 
-    const [usersSnap, companiesSnap, contactsSnap, towerModelsSnap] = await Promise.all([
+    const [usersSnap, companiesSnap, contactsSnap, towerModelsSnap, crewSnap, bookedSnap] = await Promise.all([
       getDocs(collection(db, "users")),
       getDocs(collection(db, "companies")),
       getDocs(collection(db, "contacts")),
-      getDocs(collection(db, "towerModels"))
+      getDocs(collection(db, "towerModels")),
+      // These two only feed the labour warnings. If they can't be read,
+      // the rest of the project still loads -- but the editor says the
+      // warnings are missing rather than quietly showing none, which
+      // would read as "nobody is double booked".
+      getDocs(collection(db, CREW_COLLECTION)).catch(() => null),
+      getDocs(collection(db, "customers")).catch(() => null)
     ]);
     setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setTowerModels(towerModelsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setCrew(crewSnap ? crewSnap.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+    setScheduledProjects(bookedSnap ? bookedSnap.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+    setBoardProblem(
+      crewSnap && bookedSnap
+        ? ""
+        : "Couldn't load the crew list and the other jobs' days, so nothing here is checked for double bookings. Project Scheduling will still show them."
+    );
 
     const drawingsSnap = await getDoc(doc(db, "customers", projectId, "drawings", "data"));
     setDrawingsData(drawingsSnap.exists() ? drawingsSnap.data() : { files: [] });
@@ -682,10 +701,14 @@ export default function ProjectDetail() {
             <p className="private-note-hint" style={{ marginTop: -4 }}>
               These days show on Project Scheduling, where anyone can see and change them.
             </p>
+            {boardProblem && <p className="settings-status is-error">{boardProblem}</p>}
             <LaborScheduleEditor
               idPrefix="project-detail-labor"
               value={editData.laborSchedule || blankLaborSchedule()}
               onChange={v => setEditData(prev => ({ ...prev, laborSchedule: v }))}
+              byDate={laborByDate(scheduledProjects)}
+              projectId={projectId}
+              crew={crew}
             />
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split</h4>
