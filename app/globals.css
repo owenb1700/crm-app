@@ -4688,6 +4688,15 @@ a {
 /* The manpower editor's own header. It stays put while the day rows
    scroll under it, because a schedule can run to sixty rows and a Save
    button at the bottom of that is one people scroll past and forget. */
+/* The card gives up its own top padding so the bar can supply it. A
+   negative margin-top would have been the obvious way to reach the card's
+   edge, but sticky aligns the MARGIN box to the top -- so -24px there
+   pushed the bar's visible box 24px down, over the first line of the
+   content below it. */
+.modal-card.labor-sheet {
+  padding-top: 0;
+}
+
 .labor-sheet-bar {
   position: sticky;
   top: 0;
@@ -4697,8 +4706,8 @@ a {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin: -24px -24px 16px;
-  padding: 16px 52px 16px 24px;
+  margin: 0 -24px 16px;
+  padding: 20px 52px 16px 24px;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
 }
@@ -4739,8 +4748,8 @@ a {
 
 @media (max-width: 640px) {
   .labor-sheet-bar {
-    margin: -16px -16px 14px;
-    padding: 14px 46px 14px 16px;
+    margin: 0 -16px 14px;
+    padding: 16px 46px 14px 16px;
   }
   .labor-sheet-bar-actions {
     width: 100%;
