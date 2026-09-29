@@ -4802,3 +4802,16 @@ a {
 .equipment-row-note p {
   margin-top: 0;
 }
+
+/* A short row of standing answers to pick from. */
+.reason-picker {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reason-picker .btn.is-picked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}

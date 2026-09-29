@@ -49,6 +49,7 @@ import Icon from "../../../components/Icon";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import ExportButtons from "../../../components/ExportButtons";
 import { downloadTable, csvDateStamp } from "../../../../lib/csv";
+import { DID_NOT_BID_REASONS, OTHER, didNotBidReason, didNotBidProblem } from "../../../../lib/notBidding";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
@@ -120,6 +121,9 @@ export default function PipelineDetail() {
   // who won, and both end the entry with no follow-up.
   const [lostModalOutcome, setLostModalOutcome] = useState(null);
   const [lostReason, setLostReason] = useState("");
+  // Which of the standing reasons was picked for Did Not Bid. Kept apart
+  // from the text so "Other" can require something written under it.
+  const [dnbChoice, setDnbChoice] = useState("");
   const [lostTo, setLostTo] = useState("");
   const [convertNextDate, setConvertNextDate] = useState("");
   const [convertProjectAddress, setConvertProjectAddress] = useState("");
@@ -529,13 +533,18 @@ export default function PipelineDetail() {
 
   const confirmMarkLost = async () => {
     setLostProblem("");
-    if (!lostReason.trim()) {
-      return setLostProblem(lostModalOutcome === "Did Not Bid" ? "Say why we aren't bidding." : "Say why this was lost.");
+    if (lostModalOutcome === "Did Not Bid") {
+      const problem = didNotBidProblem(dnbChoice, lostReason);
+      if (problem) return setLostProblem(problem);
+    } else if (!lostReason.trim()) {
+      return setLostProblem("Say why this was lost.");
     }
     await updateDoc(doc(db, "pipeline", pipelineId), {
       outcome: lostModalOutcome,
       wonByContractor: null,
-      lostReason: lostReason.trim(),
+      lostReason: lostModalOutcome === "Did Not Bid"
+        ? didNotBidReason(dnbChoice, lostReason)
+        : lostReason.trim(),
       lostTo: lostTo.trim() || null,
       resolvedAt: new Date().toISOString(),
       nextCheckIn: null
@@ -757,7 +766,7 @@ export default function PipelineDetail() {
           {canEdit && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button className="btn btn-primary" onClick={openBidsSent}>Bids Sent</button>
-              <button className="btn btn-secondary" onClick={() => setLostModalOutcome("Did Not Bid")}>Not Bidding</button>
+              <button className="btn btn-secondary" onClick={() => { setDnbChoice(""); setLostReason(""); setLostProblem(""); setLostModalOutcome("Did Not Bid"); }}>Not Bidding</button>
             </div>
           )}
         </>
@@ -772,7 +781,7 @@ export default function PipelineDetail() {
           {canEdit && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button className="btn btn-primary" onClick={() => setShowWonModal(true)}>Mark Won</button>
-              <button className="btn btn-danger" onClick={() => setLostModalOutcome("Lost")}>Mark Lost</button>
+              <button className="btn btn-danger" onClick={() => { setDnbChoice(""); setLostReason(""); setLostProblem(""); setLostModalOutcome("Lost"); }}>Mark Lost</button>
             </div>
           )}
         </>
@@ -845,7 +854,7 @@ export default function PipelineDetail() {
             {canEdit && (
               <div className="duplicate-warning-actions">
                 <button className="btn btn-primary" onClick={openBidsSent}>Bids Sent</button>
-                <button className="btn btn-secondary" onClick={() => setLostModalOutcome("Did Not Bid")}>Not Bidding</button>
+                <button className="btn btn-secondary" onClick={() => { setDnbChoice(""); setLostReason(""); setLostProblem(""); setLostModalOutcome("Did Not Bid"); }}>Not Bidding</button>
               </div>
             )}
           </div>
@@ -1275,7 +1284,37 @@ export default function PipelineDetail() {
             <label className="field-label" htmlFor="pipeline-lost-reason">
               {lostModalOutcome === "Did Not Bid" ? "Why aren't we bidding?" : "Why was it lost?"}
             </label>
-            <textarea id="pipeline-lost-reason" className="field" style={{ width: "100%", height: 80 }} value={lostReason} onChange={e => setLostReason(e.target.value)} />
+            {lostModalOutcome === "Did Not Bid" ? (
+              <>
+                {/* Two buttons for the answers it nearly always is, so the
+                    same reason isn't spelled six ways and can be counted. */}
+                <div className="reason-picker">
+                  {DID_NOT_BID_REASONS.map(reason => (
+                    <button
+                      key={reason}
+                      type="button"
+                      className={`btn btn-secondary ${dnbChoice === reason ? "is-picked" : ""}`}
+                      aria-pressed={dnbChoice === reason}
+                      onClick={() => { setDnbChoice(reason); setLostReason(""); setLostProblem(""); }}
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
+                {dnbChoice === OTHER && (
+                  <textarea
+                    id="pipeline-lost-reason"
+                    className="field"
+                    style={{ width: "100%", height: 80, marginTop: 8 }}
+                    placeholder="What was the reason?"
+                    value={lostReason}
+                    onChange={e => setLostReason(e.target.value)}
+                  />
+                )}
+              </>
+            ) : (
+              <textarea id="pipeline-lost-reason" className="field" style={{ width: "100%", height: 80 }} value={lostReason} onChange={e => setLostReason(e.target.value)} />
+            )}
 
             <label className="field-label" htmlFor="pipeline-lost-to">Who won it? (optional)</label>
             <FirmSelect id="pipeline-lost-to" companies={firmsWithBidders} category="Contractor" value={lostTo} onChange={setLostTo} placeholder="Select or search firm..." newLabel="firm" />
