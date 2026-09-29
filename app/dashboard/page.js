@@ -215,8 +215,10 @@ export default function Dashboard() {
     setTimeout(() => setToast(""), bad ? 8000 : 5000);
   };
 
-  // A message left by another page right before sending someone here (e.g.
-  // Add Pipeline Entry after saving), shown once.
+  // A message left by another page right before sending someone here,
+  // shown once. Nothing sets one at the moment -- Add Pipeline Entry used
+  // to, before it started landing on the new entry instead -- but the
+  // hand-off is here for whenever a page needs it.
   useEffect(() => {
     try {
       const pending = sessionStorage.getItem("dashboardToast");

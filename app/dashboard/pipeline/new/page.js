@@ -273,13 +273,6 @@ export default function NewPipelineEntry() {
         equipment.filter(isTowerRow).map(row => ensureTowerModel({ towerModels, manufacturer: row.manufacturer, model: row.model, uid }))
       );
 
-      // Straight back to the Pipeline list (no stop on the new entry's own
-      // page); the dashboard shows a short "added" message.
-      try {
-        sessionStorage.setItem("dashboardToast", `Pipeline entry "${title}" added`);
-      } catch {
-        // Storage unavailable -- the entry is still saved, just no message.
-      }
       if (firmTags) {
         await Promise.all(Object.entries(firmTags).map(([name, tags]) => {
           const entry = firmEntries().find(f => f.name === name);
@@ -287,7 +280,11 @@ export default function NewPipelineEntry() {
         }));
       }
 
-      router.replace("/dashboard#pipeline");
+      // Land on the entry that was just made, the way Add Project does.
+      // A toast on a list you have to find the row in tells you it worked;
+      // the entry itself shows you what was actually saved, and going back
+      // to the list is one click whenever you want it.
+      router.replace(`/dashboard/pipeline/${ref.id}`);
     } finally {
       setSaving(false);
     }
