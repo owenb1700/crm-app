@@ -85,6 +85,9 @@ export default function PipelineDetail() {
   const [contacts, setContacts] = useState([]);
   const [towerModels, setTowerModels] = useState([]);
   const [products, setProducts] = useState([]);
+  // Jobs already on file, so the product rows can offer the maker this
+  // company actually uses for a given type.
+  const [pastProjects, setPastProjects] = useState([]);
   const [privateData, setPrivateData] = useState(null);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -173,18 +176,23 @@ export default function PipelineDetail() {
     }
     setPipeline(data);
 
-    const [usersSnap, companiesSnap, contactsSnap, towerModelsSnap, productsSnap] = await Promise.all([
+    const [usersSnap, companiesSnap, contactsSnap, towerModelsSnap, productsSnap, pastSnap] = await Promise.all([
       getDocs(collection(db, "users")),
       getDocs(collection(db, "companies")),
       getDocs(collection(db, "contacts")),
       getDocs(collection(db, "towerModels")),
-      getDocs(collection(db, "products"))
+      getDocs(collection(db, "products")),
+      // Only feeds the manufacturer suggestions. If it can't be read the
+      // page still works and the picker simply falls back to the standing
+      // list, which is what it offered before any of this existed.
+      getDocs(collection(db, "customers")).catch(() => null)
     ]);
     setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setContacts(contactsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setTowerModels(towerModelsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setProducts(productsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setPastProjects(pastSnap ? pastSnap.docs.map(d => ({ id: d.id, ...d.data() })) : []);
 
     const isOwner = data.ownerId === currentUid;
 
@@ -980,7 +988,13 @@ export default function PipelineDetail() {
             />
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Product Options</h4>
-            <ProductOptionsEditor idPrefix="pipeline-detail-product" rows={productRows} onChange={setProductRows} products={products} />
+            <ProductOptionsEditor
+              idPrefix="pipeline-detail-product"
+              rows={productRows}
+              onChange={setProductRows}
+              products={products}
+              history={{ projects: pastProjects }}
+            />
           </div>
         ) : (
           <>

@@ -1,6 +1,8 @@
 "use client";
 
-import { PRODUCT_TYPES } from "../../lib/products";
+import { PRODUCT_TYPES, manufacturerOptionsFor } from "../../lib/products";
+import { manufacturerForType } from "../../lib/learned";
+import Suggested from "./Suggested";
 import { blankProductRow } from "../../lib/equipment";
 import SearchableSelect from "./SearchableSelect";
 
@@ -8,12 +10,20 @@ import SearchableSelect from "./SearchableSelect";
 // row per product quoted (type, manufacturer, model). Manufacturer and
 // model suggestions come from the Product Options directory, narrowed by
 // what's already picked, but anything can be typed in.
-export default function ProductOptionsEditor({ idPrefix, rows, onChange, products }) {
+//
+// `history` is the jobs already on file. Pick a type and the makers this
+// company actually uses for it come first, with the usual one offered
+// underneath in a sentence saying how it was worked out. Nothing is
+// filled in by itself -- the offer sits there until it's taken.
+export default function ProductOptionsEditor({ idPrefix, rows, onChange, products, history = {} }) {
   const same = (a, b) => (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase();
   const distinct = (list) => Array.from(new Set(list.filter(Boolean))).sort((a, b) => a.localeCompare(b));
 
   const ofType = (type) => products.filter(p => !type || same(p.type, type));
-  const manufacturerOptions = (row) => distinct(ofType(row.type).map(p => p.manufacturer));
+  // Used-here-before first, then this type's entries in the Product
+  // Options directory, then the standing list.
+  const manufacturerOptions = (row) =>
+    manufacturerOptionsFor(row.type, history, distinct(ofType(row.type).map(p => p.manufacturer)));
   const modelOptions = (row) => distinct(
     ofType(row.type).filter(p => !row.manufacturer || same(p.manufacturer, row.manufacturer)).map(p => p.model)
   );
@@ -35,13 +45,21 @@ export default function ProductOptionsEditor({ idPrefix, rows, onChange, product
             {PRODUCT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             {row.type && !PRODUCT_TYPES.includes(row.type) && <option value={row.type}>{row.type}</option>}
           </select>
-          <SearchableSelect
-            options={manufacturerOptions(row)}
-            value={row.manufacturer}
-            onChange={v => update(i, { manufacturer: v })}
-            placeholder="Select or search manufacturer..."
-            newLabel="manufacturer"
-          />
+          <div>
+            <SearchableSelect
+              options={manufacturerOptions(row)}
+              value={row.manufacturer}
+              onChange={v => update(i, { manufacturer: v })}
+              placeholder="Select or search manufacturer..."
+              newLabel="manufacturer"
+            />
+            {!row.manufacturer && (
+              <Suggested
+                suggestion={manufacturerForType(row.type, history)}
+                onUse={() => update(i, { manufacturer: manufacturerForType(row.type, history).value })}
+              />
+            )}
+          </div>
           <SearchableSelect
             options={modelOptions(row)}
             value={row.model}

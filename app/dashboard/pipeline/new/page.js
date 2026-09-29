@@ -461,7 +461,13 @@ export default function NewPipelineEntry() {
 
         <div className="project-section">
           <h4 className="field-label" style={{ marginTop: 0 }}>Product Options (optional)</h4>
-          <ProductOptionsEditor idPrefix="new-pipeline-product" rows={equipmentRows} onChange={setEquipmentRows} products={products} />
+          <ProductOptionsEditor
+            idPrefix="new-pipeline-product"
+            rows={equipmentRows}
+            onChange={setEquipmentRows}
+            products={products}
+            history={{ projects: pastProjects, pipeline: pastPipeline, parts: pastParts }}
+          />
         </div>
 
         <div className="project-section">

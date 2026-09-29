@@ -15,7 +15,7 @@ import { buildingMemory, equipmentBySerial, modelMemory, salespersonForFirm, fir
 import { normalizePhone } from "../../../../lib/tidyEntry";
 import { withoutTrashed } from "../../../../lib/trash";
 import Suggested, { SuggestedBlock } from "../../../components/Suggested";
-import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
+import { PRODUCT_TYPES, manufacturerOptionsFor } from "../../../../lib/products";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MoneyInput from "../../../components/MoneyInput";
@@ -281,6 +281,9 @@ export default function NewProject() {
     { name: company, category: companyCategory },
     ...cleanOwnerRows(ownerRows).map(r => ({ name: r.company, category: OWNER_CATEGORY }))
   ];
+
+  // Jobs already on file, for suggesting who makes a kind of equipment.
+  const equipmentHistory = { projects, pipeline: pipelineEntries, parts: partsRows };
 
   const addProject = async (choice = null) => {
     // Only the prompt's answer counts -- a click event is not one.
@@ -615,8 +618,10 @@ export default function NewProject() {
                 value={row.manufacturer}
                 onChange={e => updateEquipmentRow(i, "manufacturer", e.target.value)}
               />
+              {/* What this company actually uses for this type first, then
+                  the standing list. Anything can still be typed. */}
               <datalist id={`new-project-equipment-manufacturers-${i}`}>
-                {PRODUCT_MANUFACTURERS.map(m => <option key={m} value={m} />)}
+                {manufacturerOptionsFor(row.type, equipmentHistory).map(m => <option key={m} value={m} />)}
               </datalist>
               <input
                 className="field"

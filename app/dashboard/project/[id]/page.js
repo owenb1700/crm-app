@@ -25,7 +25,7 @@ import DeleteRecordButton from "../../../components/DeleteRecordButton";
 import ClosedCheckInActions from "../../../components/ClosedCheckInActions";
 import { closeProjectPayload, isClosedWithCheckIn, isCheckInDue } from "../../../../lib/closedProjects";
 import { ensureTowerModel } from "../../../../lib/towerModels";
-import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../lib/products";
+import { PRODUCT_TYPES, manufacturerOptionsFor } from "../../../../lib/products";
 import { equipmentRowsFrom as sharedEquipmentRowsFrom } from "../../../../lib/equipment";
 import CompanyContactFields from "../../../components/CompanyContactFields";
 import AddressAutocomplete from "../../../components/AddressAutocomplete";
@@ -795,8 +795,10 @@ export default function ProjectDetail() {
                   value={row.manufacturer}
                   onChange={e => updateEquipmentRow(i, "manufacturer", e.target.value)}
                 />
+                {/* What this company actually uses for this type first,
+                    then the standing list. Anything can still be typed. */}
                 <datalist id={`detail-equipment-manufacturers-${i}`}>
-                  {PRODUCT_MANUFACTURERS.map(m => <option key={m} value={m} />)}
+                  {manufacturerOptionsFor(row.type, { projects: scheduledProjects }).map(m => <option key={m} value={m} />)}
                 </datalist>
                 <input
                   className="field"
