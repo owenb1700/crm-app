@@ -52,7 +52,11 @@ export default function FirmDetailsPrompt({ queue, busy = false, onDone, onCance
       <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="firm-details-title">
         <h3 id="firm-details-title" className="modal-title">{firm.name}</h3>
         <p className="modal-subtitle">
-          {queue.length > 1 ? `New firm ${index + 1} of ${queue.length}. ` : "This firm is new to the Directory. "}
+          {queue.length > 1
+            ? `Firm ${index + 1} of ${queue.length}. `
+            : firm.known
+              ? "This firm is already in the Directory but nothing's been ticked for it yet. "
+              : "This firm is new to the Directory. "}
           {detailsLabel(firm.category)} Address, phone and website can wait — this is what the rest of the site files them under.
         </p>
 
