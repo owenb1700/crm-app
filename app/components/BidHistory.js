@@ -1,7 +1,9 @@
 "use client";
 
 import { firmTypeOf } from "../../lib/directory";
-import { groupBidders, contactsOf } from "../../lib/bidders";
+import { groupBidders, contactsOf, bidderExportRows, BIDDER_EXPORT_HEADERS } from "../../lib/bidders";
+import { downloadTable, csvDateStamp } from "../../lib/csv";
+import ExportButtons from "./ExportButtons";
 import Icon from "./Icon";
 
 const formatPhone = (phone) => {
@@ -41,6 +43,21 @@ export default function BidHistory({ snapshot, isLive, bidFiles, canSeePrivate, 
   };
   const bidders = groupBidders(snapshot.biddingCompanies);
   const equipment = snapshot.equipment || [];
+
+  // One row per person, since that's what someone chasing a job works
+  // down. The firm's details repeat on each of its rows so any line of
+  // the spreadsheet stands on its own once it's sorted or filtered.
+  const exportBidders = (format) => downloadTable({
+    filename: `bidders-${(snapshot.title || snapshot.projectName || "job").replace(/[^\w-]+/g, "-").toLowerCase()}-${csvDateStamp()}`,
+    headers: BIDDER_EXPORT_HEADERS,
+    rows: bidderExportRows(snapshot.biddingCompanies, {
+      personLabel,
+      wonByContractor: snapshot.wonByContractor,
+      firmTypeOf
+    }),
+    format,
+    sheetName: "Bidders"
+  });
 
   return (
     <>
@@ -86,7 +103,16 @@ export default function BidHistory({ snapshot, isLive, bidFiles, canSeePrivate, 
       </div>
 
       <div className="project-section">
-        <h4 className="field-label">Contractors & Owners Bidding ({bidders.length})</h4>
+        <div className="section-head-row">
+          <h4 className="field-label" style={{ margin: 0 }}>Contractors & Owners Bidding ({bidders.length})</h4>
+          {bidders.length > 0 && (
+            <ExportButtons
+              label="the bidders on this job"
+              buttonText="Export bidders list"
+              onExport={exportBidders}
+            />
+          )}
+        </div>
         {bidders.length === 0 && <p className="private-note-hint">No bidders were recorded.</p>}
         {bidders.map((b, i) => {
           const isWinner = snapshot.wonByContractor && (b.company || "").toLowerCase() === snapshot.wonByContractor.toLowerCase();

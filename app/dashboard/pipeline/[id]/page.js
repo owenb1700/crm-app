@@ -25,7 +25,7 @@ import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import { LeadTimeFields, LeadTimeSummary, LeadTimeInput } from "../../../components/LeadTimeFields";
 import BidderEditor from "../../../components/BidderEditor";
-import { bidderRowsForEditing, biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson, groupBidders, contactsOf } from "../../../../lib/bidders";
+import { bidderRowsForEditing, biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson, groupBidders, contactsOf, bidderExportRows, BIDDER_EXPORT_HEADERS } from "../../../../lib/bidders";
 import { buildBidSnapshot } from "../../../../lib/bidHistory";
 import PipelineMyAlerts from "../../../components/PipelineMyAlerts";
 import PipelineNotes from "../../../components/PipelineNotes";
@@ -47,6 +47,8 @@ import CreditSplitEditor from "../../../components/CreditSplitEditor";
 import { describeSplit, normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 import Icon from "../../../components/Icon";
 import ConfirmDialog from "../../../components/ConfirmDialog";
+import ExportButtons from "../../../components/ExportButtons";
+import { downloadTable, csvDateStamp } from "../../../../lib/csv";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
@@ -136,6 +138,20 @@ export default function PipelineDetail() {
     if (day === 0) d.setDate(d.getDate() - 2);
     return d.toISOString().split("T")[0];
   };
+
+  // The bidders list as a spreadsheet: one row per person, since that is
+  // what someone chasing a job actually works down.
+  const exportBidders = (format) => downloadTable({
+    filename: `bidders-${(pipeline.title || "entry").replace(/[^\w-]+/g, "-").toLowerCase()}-${csvDateStamp()}`,
+    headers: BIDDER_EXPORT_HEADERS,
+    rows: bidderExportRows(pipeline.biddingCompanies, {
+      personLabel: ownerLabel,
+      wonByContractor: pipeline.wonByContractor,
+      firmTypeOf
+    }),
+    format,
+    sheetName: "Bidders"
+  });
 
   const ownerLabel = (ownerId) => {
     if (ownerId === uid) return "You";
@@ -995,7 +1011,16 @@ export default function PipelineDetail() {
               {outcomeSection}
 
               <div className="project-section detail-span-2">
-                <h4 className="field-label">Contractors & Owners Bidding</h4>
+                <div className="section-head-row">
+                  <h4 className="field-label" style={{ margin: 0 }}>Contractors & Owners Bidding</h4>
+                  {groupBidders(pipeline.biddingCompanies).length > 0 && (
+                    <ExportButtons
+                      label="the bidders on this entry"
+                      buttonText="Export bidders list"
+                      onExport={format => exportBidders(format)}
+                    />
+                  )}
+                </div>
                 {(pipeline.biddingCompanies || []).length === 0 && (
                   <p className="private-note-hint">None added yet.</p>
                 )}
