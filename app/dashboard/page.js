@@ -1795,16 +1795,18 @@ export default function Dashboard() {
               // Say whose answer this is. The bid-date alert goes to
               // everyone on the entry, so without a name it reads as
               // somebody else's problem to all of them.
-              const toAnswer = [c.salespersonId, c.projectPointPersonId]
+              const assigned = [c.salespersonId, c.projectPointPersonId]
                 .filter(Boolean)
                 .filter((v, i, a) => a.indexOf(v) === i);
-              const mine = toAnswer.includes(uid) || (!toAnswer.length && c.ownerId === uid);
+              // Unassigned falls to whoever entered it, same as the alert.
+              const toAnswer = assigned.length ? assigned : [c.ownerId].filter(Boolean);
+              const mine = toAnswer.includes(uid);
               return (
                 <div onClick={e => e.stopPropagation()}>
                   <div className="private-note-hint" style={{ marginTop: 6 }}>
                     {toAnswer.length
                       ? `${toAnswer.map(id => ownerLabel(id)).join(" and ")} to say whether we bid it.`
-                      : "Nobody is set as salesperson or point person on this entry."}
+                      : "Nobody is on this entry at all."}
                   </div>
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <button

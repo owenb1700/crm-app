@@ -690,10 +690,13 @@ export default function PipelineDetail() {
   // It's the salesperson's and the point person's job to answer, so the
   // banner says so by name -- a prompt addressed to everybody is a prompt
   // addressed to nobody.
-  const answerableBy = [pipeline.salespersonId, pipeline.projectPointPersonId]
+  // Salesperson and point person if there are any; otherwise it falls to
+  // whoever entered it, which is the same rule the alert uses.
+  const assigned = [pipeline.salespersonId, pipeline.projectPointPersonId]
     .filter(Boolean)
     .filter((v, i, a) => a.indexOf(v) === i);
-  const forMe = answerableBy.includes(uid) || (!answerableBy.length && pipeline.ownerId === uid);
+  const answerableBy = assigned.length ? assigned : [pipeline.ownerId].filter(Boolean);
+  const forMe = answerableBy.includes(uid);
 
   const outcomeSection = (
     <div className="project-section">
@@ -789,8 +792,8 @@ export default function PipelineDetail() {
             </strong>
             <div className="private-note-hint" style={{ marginTop: 4 }}>
               {answerableBy.length
-                ? `${answerableBy.map(id => ownerLabel(id)).join(" and ")} to answer.`
-                : "Nobody is set as salesperson or point person on this entry."}
+                ? `${answerableBy.map(id => ownerLabel(id)).join(" and ")} to answer${assigned.length ? "" : " — nobody else is on this entry"}.`
+                : "Nobody is on this entry at all."}
               {" "}Saying bids went out moves it to Post-Bid and puts a follow-up on the calendar;
               won or lost comes later, whenever you hear.
             </div>

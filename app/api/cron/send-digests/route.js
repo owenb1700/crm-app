@@ -1,7 +1,8 @@
 import { getAdminDb } from "../../../../lib/firebaseAdmin";
 import { sendRawEmail } from "../../../../lib/mailer";
 import { renderEmail } from "../../../../lib/emailTemplate";
-import { buildDigestHtml, schedulesFor } from "../../../../lib/digest";
+import { buildDigestHtml, schedulesFor, centralDateKey } from "../../../../lib/digest";
+import { bidNeedsAnswer, owesBidAnswer } from "../../../../lib/alertRecipients";
 import { generateIncidentCode, alertAdmins } from "../../../../lib/adminAlert";
 import { purgeExpiredTrash } from "../../../../lib/deleteRecord";
 import { recordCronRun } from "../../../../lib/cronLog";
@@ -114,6 +115,31 @@ async function runDigests(req) {
         sent.push({ email: user.email, total });
       } catch (err) {
         failed.push({ email: user.email, error: err.message });
+      }
+    }
+  }
+
+  // A bid date that has gone by unanswered also lands under the bell, so
+  // it's waiting when someone opens the site rather than only arriving in
+  // a digest they may not read. The document id is deterministic, so the
+  // job can run every night without stacking up copies of the same nudge.
+  if (!testEmail) {
+    const todayIso = centralDateKey(new Date());
+    for (const entry of pipelineEntries.filter(e => bidNeedsAnswer(e, todayIso))) {
+      for (const userId of owesBidAnswer(entry)) {
+        const id = `bid-${entry.id}-${userId}`;
+        try {
+          await db.collection("notifications").doc(id).set({
+            userId,
+            type: "bid-unanswered",
+            message: `Bid date passed on "${entry.title || "a pipeline entry"}" — did we bid it?`,
+            link: `/dashboard/pipeline/${entry.id}`,
+            read: false,
+            createdAt: new Date().toISOString()
+          }, { merge: true });
+        } catch {
+          // One nudge failing shouldn't stop the digest run.
+        }
       }
     }
   }
