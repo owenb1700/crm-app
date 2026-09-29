@@ -4575,3 +4575,87 @@ a {
     width: auto;
   }
 }
+
+/* ---------- three classes that were used but never defined ---------- */
+/* Each of these wrapped something real and rendered with browser
+   defaults, so the element sat at the wrong size or spacing without any
+   obvious cause. */
+
+/* "Google Maps has this as ..." under an address box, and "Already worked
+   at ...". A quiet line under the field, not body copy. */
+.matching-select-suggestion {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* The date, caption and attribution beside a photo's buttons. It has to
+   be allowed to shrink, or a long caption pushes the buttons off. */
+.photo-viewer-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The credit split editor, and the row under it holding "+ Add person"
+   against the running total. */
+.credit-split {
+  margin-top: 4px;
+}
+
+.credit-split-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+/* The scheduling board's calendar, which sits in the page rather than a
+   card of its own. */
+.calendar-wrap {
+  margin-bottom: 8px;
+}
+
+/* Typing in an outside name: the box and the tick that commits it. */
+.crew-add-wrap {
+  display: inline-flex;
+  align-items: center;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.crew-add-wrap:focus-within {
+  border-style: solid;
+  border-color: var(--color-primary);
+}
+
+.crew-add-wrap .crew-add {
+  border: none;
+  border-radius: 0;
+  width: 122px;
+}
+
+.crew-add-wrap .crew-add:focus {
+  outline: none;
+  border: none;
+}
+
+.crew-add-go {
+  border: none;
+  background: transparent;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 9px 2px 4px;
+  line-height: 1.6;
+}
+
+.crew-add-go:disabled {
+  color: var(--color-text-muted);
+  opacity: 0.4;
+  cursor: default;
+}

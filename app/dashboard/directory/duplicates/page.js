@@ -323,7 +323,7 @@ export default function FindDuplicates() {
         </div>
       </div>
 
-      <div className="project-page duplicates-page">
+      <div className="project-page">
         <p className="private-note-hint" style={{ marginTop: 0 }}>
           Companies, people and buildings that look like they were entered more than once — different punctuation, Inc/LLC, typos,
           nicknames, or an address written two ways. Review each group: merge it into the one to keep, or mark it as not duplicates.

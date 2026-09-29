@@ -241,7 +241,7 @@ function PartPageContent() {
 
       <div className="project-page">
         <div className="project-section">
-          <div className="project-section-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
             <h4 className="field-label" style={{ margin: 0 }}>Details</h4>
             {!isEditing && (
               <div style={{ display: "flex", gap: 8 }}>

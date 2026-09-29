@@ -65,7 +65,7 @@ export default function BuildingSector({ label, sectors, firms, uid, userName, o
 
       {editing && (
         <>
-          <p className="private-head-hint settings-hint">
+          <p className="settings-hint">
             Pick everything that fits. Saving also records this work for the {firms.length === 1 ? "firm" : "firms"} who
             worked here, so you can find who does this kind of job later.
           </p>

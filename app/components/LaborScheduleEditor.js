@@ -22,6 +22,9 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
 
   // Start and length drive the rows; the rows themselves hold the men.
   const [sameMen, setSameMen] = useState("");
+  // What's half-typed in each day's "someone else" box, kept per day so
+  // several outside names can be added one after another.
+  const [outsideDraft, setOutsideDraft] = useState({});
   const start = days[0]?.date || "";
   const count = days.length;
 
@@ -62,6 +65,13 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
   // Monday to Thursday and lost the Wednesday shouldn't have to be
   // retyped. The rows are the truth; the "how many days" box only ever
   // generates them.
+  const addOutsidePerson = (day) => {
+    const name = String(outsideDraft[day.date] || "").trim();
+    if (!name) return;
+    setPeopleOn(day.date, [...peopleOn(day), name]);
+    setOutsideDraft(prev => ({ ...prev, [day.date]: "" }));
+  };
+
   const removeDay = (date) => push({ days: days.filter(d => d.date !== date) });
   const clearAllDays = () => push({ days: [] });
 
@@ -200,19 +210,33 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
                             {name}
                           </button>
                         ))}
-                        <input
-                          className="crew-add"
-                          placeholder="+ someone else"
-                          aria-label={`Add someone not on the crew list to ${d.date}`}
-                          onKeyDown={e => {
-                            if (e.key !== "Enter") return;
-                            e.preventDefault();
-                            const name = e.currentTarget.value.trim();
-                            if (!name) return;
-                            setPeopleOn(d.date, [...peopleOn(d), name]);
-                            e.currentTarget.value = "";
-                          }}
-                        />
+                        {/* A tick beside the box, so adding somebody is a
+                            visible act rather than a guess at whether
+                            Enter did anything -- and so a second and third
+                            outside name can follow the first. */}
+                        <span className="crew-add-wrap">
+                          <input
+                            className="crew-add"
+                            placeholder="+ someone else"
+                            aria-label={`Add someone not on the crew list to ${d.date}`}
+                            value={outsideDraft[d.date] || ""}
+                            onChange={e => setOutsideDraft(prev => ({ ...prev, [d.date]: e.target.value }))}
+                            onKeyDown={e => {
+                              if (e.key !== "Enter") return;
+                              e.preventDefault();
+                              addOutsidePerson(d);
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="crew-add-go"
+                            aria-label={`Add ${outsideDraft[d.date] || "this person"} to ${d.date}`}
+                            disabled={!String(outsideDraft[d.date] || "").trim()}
+                            onClick={() => addOutsidePerson(d)}
+                          >
+                            ✓
+                          </button>
+                        </span>
                       </div>
                     </td>
                   </tr>
