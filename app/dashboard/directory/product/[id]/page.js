@@ -8,6 +8,7 @@ import { doc, getDoc, getDocs, collection, updateDoc, deleteDoc } from "firebase
 import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../../lib/products";
 import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
+import ConfirmDialog from "../../../../components/ConfirmDialog";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -28,6 +29,8 @@ export default function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [allProducts, setAllProducts] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [ask, setAsk] = useState(null);
+  const [editProblem, setEditProblem] = useState("");
   const [editData, setEditData] = useState({});
 
   const loadProduct = async () => {
@@ -107,12 +110,13 @@ export default function ProductDetail() {
   };
 
   const saveEdit = async () => {
+    setEditProblem("");
     const missing = [];
     if (!editData.name.trim()) missing.push("Name");
     if (!editData.type) missing.push("Type");
     if (!editData.manufacturer.trim()) missing.push("Manufacturer");
     if (missing.length) {
-      return alert(`Please fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
+      return setEditProblem(`Fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}.`);
     }
 
     await updateDoc(doc(db, "products", productId), {
@@ -131,11 +135,17 @@ export default function ProductDetail() {
     await loadProduct();
   };
 
-  const deleteProduct = async () => {
-    if (!window.confirm(`Delete "${product.name}"? This can't be undone.`)) return;
-    await deleteDoc(doc(db, "products", productId));
-    router.push("/dashboard/directory/products");
-  };
+  const deleteProduct = () => setAsk({
+    title: "Delete this product?",
+    message: `"${product.name}" comes off the Directory for good.`,
+    confirmLabel: "Delete",
+    danger: true,
+    onConfirm: async () => {
+      setAsk(null);
+      await deleteDoc(doc(db, "products", productId));
+      router.push("/dashboard/directory/products");
+    }
+  });
 
   if (loadError) {
     return (
@@ -201,6 +211,7 @@ export default function ProductDetail() {
               )}
             </div>
           </div>
+          {isEditing && editProblem && <p className="settings-status is-error">⚠ {editProblem}</p>}
         </div>
 
         {isEditing ? (
@@ -252,6 +263,18 @@ export default function ProductDetail() {
           </div>
         )}
       </div>
+
+      {ask && (
+        <ConfirmDialog
+          title={ask.title}
+          confirmLabel={ask.confirmLabel}
+          danger={ask.danger === true}
+          onCancel={() => setAsk(null)}
+          onConfirm={ask.onConfirm}
+        >
+          <p>{ask.message}</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

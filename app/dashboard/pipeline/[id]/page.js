@@ -46,6 +46,7 @@ import { sameCompany } from "../../../../lib/companyMatch";
 import CreditSplitEditor from "../../../components/CreditSplitEditor";
 import { describeSplit, normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 import Icon from "../../../components/Icon";
+import ConfirmDialog from "../../../components/ConfirmDialog";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
@@ -93,6 +94,13 @@ export default function PipelineDetail() {
   const [productRows, setProductRows] = useState([]);
 
   const [uploading, setUploading] = useState(false);
+  const [ask, setAsk] = useState(null);
+  const [editProblem, setEditProblem] = useState("");
+  const [fileProblem, setFileProblem] = useState("");
+  const [bidsSentProblem, setBidsSentProblem] = useState("");
+  const [wonProblem, setWonProblem] = useState("");
+  const [lostProblem, setLostProblem] = useState("");
+  const [convertProblem, setConvertProblem] = useState("");
 
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [showWonModal, setShowWonModal] = useState(false);
@@ -286,23 +294,24 @@ export default function PipelineDetail() {
   };
 
   const saveEdit = async () => {
+    setEditProblem("");
     if (!editData.title) {
-      return alert("Project/opportunity name is required");
+      return setEditProblem("A project/opportunity name is required.");
     }
     if (!editData.buildingSector) {
-      return alert("Please select a building sector");
+      return setEditProblem("Select a building sector.");
     }
     if (!editData.workType) {
-      return alert("Please select a work type (new installation, replacement, or repair)");
+      return setEditProblem("Select a work type — new installation, replacement, or repair.");
     }
     const splitProblem = splitError(splitRows);
     if (splitProblem) {
-      return alert(splitProblem);
+      return setEditProblem(splitProblem);
     }
     // Every bidder needs one of our salespeople assigned to it.
     const missingSalesperson = bidderMissingSalesperson(biddingRows);
     if (missingSalesperson) {
-      return alert(`Select a salesperson for bidder "${missingSalesperson.company || "without a firm name"}"`);
+      return setEditProblem(`Select a salesperson for bidder "${missingSalesperson.company || "without a firm name"}".`);
     }
 
     const payload = {};
@@ -370,8 +379,9 @@ export default function PipelineDetail() {
   const uploadFile = async (fileList) => {
     const file = fileList?.[0];
     if (!file) return;
+    setFileProblem("");
     if (file.type !== "application/pdf") {
-      return alert("Only PDF files can be uploaded here");
+      return setFileProblem("Only PDF files can be uploaded here.");
     }
 
     setUploading(true);
@@ -398,15 +408,22 @@ export default function PipelineDetail() {
 
       await loadPipelineEntry(uid, role);
     } catch (err) {
-      alert(err.message || "Upload failed");
+      setFileProblem(err.message || "Upload failed.");
     } finally {
       setUploading(false);
     }
   };
 
-  const deleteFile = async (file) => {
-    if (!window.confirm(`Delete "${file.name}"? This can't be undone.`)) return;
+  const deleteFile = (file) => setAsk({
+    title: "Delete this file?",
+    message: `"${file.name}" can't be brought back.`,
+    confirmLabel: "Delete",
+    danger: true,
+    onConfirm: () => reallyDeleteFile(file)
+  });
 
+  const reallyDeleteFile = async (file) => {
+    setAsk(null);
     try {
       await deleteObject(ref(storage, file.path));
     } catch {
@@ -443,7 +460,8 @@ export default function PipelineDetail() {
   };
 
   const confirmBidsSent = async () => {
-    if (!bidsSentDate) return alert("Pick a date to follow up on");
+    setBidsSentProblem("");
+    if (!bidsSentDate) return setBidsSentProblem("Pick a date to follow up on.");
     await updateDoc(doc(db, "pipeline", pipelineId), {
       stage: POST_BID,
       nextCheckIn: bidsSentDate,
@@ -454,7 +472,8 @@ export default function PipelineDetail() {
   };
 
   const confirmMarkWon = async () => {
-    if (!wonContractor.trim()) return alert("Select which of the bidders won the job");
+    setWonProblem("");
+    if (!wonContractor.trim()) return setWonProblem("Select which of the bidders won the job.");
 
     // Won work gets a 1-year check-in with whoever's actually responsible
     // for the relationship (point person, then salesperson, then owner) --
@@ -485,8 +504,9 @@ export default function PipelineDetail() {
   };
 
   const confirmMarkLost = async () => {
+    setLostProblem("");
     if (!lostReason.trim()) {
-      return alert(lostModalOutcome === "Did Not Bid" ? "Enter why we aren't bidding" : "Enter why this was lost");
+      return setLostProblem(lostModalOutcome === "Did Not Bid" ? "Say why we aren't bidding." : "Say why this was lost.");
     }
     await updateDoc(doc(db, "pipeline", pipelineId), {
       outcome: lostModalOutcome,
@@ -549,8 +569,9 @@ export default function PipelineDetail() {
     // pipeline.
     const missing = [];
     if (!convertNextDate) missing.push("Next Check-In Date");
+    setConvertProblem("");
     if (missing.length) {
-      return alert(`Please fill in: ${missing.join(", ")}`);
+      return setConvertProblem(`Fill in: ${missing.join(", ")}.`);
     }
 
     setConverting(true);
@@ -623,7 +644,7 @@ export default function PipelineDetail() {
 
       router.push(`/dashboard/project/${ref3.id}`);
     } catch (err) {
-      alert(`Couldn't create the project: ${err.message}`);
+      setConvertProblem(`Couldn't create the project: ${err.message}`);
       setConverting(false);
     }
   };
@@ -846,6 +867,7 @@ export default function PipelineDetail() {
                 )}
               </div>
             )}
+            {isEditing && editProblem && <p className="settings-status is-error">⚠ {editProblem}</p>}
             {isEditing && (
               <div className="detail-header-actions">
                 <button className="btn btn-primary" onClick={saveEdit}>Save</button>
@@ -1079,6 +1101,7 @@ export default function PipelineDetail() {
                       onChange={e => uploadFile(e.target.files)}
                     />
                     {uploading && <p className="private-note-hint">Uploading...</p>}
+                    {fileProblem && <p className="settings-status is-error">⚠ {fileProblem}</p>}
                   </div>
                 )}
               </>
@@ -1120,6 +1143,7 @@ export default function PipelineDetail() {
             />
             <p className="private-note-hint">Two weeks out by default.</p>
 
+            {bidsSentProblem && <p className="settings-status is-error">⚠ {bidsSentProblem}</p>}
             <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={confirmBidsSent}>
               Confirm
             </button>
@@ -1185,6 +1209,7 @@ export default function PipelineDetail() {
               </>
             )}
 
+            {wonProblem && <p className="settings-status is-error">⚠ {wonProblem}</p>}
             <button
               className="btn btn-primary btn-block"
               style={{ marginTop: 12 }}
@@ -1216,6 +1241,7 @@ export default function PipelineDetail() {
             <label className="field-label" htmlFor="pipeline-lost-to">Who won it? (optional)</label>
             <FirmSelect id="pipeline-lost-to" companies={firmsWithBidders} category="Contractor" value={lostTo} onChange={setLostTo} placeholder="Select or search firm..." newLabel="firm" />
 
+            {lostProblem && <p className="settings-status is-error">⚠ {lostProblem}</p>}
             <div className="modal-actions">
               <button className="btn btn-danger" onClick={confirmMarkLost}>
                 {lostModalOutcome === "Did Not Bid" ? "Mark Did Not Bid" : "Mark Lost"}
@@ -1270,12 +1296,25 @@ export default function PipelineDetail() {
               <p className="private-note-hint">When it should come back round on your schedule. Everything else is editable on the project.</p>
             </div>
 
+            {convertProblem && <p className="settings-status is-error">⚠ {convertProblem}</p>}
             <div className="modal-actions">
               <button className="btn btn-primary" disabled={converting} onClick={convertToProject}>{converting ? "Creating…" : "Create Project"}</button>
               <button className="btn btn-secondary" onClick={() => setShowConvertModal(false)}>Cancel</button>
             </div>
           </div>
         </div>
+      )}
+
+      {ask && (
+        <ConfirmDialog
+          title={ask.title}
+          confirmLabel={ask.confirmLabel}
+          danger={ask.danger === true}
+          onCancel={() => setAsk(null)}
+          onConfirm={ask.onConfirm}
+        >
+          <p>{ask.message}</p>
+        </ConfirmDialog>
       )}
     </div>
   );

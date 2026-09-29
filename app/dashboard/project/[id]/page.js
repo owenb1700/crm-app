@@ -46,6 +46,7 @@ import { describeSplit, normalizeSplits, splitError, withSplitMembers } from "..
 import { stateChanges, activityEntry, withActivity } from "../../../../lib/activityLog";
 import { notifyUsers, newSplitMembers } from "../../../../lib/notify";
 import Icon from "../../../components/Icon";
+import ConfirmDialog from "../../../components/ConfirmDialog";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
@@ -108,6 +109,9 @@ export default function ProjectDetail() {
   const [notesData, setNotesData] = useState(null);
   const [drawingsData, setDrawingsData] = useState(null);
   const [uploadingDrawing, setUploadingDrawing] = useState(false);
+  const [ask, setAsk] = useState(null);
+  const [editProblem, setEditProblem] = useState("");
+  const [fileProblem, setFileProblem] = useState("");
 
   const [isEditing, setIsEditing] = useState(false);
   // Closing the tab mid-edit shouldn't lose what's typed.
@@ -340,6 +344,7 @@ export default function ProjectDetail() {
   };
 
   const saveEdit = async () => {
+    setEditProblem("");
     const missing = [];
     if (!editData.projectName) missing.push("Project Name");
     if (!editData.buildingSector) missing.push("Building Sector");
@@ -347,11 +352,11 @@ export default function ProjectDetail() {
     if (!editData.contact) missing.push("Contact");
     if (!editData.projectAddress) missing.push("Project Address");
     if (missing.length) {
-      return alert(`Please fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
+      return setEditProblem(`Fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}.`);
     }
     const splitProblem = splitError(splitRows);
     if (splitProblem) {
-      return alert(splitProblem);
+      return setEditProblem(splitProblem);
     }
 
     const payload = {};
@@ -443,8 +448,9 @@ export default function ProjectDetail() {
   const uploadDrawing = async (fileList) => {
     const file = fileList?.[0];
     if (!file) return;
+    setFileProblem("");
     if (file.type !== "application/pdf") {
-      return alert("Only PDF files can be uploaded here");
+      return setFileProblem("Only PDF files can be uploaded here.");
     }
 
     setUploadingDrawing(true);
@@ -470,15 +476,22 @@ export default function ProjectDetail() {
 
       await loadProject(uid, role);
     } catch (err) {
-      alert(err.message || "Upload failed");
+      setFileProblem(err.message || "Upload failed.");
     } finally {
       setUploadingDrawing(false);
     }
   };
 
-  const deleteDrawing = async (file) => {
-    if (!window.confirm(`Delete "${file.name}"? This can't be undone.`)) return;
+  const deleteDrawing = (file) => setAsk({
+    title: "Delete this drawing?",
+    message: `"${file.name}" can't be brought back.`,
+    confirmLabel: "Delete",
+    danger: true,
+    onConfirm: () => reallyDeleteDrawing(file)
+  });
 
+  const reallyDeleteDrawing = async (file) => {
+    setAsk(null);
     try {
       await deleteObject(ref(storage, file.path));
     } catch {
@@ -559,6 +572,7 @@ export default function ProjectDetail() {
             onChange={e => uploadDrawing(e.target.files)}
           />
           {uploadingDrawing && <p className="private-note-hint">Uploading...</p>}
+          {fileProblem && <p className="settings-status is-error">⚠ {fileProblem}</p>}
         </div>
       )}
     </div>
@@ -631,6 +645,7 @@ export default function ProjectDetail() {
                 />
               </div>
             )}
+            {isEditing && editProblem && <p className="settings-status is-error">⚠ {editProblem}</p>}
             {isEditing && (
               <div className="detail-header-actions">
                 <button className="btn btn-primary" onClick={saveEdit}>Save</button>
@@ -997,6 +1012,18 @@ export default function ProjectDetail() {
 
         </>)}
       </div>
+
+      {ask && (
+        <ConfirmDialog
+          title={ask.title}
+          confirmLabel={ask.confirmLabel}
+          danger={ask.danger === true}
+          onCancel={() => setAsk(null)}
+          onConfirm={ask.onConfirm}
+        >
+          <p>{ask.message}</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

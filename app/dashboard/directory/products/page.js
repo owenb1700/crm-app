@@ -34,6 +34,7 @@ export default function ProductsPage() {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState("");
+  const [addProblem, setAddProblem] = useState("");
   const [newType, setNewType] = useState("");
   const [newManufacturer, setNewManufacturer] = useState("");
   const [newModel, setNewModel] = useState("");
@@ -93,12 +94,13 @@ export default function ProductsPage() {
   }, []);
 
   const addProduct = async () => {
+    setAddProblem("");
     const missing = [];
     if (!newName.trim()) missing.push("Name");
     if (!newType) missing.push("Type");
     if (!newManufacturer.trim()) missing.push("Manufacturer");
     if (missing.length) {
-      return alert(`Please fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
+      return setAddProblem(`Fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}.`);
     }
 
     const ref = await addDoc(collection(db, "products"), {
@@ -366,6 +368,7 @@ export default function ProductsPage() {
               {knownModels.map(opt => <option key={opt} value={opt} />)}
             </datalist>
 
+            {addProblem && <p className="settings-status is-error">⚠ {addProblem}</p>}
             <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={addProduct}>Add</button>
           </div>
         </div>

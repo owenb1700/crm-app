@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { collection, deleteDoc, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { localDateKey, weekdayKey } from "../../lib/closedProjects";
+import ConfirmDialog from "./ConfirmDialog";
 
 const fromKey = (key) => {
   const [y, m, d] = key.split("-").map(Number);
@@ -17,6 +18,7 @@ export default function ProjectMyReminders({ projectId, uid }) {
   const [reminders, setReminders] = useState([]);
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
+  const [ask, setAsk] = useState(null);
 
   const load = async () => {
     try {
@@ -50,8 +52,14 @@ export default function ProjectMyReminders({ projectId, uid }) {
     }
   };
 
-  const complete = async (r) => {
-    if (!window.confirm(`Mark "${r.subject}" complete? It will be deleted permanently.`)) return;
+  const complete = (r) => setAsk({
+    subject: r.subject,
+    onConfirm: () => reallyComplete(r)
+  });
+
+  const reallyComplete = async (r) => {
+    setAsk(null);
+    setError("");
     try {
       await deleteDoc(doc(db, "reminders", r.id));
       setReminders(prev => prev.filter(x => x.id !== r.id));
@@ -87,6 +95,18 @@ export default function ProjectMyReminders({ projectId, uid }) {
         </div>
       ))}
       {error && <p className="settings-status is-error">{error}</p>}
+
+      {ask && (
+        <ConfirmDialog
+          title="Mark this reminder complete?"
+          confirmLabel="Mark complete"
+          danger
+          onCancel={() => setAsk(null)}
+          onConfirm={ask.onConfirm}
+        >
+          <p>&quot;{ask.subject}&quot; is deleted permanently when you do.</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

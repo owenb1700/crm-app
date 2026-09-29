@@ -9,6 +9,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
 import { withoutTrashed } from "../../../../../lib/trash";
+import ConfirmDialog from "../../../../components/ConfirmDialog";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -37,6 +38,8 @@ export default function TowerModelDetail() {
   const [projects, setProjects] = useState([]);
   const [pipelineJobs, setPipelineJobs] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [ask, setAsk] = useState(null);
+  const [fileProblem, setFileProblem] = useState("");
 
   const loadTowerModel = async () => {
     const snap = await getDoc(doc(db, "towerModels", modelId));
@@ -118,8 +121,9 @@ export default function TowerModelDetail() {
   const uploadDrawing = async (fileList) => {
     const file = fileList?.[0];
     if (!file) return;
+    setFileProblem("");
     if (file.type !== "application/pdf") {
-      return alert("Only PDF files can be uploaded here");
+      return setFileProblem("Only PDF files can be uploaded here.");
     }
 
     setUploading(true);
@@ -144,15 +148,22 @@ export default function TowerModelDetail() {
 
       await loadTowerModel();
     } catch (err) {
-      alert(err.message || "Upload failed");
+      setFileProblem(err.message || "Upload failed.");
     } finally {
       setUploading(false);
     }
   };
 
-  const deleteDrawing = async (file) => {
-    if (!window.confirm(`Delete "${file.name}"? This can't be undone.`)) return;
+  const deleteDrawing = (file) => setAsk({
+    title: "Delete this drawing?",
+    message: `"${file.name}" can't be brought back.`,
+    confirmLabel: "Delete",
+    danger: true,
+    onConfirm: () => reallyDeleteDrawing(file)
+  });
 
+  const reallyDeleteDrawing = async (file) => {
+    setAsk(null);
     try {
       await deleteObject(ref(storage, file.path));
     } catch {
@@ -245,6 +256,7 @@ export default function TowerModelDetail() {
               onChange={e => uploadDrawing(e.target.files)}
             />
             {uploading && <p className="private-note-hint">Uploading...</p>}
+            {fileProblem && <p className="settings-status is-error">⚠ {fileProblem}</p>}
           </div>
         </div>
 
@@ -270,6 +282,18 @@ export default function TowerModelDetail() {
           ))}
         </div>
       </div>
+
+      {ask && (
+        <ConfirmDialog
+          title={ask.title}
+          confirmLabel={ask.confirmLabel}
+          danger={ask.danger === true}
+          onCancel={() => setAsk(null)}
+          onConfirm={ask.onConfirm}
+        >
+          <p>{ask.message}</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

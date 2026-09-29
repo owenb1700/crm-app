@@ -30,6 +30,7 @@ export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canM
   const [viewId, setViewId] = useState(null);
   const [editing, setEditing] = useState(null); // { date, caption }
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [problem, setProblem] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [skippedNote, setSkippedNote] = useState("");
   const inputRef = useRef(null);
@@ -141,11 +142,12 @@ export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canM
       setEditing(null);
       await load();
     } catch (err) {
-      alert(`Couldn't save: ${err.message}`);
+      setProblem(`Couldn't save: ${err.message}`);
     }
   };
 
   const removePhoto = async (photo) => {
+    setProblem("");
     try {
       await deleteDoc(doc(db, collectionName, recordId, "photos", photo.id));
       try {
@@ -157,7 +159,7 @@ export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canM
       setViewId(null);
       await load();
     } catch (err) {
-      alert(`Couldn't delete: ${err.message}`);
+      setProblem(`Couldn't delete: ${err.message}`);
     }
   };
 
@@ -352,6 +354,7 @@ export default function PhotoGallery({ kind, recordId, uid, myName, canAdd, canM
             </div>
           </div>
 
+          {problem && <p className="settings-status is-error">⚠ {problem}</p>}
           {confirmDelete && (
             <div onClick={e => e.stopPropagation()}>
               <ConfirmDialog

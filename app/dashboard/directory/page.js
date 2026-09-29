@@ -54,7 +54,7 @@ function DirectoryPageContent() {
   const [newAddress, setNewAddress] = useState("");
   // Adding a company from a filtered view defaults to that view's category.
   const [newCategory, setNewCategory] = useState(COMPANY_CATEGORIES.includes(categoryFilter) ? categoryFilter : "Contractor");
-  const [addState, setAddState] = useState(null); // null | { same } | { similar: [...] } | { saving: true }
+  const [addState, setAddState] = useState(null); // null | { same } | { similar: [...] } | { saving: true } | { problem }
   const [isAdmin, setIsAdmin] = useState(false);
   const [dismissals, setDismissals] = useState([]);
 
@@ -149,12 +149,12 @@ function DirectoryPageContent() {
   // points to the existing one; a merely similar name asks first.
   const addCompany = async (force = false) => {
     const name = newName.trim();
-    if (!name) return alert("Enter a company name");
+    if (!name) return setAddState({ problem: "Enter a company name." });
     // A firm goes in described, not as a bare name.
     if (!newTags.length) {
-      return alert(newCategory === "Contractor"
+      return setAddState({ problem: newCategory === "Contractor"
         ? "Pick what kind of contractor they are (Service, Construction, or Supply House)."
-        : "Pick what sort of buildings they are.");
+        : "Pick what sort of buildings they are." });
     }
     const same = companies.find(c => sameCompany(c.name, name));
     if (same) return setAddState({ same });
@@ -171,8 +171,7 @@ function DirectoryPageContent() {
       resetAdd();
       loadAll();
     } catch (err) {
-      setAddState(null);
-      alert(`Couldn't add the company: ${err.message}`);
+      setAddState({ problem: `Couldn't add the company: ${err.message}` });
     }
   };
 
@@ -410,6 +409,7 @@ function DirectoryPageContent() {
             <label className="field-label" htmlFor="add-company-address">Address (optional)</label>
             <AddressAutocomplete id="add-company-address" name="add-company-address" placeholder="Company Address" value={newAddress} onChange={setNewAddress} />
 
+            {addState?.problem && <p className="settings-status is-error">⚠ {addState.problem}</p>}
             <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} disabled={!!addState?.saving} onClick={() => addCompany(false)}>
               {addState?.saving ? "Adding…" : "Add"}
             </button>

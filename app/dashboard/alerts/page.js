@@ -38,6 +38,8 @@ export default function AllAlerts() {
   const [loadError, setLoadError] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [savingId, setSavingId] = useState(null);
+  // Keyed by row: whichever date failed says so on its own line.
+  const [saveProblem, setSaveProblem] = useState({});
 
   const [alerts, setAlerts] = useState([]);
   const [search, setSearch] = useState("");
@@ -233,6 +235,7 @@ export default function AllAlerts() {
   const saveDate = async (alert) => {
     const newDate = editedDates[alert.key];
     if (!newDate) return;
+    setSaveProblem(prev => ({ ...prev, [alert.key]: "" }));
 
     setSavingId(alert.key);
     try {
@@ -250,7 +253,7 @@ export default function AllAlerts() {
         return next;
       });
     } catch (err) {
-      alert(err.message || "Couldn't save that date.");
+      setSaveProblem(prev => ({ ...prev, [alert.key]: err.message || "Couldn't save that date." }));
     } finally {
       setSavingId(null);
     }
@@ -361,6 +364,9 @@ export default function AllAlerts() {
                 >
                   {savingId === a.key ? "Saving..." : "Save"}
                 </button>
+                {saveProblem[a.key] && (
+                  <span className="settings-status is-error">⚠ {saveProblem[a.key]}</span>
+                )}
               </>
             ) : (
               <span className="private-note-hint">{a.lockedReason || "Only the owner can change this date"}</span>

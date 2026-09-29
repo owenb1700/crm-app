@@ -58,6 +58,10 @@ export default function Login() {
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Shown under the form, the way the two-factor code's error already is.
+  const [loginError, setLoginError] = useState("");
+  const [resetNote, setResetNote] = useState("");
+  const [resetBad, setResetBad] = useState(false);
 
   const finish = () => {
     localStorage.setItem("loginTimestamp", String(Date.now()));
@@ -95,6 +99,7 @@ export default function Login() {
   };
 
   const login = async () => {
+    setLoginError("");
     if (busy) return;
     setBusy(true);
     try {
@@ -125,7 +130,7 @@ export default function Login() {
         }
       } else if (userSnap.data().disabled) {
         await signOut(auth);
-        alert("This account has been disabled. Contact your admin.");
+        setLoginError("This account has been disabled. Contact your admin.");
         return;
       }
 
@@ -133,9 +138,9 @@ export default function Login() {
       finish();
     } catch (err) {
       if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
-        alert("Login failed: incorrect email or password");
+        setLoginError("Incorrect email or password.");
       } else {
-        alert(`Login failed: ${err.message || err.code}`);
+        setLoginError(`Login failed: ${err.message || err.code}`);
       }
     } finally {
       setBusy(false);
@@ -179,8 +184,11 @@ export default function Login() {
   };
 
   const sendReset = async () => {
+    setResetNote("");
+    setResetBad(false);
     if (!resetEmail) {
-      return alert("Enter your email");
+      setResetBad(true);
+      return setResetNote("Enter your email address.");
     }
     try {
       const res = await fetch("/api/send-reset-link", {
@@ -191,11 +199,13 @@ export default function Login() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not send reset email");
 
-      alert("If an account exists for that email, a reset link is on its way.");
-      setShowForgot(false);
+      // Deliberately the same answer whether or not the account exists,
+      // so this can't be used to find out who has one.
+      setResetNote("If an account exists for that email, a reset link is on its way.");
       setResetEmail("");
     } catch (err) {
-      alert(err.message || "Could not send reset email");
+      setResetBad(true);
+      setResetNote(err.message || "Could not send reset email.");
     }
   };
 
@@ -267,6 +277,8 @@ export default function Login() {
                 onKeyDown={(e) => { if (e.key === "Enter") login(); }}
               />
 
+              {loginError && <p className="settings-status is-error">{loginError}</p>}
+
               <button className="btn btn-primary btn-block" disabled={busy} onClick={login}>
                 {busy ? "Signing in..." : "Login"}
               </button>
@@ -296,6 +308,9 @@ export default function Login() {
               value={resetEmail}
               onChange={(e) => setResetEmail(e.target.value)}
             />
+            {resetNote && (
+              <p className={`settings-status ${resetBad ? "is-error" : "is-ok"}`}>{resetNote}</p>
+            )}
             <div className="modal-actions">
               <button className="btn btn-primary" onClick={sendReset}>Send Reset Email</button>
             </div>
