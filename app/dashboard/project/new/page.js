@@ -29,6 +29,8 @@ import { firmsNeedingDetails } from "../../../../lib/newFirms";
 import { saveFirmTags } from "../../../../lib/firmTypes";
 import FirmDetailsPrompt from "../../../components/FirmDetailsPrompt";
 import { normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
+import ConfirmDialog from "../../../components/ConfirmDialog";
+import useLeaveGuard from "../../../components/useLeaveGuard";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
@@ -54,6 +56,9 @@ export default function NewProject() {
   const [loadError, setLoadError] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  // What stopped the save, said next to the button that was pressed
+  // rather than in a box that blocks the page until it is dismissed.
+  const [formError, setFormError] = useState("");
 
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -263,33 +268,9 @@ export default function NewProject() {
   // client-side router.push calls, not real navigation/unload events) --
   // this guard only has to catch the other ways out: closing the tab,
   // refreshing, typing a new address, or the browser back/forward buttons.
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    // An extra history entry means a back-button press lands here first
-    // (firing popstate) instead of immediately leaving, so we get a
-    // chance to confirm before actually navigating away.
-    window.history.pushState(null, "", window.location.href);
-
-    const handlePopState = () => {
-      if (window.confirm("Leave without finishing this project? Use Cancel or Add Project instead.")) {
-        window.removeEventListener("beforeunload", handleBeforeUnload);
-        router.back();
-      } else {
-        window.history.pushState(null, "", window.location.href);
-      }
-    };
-    window.addEventListener("popstate", handlePopState);
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      window.removeEventListener("popstate", handlePopState);
-    };
-  }, [router]);
+  // Leaving half-done, caught the same way everywhere: the browser's own
+  // prompt for a tab close, and our own dialog for the back button.
+  const leaveGuard = useLeaveGuard(true, () => router.back());
 
   const handleCancel = () => {
     router.push("/dashboard#personal");
@@ -304,6 +285,7 @@ export default function NewProject() {
   const addProject = async (choice = null) => {
     // Only the prompt's answer counts -- a click event is not one.
     const firmTags = choice && !choice.nativeEvent && typeof choice === "object" ? choice : null;
+    setFormError("");
     const missing = [];
     if (!projectName) missing.push("Project Name");
     if (!buildingSector) missing.push("Building Sector");
@@ -312,7 +294,7 @@ export default function NewProject() {
     if (!nextDate) missing.push("Next Date");
     if (!projectAddress) missing.push("Project Address");
     if (missing.length) {
-      return alert(`Please fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
+      return setFormError(`Please fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
     }
 
     // A new firm gets described before it's filed away.
@@ -320,7 +302,7 @@ export default function NewProject() {
     if (needDetails.length) return setFirmQueue(needDetails);
     const splitProblem = splitError(splits);
     if (splitProblem) {
-      return alert(splitProblem);
+      return setFormError(splitProblem);
     }
 
     setSaving(true);
@@ -449,6 +431,10 @@ export default function NewProject() {
           <DashboardHeader uid={uid} />
         </div>
       </div>
+
+      {formError && (
+        <p className="settings-status is-error form-banner" role="alert">⚠ {formError}</p>
+      )}
 
       <div className="project-page">
         <div className="project-section">
@@ -674,6 +660,18 @@ export default function NewProject() {
           onDone={(tags) => { setFirmQueue(null); addProject(tags); }}
           onCancel={() => setFirmQueue(null)}
         />
+      )}
+
+      {leaveGuard.asking && (
+        <ConfirmDialog
+          title="Leave without finishing?"
+          confirmLabel="Leave"
+          danger
+          onCancel={leaveGuard.stay}
+          onConfirm={leaveGuard.leave}
+        >
+          <p>Nothing typed into this project has been saved yet. Use Cancel or Add Project to keep it.</p>
+        </ConfirmDialog>
       )}
     </div>
   );

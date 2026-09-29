@@ -29,6 +29,8 @@ import MobileNav from "../../../components/MobileNav";
 import { FirmSelect, PersonSelect, peopleAtFirm, findPerson } from "../../../components/DirectoryPickers";
 import CreditSplitEditor from "../../../components/CreditSplitEditor";
 import { normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
+import ConfirmDialog from "../../../components/ConfirmDialog";
+import useLeaveGuard from "../../../components/useLeaveGuard";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
@@ -44,6 +46,9 @@ export default function NewPipelineEntry() {
   const [loadError, setLoadError] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  // What stopped the save, said next to the button that was pressed
+  // rather than in a box that blocks the page until it is dismissed.
+  const [formError, setFormError] = useState("");
   const [firmQueue, setFirmQueue] = useState(null);
 
   const [users, setUsers] = useState([]);
@@ -159,32 +164,9 @@ export default function NewPipelineEntry() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // This screen shouldn't be left except via Cancel or Add Entry -- see the matching guard on the Add Project page for why
-  // beforeunload/popstate are the only events that need catching.
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    window.history.pushState(null, "", window.location.href);
-
-    const handlePopState = () => {
-      if (window.confirm("Leave without finishing this pipeline entry? Use Cancel or Add Entry instead.")) {
-        window.removeEventListener("beforeunload", handleBeforeUnload);
-        router.back();
-      } else {
-        window.history.pushState(null, "", window.location.href);
-      }
-    };
-    window.addEventListener("popstate", handlePopState);
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      window.removeEventListener("popstate", handlePopState);
-    };
-  }, [router]);
+  // Leaving half-done, caught the same way everywhere: the browser's own
+  // prompt for a tab close, and our own dialog for the back button.
+  const leaveGuard = useLeaveGuard(true, () => router.back());
 
   const handleCancel = () => {
     router.push("/dashboard#pipeline");
@@ -199,23 +181,24 @@ export default function NewPipelineEntry() {
   const addPipelineEntry = async (choice = null) => {
     // Only the prompt's answer counts -- a click event is not one.
     const firmTags = choice && !choice.nativeEvent && typeof choice === "object" ? choice : null;
+    setFormError("");
     if (!title) {
-      return alert("Please enter a project/opportunity name");
+      return setFormError("Please enter a project/opportunity name");
     }
     if (!buildingSector) {
-      return alert("Please select a building sector");
+      return setFormError("Please select a building sector");
     }
     if (!workType) {
-      return alert("Please select a work type (new installation, replacement, or repair)");
+      return setFormError("Please select a work type (new installation, replacement, or repair)");
     }
     const splitProblem = splitError(splits);
     if (splitProblem) {
-      return alert(splitProblem);
+      return setFormError(splitProblem);
     }
     // Every bidder needs one of our salespeople assigned to it.
     const missingSalesperson = bidderMissingSalesperson(biddingCompanies);
     if (missingSalesperson) {
-      return alert(`Select a salesperson for bidder "${missingSalesperson.company || "without a firm name"}"`);
+      return setFormError(`Select a salesperson for bidder "${missingSalesperson.company || "without a firm name"}"`);
     }
 
     const needDetails = firmTags ? [] : firmsNeedingDetails(firmEntries(), companies);
@@ -343,6 +326,10 @@ export default function NewPipelineEntry() {
           <DashboardHeader uid={uid} />
         </div>
       </div>
+
+      {formError && (
+        <p className="settings-status is-error form-banner" role="alert">⚠ {formError}</p>
+      )}
 
       <div className="project-page">
         <div className="project-section">
@@ -493,6 +480,18 @@ export default function NewPipelineEntry() {
           onDone={(tags) => { setFirmQueue(null); addPipelineEntry(tags); }}
           onCancel={() => setFirmQueue(null)}
         />
+      )}
+
+      {leaveGuard.asking && (
+        <ConfirmDialog
+          title="Leave without finishing?"
+          confirmLabel="Leave"
+          danger
+          onCancel={leaveGuard.stay}
+          onConfirm={leaveGuard.leave}
+        >
+          <p>Nothing typed into this pipeline entry has been saved yet. Use Cancel or Add Entry to keep it.</p>
+        </ConfirmDialog>
       )}
     </div>
   );

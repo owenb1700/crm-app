@@ -4749,3 +4749,25 @@ a {
     flex: 1;
   }
 }
+
+/* A form's reason for refusing to save, shown under the sticky header
+   the Save button sits in, so it's in view wherever the page has been
+   scrolled to. */
+.settings-status.form-banner {
+  margin: 0 32px;
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+
+@media (max-width: 640px) {
+  .settings-status.form-banner {
+    margin: 0 16px;
+  }
+}
+
+/* The same toast, for something that failed rather than something that
+   worked. */
+.toast.is-error {
+  background: var(--color-warning-strong);
+}

@@ -123,6 +123,12 @@ export default function CompanyDetail() {
 
   // A name check waiting on the user: { kind: "company" | "person", message, onContinue }
   const [nameCheck, setNameCheck] = useState(null);
+  // Said next to the button that was pressed. One per form, because the
+  // firm, the person being edited and the person being added can all be
+  // open at the same time.
+  const [editProblem, setEditProblem] = useState("");
+  const [personProblem, setPersonProblem] = useState("");
+  const [addProblem, setAddProblem] = useState("");
   // Needs-review window: { target: "company" | person, choices: { field: value | "__all" } }
   const [review, setReview] = useState(null);
   const [savingReview, setSavingReview] = useState(false);
@@ -250,8 +256,9 @@ export default function CompanyDetail() {
   // naming this firm is renamed too; a name already used by another firm is
   // refused (merge them instead) and a similar one asks first.
   const saveEdit = async (force = false) => {
+    setEditProblem("");
     const name = (editData.name || "").trim();
-    if (!name) return alert("Company name is required");
+    if (!name) return setEditProblem("Company name is required.");
     const renamed = name !== company.name;
 
     if (renamed && !force) {
@@ -260,7 +267,7 @@ export default function CompanyDetail() {
         .filter(c => c.id !== companyId);
       const same = others.find(c => sameCompany(c.name, name));
       if (same) {
-        return alert(`"${same.name}" is already in the Directory. ${isAdmin ? "Use Find Duplicates to merge the two." : "Ask an admin to merge the two."}`);
+        return setEditProblem(`"${same.name}" is already in the Directory. ${isAdmin ? "Use Find Duplicates to merge the two." : "Ask an admin to merge the two."}`);
       }
       const similar = findSimilarCompanies(others, name);
       if (similar.length) {
@@ -290,17 +297,21 @@ export default function CompanyDetail() {
       setIsEditing(false);
       await loadCompany();
     } catch (err) {
-      alert(err.message);
+      setEditProblem(`Couldn't save this company: ${err.message}`);
     } finally {
       setSaving(false);
     }
   };
 
-  const deleteCompany = async () => {
-    if (!window.confirm(`Delete ${company.name}? This also removes all ${people.length} people on file for them. Projects and pipeline entries that reference them are kept.`)) {
-      return;
-    }
+  const deleteCompany = () => setNameCheck({
+    title: `Delete ${company.name}?`,
+    message: `This also removes all ${people.length} ${people.length === 1 ? "person" : "people"} on file for them. Projects and pipeline entries that reference them are kept.`,
+    confirmLabel: "Delete",
+    danger: true,
+    onContinue: () => { setNameCheck(null); reallyDeleteCompany(); }
+  });
 
+  const reallyDeleteCompany = async () => {
     await Promise.all(people.map(p => deleteDoc(doc(db, "contacts", p.id))));
     await deleteDoc(doc(db, "companies", companyId));
     try {
@@ -315,9 +326,10 @@ export default function CompanyDetail() {
   };
 
   const addPerson = async (force = false) => {
-    if (!personName.trim()) return alert("Enter a name");
+    setAddProblem("");
+    if (!personName.trim()) return setAddProblem("Enter a name.");
     const same = people.find(p => samePerson(p.name, personName));
-    if (same) return alert(`${same.name} is already listed at ${company.name}. Edit their entry to add details.`);
+    if (same) return setAddProblem(`${same.name} is already listed at ${company.name}. Edit their entry to add details.`);
     const similar = findSimilarPeople(people, personName);
     if (similar.length && !force) {
       return setNameCheck({
@@ -360,10 +372,11 @@ export default function CompanyDetail() {
   };
 
   const savePerson = async (force = false) => {
-    if (!personEditData.name.trim()) return alert("Enter a name");
+    setPersonProblem("");
+    if (!personEditData.name.trim()) return setPersonProblem("Enter a name.");
     const others = people.filter(p => p.id !== editingPersonId);
     const same = others.find(p => samePerson(p.name, personEditData.name));
-    if (same) return alert(`${same.name} is already listed at ${company.name}.`);
+    if (same) return setPersonProblem(`${same.name} is already listed at ${company.name}.`);
     const similar = findSimilarPeople(others, personEditData.name);
     if (similar.length && !force) {
       return setNameCheck({
@@ -452,7 +465,7 @@ export default function CompanyDetail() {
       setReview(null);
       await loadCompany();
     } catch (err) {
-      alert(`Couldn't save: ${err.message}`);
+      setEditProblem(`Couldn't save: ${err.message}`);
     } finally {
       setSavingReview(false);
     }
@@ -460,11 +473,17 @@ export default function CompanyDetail() {
 
   const companyReviewNeeded = company ? companyConflicts(company) : [];
 
-  const deletePerson = async (personId) => {
-    if (!window.confirm("Delete this person from the directory?")) return;
-    await deleteDoc(doc(db, "contacts", personId));
-    await loadCompany();
-  };
+  const deletePerson = (personId) => setNameCheck({
+    title: "Delete this person?",
+    message: `${people.find(p => p.id === personId)?.name || "This person"} comes off the Directory. Projects and pipeline entries that name them are kept.`,
+    confirmLabel: "Delete",
+    danger: true,
+    onContinue: async () => {
+      setNameCheck(null);
+      await deleteDoc(doc(db, "contacts", personId));
+      await loadCompany();
+    }
+  });
 
   if (loadError) {
     return (
@@ -538,6 +557,7 @@ export default function CompanyDetail() {
                 )}
               </div>
             )}
+            {isEditing && editProblem && <p className="settings-status is-error">⚠ {editProblem}</p>}
             {isEditing && (
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="btn btn-primary" disabled={saving} onClick={() => saveEdit(false)}>{saving ? "Saving…" : "Save"}</button>
@@ -637,6 +657,7 @@ export default function CompanyDetail() {
                   <MultiField label="Email" type="email" values={personEditData.emails || [""]} onChange={emails => setPersonEditData({ ...personEditData, emails })} />
                   <MultiField label="Phone" type="tel" values={personEditData.phones || [""]} onChange={phones => setPersonEditData({ ...personEditData, phones })} />
                   <textarea className="field" placeholder="Notes" style={{ width: "100%", height: 60 }} value={personEditData.notes} onChange={e => setPersonEditData({ ...personEditData, notes: e.target.value })} />
+                  {personProblem && <p className="settings-status is-error">⚠ {personProblem}</p>}
                   <div style={{ display: "flex", gap: 8 }}>
                     <button className="btn btn-primary" onClick={() => savePerson(false)}>Save</button>
                     <button className="btn btn-secondary" onClick={() => setEditingPersonId(null)}>Cancel</button>
@@ -713,6 +734,7 @@ export default function CompanyDetail() {
               <MultiField label="Email" type="email" values={personEmails} onChange={setPersonEmails} />
               <MultiField label="Phone" type="tel" values={personPhones} onChange={setPersonPhones} />
               <textarea className="field" placeholder="Notes" style={{ width: "100%", height: 60 }} value={personNotes} onChange={e => setPersonNotes(e.target.value)} />
+              {addProblem && <p className="settings-status is-error">⚠ {addProblem}</p>}
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="btn btn-primary" onClick={() => addPerson(false)}>Add</button>
                 <button className="btn btn-secondary" onClick={() => setShowAddPerson(false)}>Cancel</button>
@@ -776,8 +798,9 @@ export default function CompanyDetail() {
 
       {nameCheck && (
         <ConfirmDialog
-          title="Possible duplicate"
+          title={nameCheck.title || "Possible duplicate"}
           confirmLabel={nameCheck.confirmLabel}
+          danger={nameCheck.danger === true}
           onCancel={() => setNameCheck(null)}
           onConfirm={nameCheck.onContinue}
         >

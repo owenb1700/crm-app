@@ -54,6 +54,7 @@ import ExportButtons from "../components/ExportButtons";
 import SortPicker from "../components/SortPicker";
 import { sortRows, sortMixed } from "../../lib/sorting";
 import Icon from "../components/Icon";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -158,6 +159,15 @@ export default function Dashboard() {
 
   // COMPLETED
   const [completedTarget, setCompletedTarget] = useState(null);
+  const [toastBad, setToastBad] = useState(false);
+  // Asking before something irreversible, in the page rather than in an OS
+  // box that freezes everything behind it until it's dismissed.
+  const [ask, setAsk] = useState(null);
+  // One per form, said next to the button that was pressed.
+  const [reminderProblem, setReminderProblem] = useState("");
+  const [nameProblem, setNameProblem] = useState("");
+  const [outcomeProblem, setOutcomeProblem] = useState("");
+  const [newUserProblem, setNewUserProblem] = useState("");
   // The calendar item whose quick-view popup is open (Home calendar).
   const [calendarPopup, setCalendarPopup] = useState(null);
   const [completedOutcome, setCompletedOutcome] = useState("Won");
@@ -197,9 +207,12 @@ export default function Dashboard() {
 
   const col = collection(db, "customers");
 
-  const showToast = (msg) => {
+  // `bad` is for something that failed. It reads red and stays longer,
+  // because a failure people miss is worse than one they have to wait out.
+  const showToast = (msg, bad = false) => {
     setToast(msg);
-    setTimeout(() => setToast(""), 5000);
+    setToastBad(bad);
+    setTimeout(() => setToast(""), bad ? 8000 : 5000);
   };
 
   // A message left by another page right before sending someone here (e.g.
@@ -397,8 +410,9 @@ export default function Dashboard() {
   };
 
   const saveReminder = async () => {
+    setReminderProblem("");
     const subject = reminderForm.subject.trim();
-    if (!subject) return alert("Enter a subject for this reminder");
+    if (!subject) return setReminderProblem("Enter a subject for this reminder.");
 
     // Saved on whatever day they picked, weekend included -- the calendar
     // grows a Saturday or Sunday column to show it.
@@ -429,21 +443,29 @@ export default function Dashboard() {
       showToast(reminderForm.id ? "Reminder updated" : `Reminder added for ${date}`);
       await loadReminders(uid);
     } catch (err) {
-      alert(`Couldn't save this reminder: ${err.message}`);
+      setReminderProblem(`Couldn't save this reminder: ${err.message}`);
     } finally {
       setSavingReminder(false);
     }
   };
 
-  const completeReminder = async (r) => {
-    if (!window.confirm(`Mark "${r.subject}" complete? It will be deleted permanently.`)) return;
+  const completeReminder = (r) => setAsk({
+    title: "Mark this reminder complete?",
+    message: `"${r.subject}" is deleted permanently when you do.`,
+    confirmLabel: "Mark complete",
+    danger: true,
+    onConfirm: () => reallyCompleteReminder(r)
+  });
+
+  const reallyCompleteReminder = async (r) => {
+    setAsk(null);
     try {
       await deleteDoc(doc(db, "reminders", r.id));
       setReminders(prev => prev.filter(x => x.id !== r.id));
       setReminderForm(null);
       showToast("Reminder completed");
     } catch (err) {
-      alert(`Couldn't complete this reminder: ${err.message}`);
+      showToast(`Couldn't complete this reminder: ${err.message}`, true);
     }
   };
 
@@ -457,7 +479,7 @@ export default function Dashboard() {
       setReminderForm(null);
       showToast(`Reminder moved to ${date}`);
     } catch (err) {
-      alert(`Couldn't move this reminder: ${err.message}`);
+      showToast(`Couldn't move this reminder: ${err.message}`, true);
     }
   };
 
@@ -478,9 +500,15 @@ export default function Dashboard() {
   // This walks every existing project + pipeline entry and backfills them,
   // reusing the exact same capture logic as a normal save. Safe to re-run
   // any time -- it just skips anything that already exists.
-  const rebuildDirectory = async () => {
-    if (!window.confirm("Rebuild the Directory from every existing project and pipeline entry? This can take a minute for a lot of data.")) return;
+  const rebuildDirectory = () => setAsk({
+    title: "Rebuild the Directory?",
+    message: "Every existing project and pipeline entry is walked again and anything missing is filed. Nothing is overwritten, but it can take a minute with a lot of data.",
+    confirmLabel: "Rebuild",
+    onConfirm: () => reallyRebuildDirectory()
+  });
 
+  const reallyRebuildDirectory = async () => {
+    setAsk(null);
     setRebuildingDirectory(true);
     try {
       const captureEntries = [];
@@ -734,8 +762,16 @@ export default function Dashboard() {
     loadCustomers(uid, role === "admin");
   };
 
-  const denyRequest = async (customerId, request) => {
-    if (!window.confirm(`Deny ${request.requesterName}'s request to collaborate?`)) return;
+  const denyRequest = (customerId, request) => setAsk({
+    title: "Deny this request?",
+    message: `${request.requesterName} is told their request to collaborate was turned down.`,
+    confirmLabel: "Deny",
+    danger: true,
+    onConfirm: () => reallyDenyRequest(customerId, request)
+  });
+
+  const reallyDenyRequest = async (customerId, request) => {
+    setAsk(null);
     await deleteDoc(doc(db, "customers", customerId, "collabRequests", request.id));
     showToast("Request denied");
 
@@ -763,8 +799,9 @@ export default function Dashboard() {
 
 
   const saveName = async () => {
+    setNameProblem("");
     if (!nameFirst.trim() || !nameLast.trim()) {
-      return alert("Please enter both first and last name");
+      return setNameProblem("Enter both a first and a last name.");
     }
     const firstName = nameFirst.trim();
     const lastName = nameLast.trim();
@@ -1017,6 +1054,7 @@ export default function Dashboard() {
   };
 
   const confirmCompleted = async () => {
+    setOutcomeProblem("");
     if (completedOutcome === CLOSED_OUTCOME) {
       await updateDoc(doc(db, "customers", completedTarget.id), {
         ...closeProjectPayload(completedTarget.activityLog),
@@ -1030,13 +1068,13 @@ export default function Dashboard() {
       return;
     }
     if (completedOutcome === "Won" && !wonNextDate) {
-      return alert("Please choose the next due date");
+      return setOutcomeProblem("Choose the next due date.");
     }
     if (completedOutcome === "Lost" && !lostNotes.trim()) {
-      return alert("Please enter why the job was lost");
+      return setOutcomeProblem("Say why the job was lost.");
     }
     if (completedOutcome === "Prospecting Only" && !prospectingNextDate) {
-      return alert("Please choose the next alert date");
+      return setOutcomeProblem("Choose the next alert date.");
     }
 
     // What happens depends on the outcome:
@@ -1115,9 +1153,16 @@ export default function Dashboard() {
 
   const closeModal = () => setSelected(null);
 
-  const deleteHistoryEntry = async (customerId, index) => {
-    if (!window.confirm("Delete this note entry? This can't be undone.")) return;
+  const deleteHistoryEntry = (customerId, index) => setAsk({
+    title: "Delete this note entry?",
+    message: "It can't be brought back.",
+    confirmLabel: "Delete",
+    danger: true,
+    onConfirm: () => reallyDeleteHistoryEntry(customerId, index)
+  });
 
+  const reallyDeleteHistoryEntry = async (customerId, index) => {
+    setAsk(null);
     const existing = notesById[customerId] || { notesHistory: [] };
     const newHistory = (existing.notesHistory || []).filter((_, i) => i !== index);
 
@@ -1613,9 +1658,10 @@ export default function Dashboard() {
   };
 
   const createUser = async () => {
+    setNewUserProblem("");
     const email = newUserEmail.trim();
-    if (!email) return alert("Enter an email");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return alert("Enter a valid email address");
+    if (!email) return setNewUserProblem("Enter an email address.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setNewUserProblem("That doesn't look like an email address.");
 
     setCreatingUser(true);
     let accountCreated = false;
@@ -1659,9 +1705,9 @@ export default function Dashboard() {
         resetNewUserForm();
         setShowAddUser(false);
         loadUsers();
-        alert(`The account for ${email} was created, but ${err.message}. Use "Send Reset Link" on their row in Team Members to email them a setup link.`);
+        showToast(`The account for ${email} was created, but ${err.message}. Use "Send Reset Link" on their row in Team Members to email them a setup link.`, true);
       } else {
-        alert(err.message || "Could not create account");
+        setNewUserProblem(err.message || "Could not create account.");
       }
     } finally {
       setCreatingUser(false);
@@ -1904,6 +1950,7 @@ export default function Dashboard() {
           <label className="field-label">Last Name</label>
           <input className="field" name="nameLast" autoComplete="off" value={nameLast} onChange={e => setNameLast(e.target.value)} />
 
+          {nameProblem && <p className="settings-status is-error">⚠ {nameProblem}</p>}
           <button className="btn btn-primary btn-block" onClick={saveName}>Continue</button>
         </div>
       </div>
@@ -2938,6 +2985,7 @@ export default function Dashboard() {
               );
             })}
 
+            {newUserProblem && <p className="settings-status is-error">⚠ {newUserProblem}</p>}
             <div className="modal-actions add-user-actions">
               <button className="btn btn-secondary" disabled={creatingUser} onClick={cancelAddUser}>Cancel</button>
               <button className="btn btn-primary" disabled={creatingUser} onClick={createUser}>
@@ -3014,6 +3062,7 @@ export default function Dashboard() {
               </div>
             )}
 
+            {outcomeProblem && <p className="settings-status is-error">⚠ {outcomeProblem}</p>}
             <div className="modal-actions">
               <button className="btn btn-primary" onClick={confirmCompleted}>Confirm</button>
               <button className="btn btn-secondary" onClick={() => setCompletedTarget(null)}>Cancel</button>
@@ -3159,6 +3208,7 @@ export default function Dashboard() {
               onChange={e => setReminderForm({ ...reminderForm, notes: e.target.value })}
             />
 
+            {reminderProblem && <p className="settings-status is-error">⚠ {reminderProblem}</p>}
             <div className="modal-actions">
               <button className="btn btn-primary" disabled={savingReminder} onClick={saveReminder}>
                 {savingReminder ? "Saving..." : reminderForm.id ? "Save Changes" : "Add Reminder"}
@@ -3174,7 +3224,19 @@ export default function Dashboard() {
         </div>
       )}
 
-      {toast && <div className="toast">{toast}</div>}
+      {ask && (
+        <ConfirmDialog
+          title={ask.title}
+          confirmLabel={ask.confirmLabel}
+          danger={ask.danger === true}
+          onCancel={() => setAsk(null)}
+          onConfirm={ask.onConfirm}
+        >
+          <p>{ask.message}</p>
+        </ConfirmDialog>
+      )}
+
+      {toast && <div className={`toast ${toastBad ? "is-error" : ""}`}>{toast}</div>}
     </div>
   );
 }
