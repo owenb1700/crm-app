@@ -5,7 +5,7 @@ import {
   rebuildDays, withSameMen, laborDays, totalManDays, peakMen,
   dayLoad, describeDayLoad, MAX_DAYS
 } from "../../lib/laborSchedule";
-import { crewNames, peopleOn, peopleForStorage } from "../../lib/crew";
+import { crewNames, peopleOn, peopleForStorage, titleOf } from "../../lib/crew";
 
 // When the work happens and how many men are on it each day.
 //
@@ -182,8 +182,10 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
                               className={`crew-chip ${on ? "crew-chip-on" : ""}`}
                               aria-pressed={on}
                               onClick={() => togglePerson(d, name)}
+                              title={titleOf(name, crew) || undefined}
                             >
                               {name}
+                              {titleOf(name, crew) && <span className="crew-chip-title">{titleOf(name, crew)}</span>}
                             </button>
                           );
                         })}

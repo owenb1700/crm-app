@@ -20,7 +20,7 @@ import ViewTabs from "../../components/ViewTabs";
 import LaborScheduleEditor from "../../components/LaborScheduleEditor";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import JobPicker from "../../components/JobPicker";
-import { CREW_COLLECTION, crewNames, crewForStorage, crewError, peopleOn } from "../../../lib/crew";
+import { CREW_COLLECTION, crewNames, crewForStorage, crewError, peopleOn, crewTitles, crewLabel, titleOf } from "../../../lib/crew";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -49,6 +49,7 @@ function SchedulingPageContent() {
   const [crew, setCrew] = useState([]);
   const [showCrew, setShowCrew] = useState(false);
   const [newCrewName, setNewCrewName] = useState("");
+  const [newCrewTitle, setNewCrewTitle] = useState("");
   const [crewSaving, setCrewSaving] = useState(false);
   const [crewProblem, setCrewProblem] = useState("");
   // Clearing a whole job's schedule is worth a second look.
@@ -177,11 +178,12 @@ function SchedulingPageContent() {
     setCrewProblem("");
     try {
       await addDoc(collection(db, CREW_COLLECTION), {
-        ...crewForStorage({ name: newCrewName }),
+        ...crewForStorage({ name: newCrewName, title: newCrewTitle }),
         createdAt: new Date().toISOString(),
         createdBy: uid
       });
       setNewCrewName("");
+      setNewCrewTitle("");
       await load();
     } catch (err) {
       setCrewProblem(
@@ -353,7 +355,7 @@ function SchedulingPageContent() {
                   .sort((a, b) => String(a.name).localeCompare(String(b.name)))
                   .map(member => (
                     <span key={member.id} className="crew-chip crew-chip-on">
-                      {member.name}
+                      {crewLabel(member)}
                       {role === "admin" && (
                         <button
                           type="button"
@@ -379,6 +381,21 @@ function SchedulingPageContent() {
                     onChange={e => { setNewCrewName(e.target.value); setCrewProblem(""); }}
                     onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCrewMember(); } }}
                   />
+                  <input
+                    className="field"
+                    style={{ marginBottom: 0, maxWidth: 170 }}
+                    list="crew-titles"
+                    placeholder="Foreman, Labor…"
+                    aria-label="What they do"
+                    value={newCrewTitle}
+                    onChange={e => setNewCrewTitle(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCrewMember(); } }}
+                  />
+                  {/* Offers the standing titles and anything already typed,
+                      without stopping somebody typing a new one. */}
+                  <datalist id="crew-titles">
+                    {crewTitles(crew).map(t => <option key={t} value={t} />)}
+                  </datalist>
                   <button className="btn btn-secondary" disabled={crewSaving || !newCrewName.trim()} onClick={addCrewMember}>
                     {crewSaving ? "Adding…" : "Add"}
                   </button>
@@ -510,8 +527,10 @@ function SchedulingPageContent() {
                             <span
                               key={n}
                               className={`crew-chip crew-chip-on ${crewNames(crew).some(c => c.toLowerCase() === n.toLowerCase()) ? "" : "crew-chip-outside"}`}
+                              title={titleOf(n, crew) || "Not on the crew list"}
                             >
                               {n}
+                              {titleOf(n, crew) && <span className="crew-chip-title">{titleOf(n, crew)}</span>}
                             </span>
                           ))
                         : <span className="private-note-hint">Nobody named on this day yet</span>}
