@@ -934,15 +934,20 @@ export default function Dashboard() {
     loadPipeline();
   };
 
-  // Snooze clears the date rather than moving it. The job keeps
-  // everything else; it just stops being something that's late, until
-  // someone gives it a new date on its own page.
+  // Snooze moves the date a month out rather than clearing it. Clearing
+  // it did take the job off the overdue list, but nothing ever brought it
+  // back -- it sat on My Projects with an empty date until somebody
+  // happened to notice. A month is long enough to stop being nagged and
+  // short enough that the job doesn't get lost.
   const snoozeOffList = async (c) => {
+    const next = new Date();
+    next.setMonth(next.getMonth() + 1);
+    const to = adjustWeekend(next.toISOString());
     await updateDoc(doc(db, collectionOf(c), c.id), {
-      nextCheckIn: null,
-      activityLog: [...(c.activityLog || []), checkInMoved(c, "(none)", "Snoozed off the overdue list")]
+      nextCheckIn: to,
+      activityLog: [...(c.activityLog || []), checkInMoved(c, to, "Snoozed a month")]
     });
-    showToast("Taken off your overdue list");
+    showToast("Back on " + to);
     loadCustomers(uid, role === "admin");
     loadPipeline();
   };
@@ -1770,7 +1775,7 @@ export default function Dashboard() {
             {isOverdueItem(c) && (c._kind === "project" || c._kind === "pipeline") && !c._done && (
               <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
                 <button className="btn btn-secondary" onClick={() => pushOutAWeek(c)}>Push out a week</button>
-                <button className="btn btn-secondary" onClick={() => snoozeOffList(c)}>Snooze</button>
+                <button className="btn btn-secondary" onClick={() => snoozeOffList(c)}>Snooze a month</button>
               </div>
             )}
 
