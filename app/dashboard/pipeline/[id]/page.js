@@ -934,7 +934,16 @@ export default function PipelineDetail() {
               </div>
               <WorkTypeSelect id="pipeline-detail-work-type" value={editData.workType} onChange={v => setEditData({ ...editData, workType: v })} />
               <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
-              <LeadTimeFields idPrefix="pipeline-detail" values={editData} setValues={setEditData} allowAlerts={false} />
+              <LeadTimeFields
+                idPrefix="pipeline-detail"
+                values={editData}
+                setValues={setEditData}
+                /* Winning the bid is when the equipment gets ordered, so
+                   that is when an order date means something -- the same
+                   moment a project reaching Order does. Before that a
+                   lead time here is still just a note. */
+                allowAlerts={pipeline.outcome === "Won"}
+              />
               <CompanyContactFields
                 idPrefix="pipeline-detail"
                 companies={companies}

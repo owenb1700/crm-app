@@ -62,8 +62,8 @@ export function LeadTimeInput({ idPrefix, value, onChange, defaultUnit = "weeks"
 // `allowAlerts` is whether there is yet anything to be alerted about.
 // Entering a job, nobody knows when it will be ordered -- the lead time
 // is a note, not a clock -- so the create forms pass false and only the
-// figure is asked for. It turns true once the job reaches Order, which
-// is when an order date exists to count from.
+// figure is asked for. It turns true at the point the equipment actually
+// gets ordered: a project reaching Order, or a pipeline entry being won.
 //
 // Parts keep asking straight away: a part is quoted and ordered on the
 // same screen, so `allowAlerts` defaults to true and only the callers
