@@ -55,11 +55,12 @@ function SchedulingPageContent() {
       getDocs(collection(db, "customers")),
       getDocs(collection(db, "users"))
     ]);
-    // Closed jobs aren't scheduled work any more, so they stay off the board.
-    setProjects(
-      withoutTrashed(projectsSnap.docs.map(d => ({ id: d.id, ...d.data() })))
-        .filter(p => p.category !== "Project Closed")
-    );
+    // Closed jobs stay on the board. The calendar is a record of when
+    // work happened as much as a plan for what's coming, and dropping a
+    // job the day it closed took its crew days off the days they were
+    // actually worked. They can still be scheduled too -- work gets
+    // booked against a job that's already been closed out often enough.
+    setProjects(withoutTrashed(projectsSnap.docs.map(d => ({ id: d.id, ...d.data() }))));
     setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     setLoaded(true);
   };
@@ -305,6 +306,14 @@ function SchedulingPageContent() {
                       {project.company && <div className="customer-meta">{project.company}</div>}
                       {project.projectAddress && <div className="customer-meta">{project.projectAddress}</div>}
                       {project.workType && <div className="customer-meta">{project.workType}</div>}
+                      {project.category && (
+                        <div className="customer-meta">
+                          {project.category}
+                          {project.category === "Project Closed" && project.closedAt
+                            ? ` — closed ${String(project.closedAt).slice(0, 10)}`
+                            : ""}
+                        </div>
+                      )}
                       <div className="customer-meta">Owner: {nameOf(project.ownerId) || "—"}</div>
                       <div className="customer-meta">{describeLabor(project)}</div>
                     </>
@@ -349,7 +358,9 @@ function SchedulingPageContent() {
                     .sort((a, b) => String(a.projectName || a.company || "").localeCompare(String(b.projectName || b.company || "")))
                     .map(p => (
                       <option key={p.id} value={p.id}>
-                        {p.projectName || p.company || "Untitled"}{p.ownerId !== uid ? ` — ${nameOf(p.ownerId) || "someone else"}` : ""}
+                        {p.projectName || p.company || "Untitled"}
+                        {p.category === "Project Closed" ? " (closed)" : ""}
+                        {p.ownerId !== uid ? ` — ${nameOf(p.ownerId) || "someone else"}` : ""}
                       </option>
                     ))}
                 </select>
