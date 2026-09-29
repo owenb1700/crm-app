@@ -373,6 +373,7 @@ function SchedulingPageContent() {
                   value=""
                   onChange={key => key && startEditing(key.replace(/^project:/, ""), openDay)}
                   placeholder="Search projects..."
+                  emptyText="No matching projects"
                 />
                 <p className="private-note-hint">
                   You can schedule a job that isn&apos;t yours. You still won&apos;t see its private notes.

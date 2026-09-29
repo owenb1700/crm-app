@@ -7,7 +7,7 @@ import { useState } from "react";
 // is the chosen option's key ("" for none).
 const KIND_LABEL = { pipeline: "Pipeline", part: "Parts", project: "Project" };
 
-export default function JobPicker({ id, options, value, onChange, placeholder = "Search projects, pipeline entries and parts..." }) {
+export default function JobPicker({ id, options, value, onChange, placeholder = "Search projects, pipeline entries and parts...", emptyText = "No matching projects or pipeline entries" }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -44,7 +44,7 @@ export default function JobPicker({ id, options, value, onChange, placeholder = 
       />
       {open && (
         <div className="job-picker-menu" role="listbox">
-          {matches.length === 0 && <div className="job-picker-empty">No matching projects or pipeline entries</div>}
+          {matches.length === 0 && <div className="job-picker-empty">{emptyText}</div>}
           {matches.map(o => (
             <div
               key={o.key}
