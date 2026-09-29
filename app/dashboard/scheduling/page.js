@@ -12,7 +12,7 @@ import { buildCalendarWeeks, visibleCalendarDays, columnLabels, WEEKEND_COLUMNS 
 import CalendarNav from "../../components/CalendarNav";
 import {
   laborByDate, laborForStorage, blankLaborSchedule, laborDays, menOnDate,
-  isOverbooked, overbookedDates, describeLabor, crewCapacity,
+  isOverbooked, describeLabor, crewCapacity,
   clashesOn, clashDates, describeClashes
 } from "../../../lib/laborSchedule";
 import DashboardHeader from "../../components/DashboardHeader";
@@ -141,7 +141,6 @@ function SchedulingPageContent() {
   // own. Before anyone has written the list down there's no number to be
   // over, so those warnings stay quiet.
   const capacity = useMemo(() => crewCapacity(crew), [crew]);
-  const overbooked = useMemo(() => overbookedDates(byDate, capacity), [byDate, capacity]);
   // Somebody standing on two jobs at once is a separate problem from the
   // day being busy, and it's the one that actually strands a job.
   const clashDays = useMemo(() => clashDates(byDate), [byDate]);
@@ -352,9 +351,6 @@ function SchedulingPageContent() {
               {capacity > 0
                 ? `${capacity} on the crew.`
                 : "Add the crew list and days over the crew get flagged."}
-              {overbooked.length > 0 && (
-                <> <strong style={{ color: "var(--color-warning-strong)" }}>⚠ {overbooked.length} {overbooked.length === 1 ? "day is" : "days are"} over the crew.</strong></>
-              )}
               {clashDays.length > 0 && (
                 <> <strong style={{ color: "var(--color-warning-strong)" }}>⚠ {clashDays.length} {clashDays.length === 1 ? "day has" : "days have"} someone on two jobs.</strong></>
               )}
