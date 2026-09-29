@@ -586,7 +586,7 @@ function SchedulingPageContent() {
       {/* Scheduling a job: pick which one, then set the days and men. */}
       {editing && (
         <div className="modal-overlay" onClick={() => !saving && setEditing(null)}>
-          <div className="modal-card" role="dialog" aria-labelledby="labor-title" onClick={e => e.stopPropagation()}>
+          <div className="modal-card labor-sheet" role="dialog" aria-labelledby="labor-title" onClick={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => !saving && setEditing(null)} aria-label="Close">✕</button>
             <h3 id="labor-title" className="modal-title" style={{ marginTop: 0 }}>
               {editingProject ? editingProject.projectName || editingProject.company : "Add manpower"}

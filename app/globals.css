@@ -4512,3 +4512,66 @@ a {
   font-weight: 400;
   font-size: 11px;
 }
+
+/* ---------- editing a job's manpower ---------- */
+/* A table of dates, headcounts and a row of crew names each needs room.
+   At the default modal width it was three cramped columns and the names
+   wrapped one per line. */
+
+.modal-card.labor-sheet {
+  max-width: 860px;
+  width: 100%;
+}
+
+.labor-days {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.labor-days td {
+  vertical-align: top;
+  padding: 8px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.labor-days tr:first-child td {
+  border-top: none;
+}
+
+.labor-days-date {
+  white-space: nowrap;
+  padding-right: 14px !important;
+  width: 1%;
+}
+
+.labor-days-men {
+  width: 96px;
+  padding-right: 14px !important;
+}
+
+/* The names take whatever is left, which is the point of the extra width. */
+.labor-days-who {
+  width: auto;
+}
+
+.labor-days-who .crew-pick {
+  margin-top: 6px;
+}
+
+@media (max-width: 720px) {
+  .labor-days td {
+    display: block;
+    border-top: none;
+    padding: 2px 0 !important;
+  }
+
+  .labor-days tr {
+    display: block;
+    border-top: 1px solid var(--color-border);
+    padding: 10px 0;
+  }
+
+  .labor-days-men {
+    width: auto;
+  }
+}

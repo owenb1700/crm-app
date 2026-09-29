@@ -137,13 +137,13 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
             <span className="private-note-hint" style={{ margin: 0 }}>or set each day below</span>
           </div>
 
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table className="labor-days">
             <tbody>
               {days.map(d => {
                 const load = byDate ? dayLoad(byDate, d.date, { excludeProjectId: projectId, adding: d.men }) : null;
                 return (
                   <tr key={d.date}>
-                    <td style={{ padding: "6px 8px 6px 0", whiteSpace: "nowrap", verticalAlign: "top" }}>
+                    <td className="labor-days-date">
                       <strong>{d.date}</strong>
                       <button
                         type="button"
@@ -155,7 +155,7 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
                         ✕
                       </button>
                     </td>
-                    <td style={{ padding: "6px 8px", width: 90, verticalAlign: "top" }}>
+                    <td className="labor-days-men">
                       <input
                         className="field"
                         style={{ marginBottom: 0, width: 72 }}
@@ -166,7 +166,7 @@ export default function LaborScheduleEditor({ value, onChange, byDate, projectId
                         onChange={e => setMenOn(d.date, e.target.value.replace(/[^\d]/g, ""))}
                       />
                     </td>
-                    <td style={{ padding: "6px 0", verticalAlign: "top" }}>
+                    <td className="labor-days-who">
                       {load && (
                         <span className="private-note-hint" style={load.over ? { color: "var(--color-warning-strong)" } : undefined}>
                           {load.over ? "⚠ " : ""}{describeDayLoad(load)}
