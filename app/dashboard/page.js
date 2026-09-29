@@ -2325,9 +2325,11 @@ export default function Dashboard() {
                         {c.contact}
                       </div>
 
-                      <div className="customer-meta">
-                        {c.email || ""} | {formatPhone(c.phone)}
-                      </div>
+                      {(c.email || c.phone) && (
+                        <div className="customer-meta">
+                          {[c.email, formatPhone(c.phone)].filter(Boolean).join(" | ")}
+                        </div>
+                      )}
 
                       {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
                   {c.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {c.buildingSector}</div>}
@@ -2345,7 +2347,7 @@ export default function Dashboard() {
                   )}
 
                       <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
-                      <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>
+                      {c.lastContact && <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>}
                 </div>
 
                 {/* MIDDLE */}
@@ -2573,15 +2575,17 @@ export default function Dashboard() {
                     <div className="customer-contact">{c.company}</div>
                   )}
                   <div className="customer-contact">{c.contact}</div>
-                  <div className="customer-meta">
-                    {c.email || ""} | {formatPhone(c.phone)}
-                  </div>
+                  {(c.email || c.phone) && (
+                    <div className="customer-meta">
+                      {[c.email, formatPhone(c.phone)].filter(Boolean).join(" | ")}
+                    </div>
+                  )}
                   {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
                   {c.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {c.buildingSector}</div>}
                   {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(c.projectValue)}</div>}
                   {c.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{c.workType}</div>}
                   <div className="customer-dates">Next: {formatDate(c.nextCheckIn)}</div>
-                  <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>
+                  {c.lastContact && <div className="customer-dates">Last: {formatDate(c.lastContact)}</div>}
                 </div>
 
                 <div className="customer-card-middle">
