@@ -20,6 +20,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { ensureCompanyAndContactBatch, firmTypeOf, salespersonAfterFirmChange } from "../../../../lib/directory";
 import { notifyUsers, firmOwnersFor, newlyAddedFirms, newSplitMembers } from "../../../../lib/notify";
 import { stateChanges, activityEntry, withActivity } from "../../../../lib/activityLog";
+import { isTrackingPipeline, pipelineListAction } from "../../../../lib/pipelinePeople";
 import { movedToPostBid, postBidCheckIn, POST_BID,
   PIPELINE_STAGES as PIPELINE_STAGE_OPTIONS, normalizeStage, nextPipelineStage, nextPipelineStageLabel
 } from "../../../../lib/pipelineStages";
@@ -473,9 +474,17 @@ export default function PipelineDetail() {
   // needing to be the owner or assigned as salesperson/point person --
   // this just toggles their uid in the shared array on the one document,
   // so it's always mirrored everywhere the entry shows up.
-  const isTracked = !!pipeline && (pipeline.trackedByIds || []).includes(uid);
+  //
+  // The button used to read only that array, so on your own entry it
+  // offered to add something already sitting on your list, and removing
+  // took nothing off it. It now asks what would actually happen: "add"
+  // when it isn't on the list, "remove" when adding it is the only reason
+  // it's there, and nothing at all when the entry is yours anyway.
+  const isTracked = isTrackingPipeline(pipeline, uid);
+  const listAction = pipelineListAction(pipeline, uid);
 
   const toggleTracked = async () => {
+    if (listAction === "none") return;
     await updateDoc(doc(db, "pipeline", pipelineId), {
       trackedByIds: isTracked ? arrayRemove(uid) : arrayUnion(uid)
     });
@@ -919,9 +928,11 @@ export default function PipelineDetail() {
 
             {canEdit && !isEditing && (
               <div className="detail-header-actions">
-                <button className="btn btn-secondary" onClick={toggleTracked}>
-                  {isTracked ? "Remove From My Projects" : "Add To My Projects"}
-                </button>
+                {listAction !== "none" && (
+                  <button className="btn btn-secondary" onClick={toggleTracked}>
+                    {listAction === "remove" ? "Remove From My Projects" : "Add To My Projects"}
+                  </button>
+                )}
                 {canEdit && nextPipelineStage(pipeline.stage) && (
                   <button className="btn btn-primary" onClick={advanceStage}>
                     {nextPipelineStageLabel(pipeline.stage)}

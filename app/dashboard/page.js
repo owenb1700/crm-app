@@ -49,6 +49,7 @@ import CalendarNav from "../components/CalendarNav";
 import { resolvedBidItems, outcomeItems, activityItems, leadTimeItems, doneReminderItems, dedupeByDay } from "../../lib/calendarHistory";
 import { leadTimeStatus, todayKey } from "../../lib/leadTimes";
 import { hasShare, splitShares } from "../../lib/splits";
+import { isOnMyPipelineList } from "../../lib/pipelinePeople";
 import { exportDashboardView } from "../../lib/viewExport";
 import ExportButtons from "../components/ExportButtons";
 import SortPicker from "../components/SortPicker";
@@ -1343,13 +1344,7 @@ export default function Dashboard() {
   // mirror of the single underlying document, never a copy.
   const myPipelineEntries = useMemo(() => {
     return pipelineEntries
-      .filter(p =>
-        p.ownerId === uid ||
-        p.salespersonId === uid ||
-        p.projectPointPersonId === uid ||
-        (p.trackedByIds || []).includes(uid) ||
-        hasShare(p, uid)
-      )
+      .filter(p => isOnMyPipelineList(p, uid))
       .filter(p => !p.convertedToProjectId && !p.outcome);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pipelineEntries, uid]);
