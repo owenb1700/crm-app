@@ -13,6 +13,7 @@ import { leadTimeStatus, isLeadTimeAlert, describeLeadTime, leadTimeAlertDate, t
 import MobileNav from "../../components/MobileNav";
 import { isTrashed } from "../../../lib/trash";
 import { normalizeCategory } from "../../../lib/projectCategories";
+import { normalizeStage } from "../../../lib/pipelineStages";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -109,7 +110,7 @@ export default function AllAlerts() {
         id: p.id,
         name: p.title || "Untitled pipeline entry",
         company: p.company || "",
-        badge: `Bid date · ${p.stage || "Pipeline"}`,
+        badge: `Bid date · ${normalizeStage(p.stage) || "Pipeline"}`,
         nextCheckIn: p.bidDate,
         link: `/dashboard/pipeline/${p.id}`,
         field: "bidDate",

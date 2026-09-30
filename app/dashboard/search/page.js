@@ -16,6 +16,7 @@ import DashboardHeader from "../../components/DashboardHeader";
 import MobileNav from "../../components/MobileNav";
 import { withoutTrashed } from "../../../lib/trash";
 import Icon from "../../components/Icon";
+import { normalizeStage } from "../../../lib/pipelineStages";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -271,7 +272,7 @@ function SearchPageContent() {
               <div className="private-note-hint">{p.company}{p.contact ? ` — ${p.contact}` : ""}</div>
             </div>
             <div className="customer-card-middle">
-              {p.stage && <span className="role-badge role-badge-admin">{p.stage}</span>}
+              {p.stage && <span className="role-badge role-badge-admin">{normalizeStage(p.stage)}</span>}
             </div>
           </div>
         )}
@@ -290,7 +291,7 @@ function SearchPageContent() {
               {p.projectAddress && <div className="private-note-hint">{p.projectAddress}</div>}
               {p.value && <div className="customer-dates">{withDollar(p.value)}</div>}
             </div>
-            {p.stage && <span className="role-badge role-badge-admin">{p.stage}</span>}
+            {p.stage && <span className="role-badge role-badge-admin">{normalizeStage(p.stage)}</span>}
           </div>
         )}
       />

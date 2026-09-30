@@ -20,7 +20,9 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { ensureCompanyAndContactBatch, firmTypeOf, salespersonAfterFirmChange } from "../../../../lib/directory";
 import { notifyUsers, firmOwnersFor, newlyAddedFirms, newSplitMembers } from "../../../../lib/notify";
 import { stateChanges, activityEntry, withActivity } from "../../../../lib/activityLog";
-import { movedToPostBid, postBidCheckIn, POST_BID } from "../../../../lib/pipelineStages";
+import { movedToPostBid, postBidCheckIn, POST_BID,
+  PIPELINE_STAGES as PIPELINE_STAGE_OPTIONS, normalizeStage, nextPipelineStage, nextPipelineStageLabel
+} from "../../../../lib/pipelineStages";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import { LeadTimeFields, LeadTimeSummary, LeadTimeInput } from "../../../components/LeadTimeFields";
@@ -53,7 +55,6 @@ import { DID_NOT_BID_REASONS, OTHER, didNotBidReason, didNotBidProblem } from ".
 import { UNDER_CONTRACT } from "../../../../lib/projectCategories";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
-const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
 
 const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
@@ -506,6 +507,19 @@ export default function PipelineDetail() {
     };
   };
 
+  // One step along the list. Past Post-Bid there is no next stage: what
+  // comes after a bid is an answer, so Bids Sent and then Won or Lost take
+  // over, and a won entry gets Convert to Project. Same permission as any
+  // other edit to an entry -- if you can change it, you can move it.
+  const advanceStage = async () => {
+    const to = nextPipelineStage(pipeline.stage);
+    if (!to) return;
+    const payload = { stage: to };
+    if (movedToPostBid(pipeline, payload)) payload.nextCheckIn = postBidCheckIn();
+    await updateDoc(doc(db, "pipeline", pipelineId), withStateLog(payload));
+    await loadPipelineEntry(uid, role);
+  };
+
   const confirmBidsSent = async () => {
     setBidsSentProblem("");
     if (!bidsSentDate) return setBidsSentProblem("Pick a date to follow up on.");
@@ -758,7 +772,7 @@ export default function PipelineDetail() {
     !!pipeline.bidDate &&
     String(pipeline.bidDate).slice(0, 10) < todayIso &&
     !pipeline.outcome &&
-    pipeline.stage !== POST_BID;
+    normalizeStage(pipeline.stage) !== POST_BID;
 
   // It's the salesperson's and the point person's job to answer, so the
   // banner says so by name -- a prompt addressed to everybody is a prompt
@@ -779,7 +793,7 @@ export default function PipelineDetail() {
           won or lost then left an entry with three buttons nobody could
           press for weeks. Once bids are sent it's Post-Bid, and the only
           question left is how it went. */}
-      {!pipeline.outcome && pipeline.stage !== POST_BID && (
+      {!pipeline.outcome && normalizeStage(pipeline.stage) !== POST_BID && (
         <>
           <p className="private-note-hint">Bids haven&apos;t gone out yet.</p>
           {canEdit && (
@@ -791,7 +805,7 @@ export default function PipelineDetail() {
         </>
       )}
 
-      {!pipeline.outcome && pipeline.stage === POST_BID && (
+      {!pipeline.outcome && normalizeStage(pipeline.stage) === POST_BID && (
         <>
           <p className="private-note-hint">
             Bid is in — waiting to hear.
@@ -884,7 +898,7 @@ export default function PipelineDetail() {
             <div>
               <div className="detail-title-row">
                 <h2 className="modal-title" style={{ margin: 0 }}>{pipeline.title}</h2>
-                <span className="role-badge role-badge-admin">{pipeline.stage}</span>
+                <span className="role-badge role-badge-admin">{normalizeStage(pipeline.stage)}</span>
               </div>
               <p className="modal-subtitle detail-facts">
                 <span>Owned by {ownerLabel(pipeline.ownerId)}</span>
@@ -908,7 +922,12 @@ export default function PipelineDetail() {
                 <button className="btn btn-secondary" onClick={toggleTracked}>
                   {isTracked ? "Remove From My Projects" : "Add To My Projects"}
                 </button>
-                <button className="btn btn-primary" onClick={startEdit}>Edit</button>
+                {canEdit && nextPipelineStage(pipeline.stage) && (
+                  <button className="btn btn-primary" onClick={advanceStage}>
+                    {nextPipelineStageLabel(pipeline.stage)}
+                  </button>
+                )}
+                <button className="btn btn-secondary" onClick={startEdit}>Edit</button>
                 {canDelete && (
                   <DeleteRecordButton
                     kind="pipeline"
@@ -944,7 +963,7 @@ export default function PipelineDetail() {
               <BuildingSectorSelect id="pipeline-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
               <div>
                 <h4 className="field-label">Stage</h4>
-                <select className="field" value={editData.stage} onChange={e => setEditData({ ...editData, stage: e.target.value })}>
+                <select className="field" value={normalizeStage(editData.stage)} onChange={e => setEditData({ ...editData, stage: e.target.value })}>
                   {PIPELINE_STAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </div>

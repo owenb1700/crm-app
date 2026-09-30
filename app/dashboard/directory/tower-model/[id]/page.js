@@ -10,6 +10,7 @@ import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
 import { withoutTrashed } from "../../../../../lib/trash";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
+import { normalizeStage } from "../../../../../lib/pipelineStages";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -277,7 +278,7 @@ export default function TowerModelDetail() {
           {pipelineJobs.map(p => (
             <div key={p.id} className="notes-history-item" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/pipeline/${p.id}`)}>
               <div><strong>{p.title}</strong></div>
-              <div className="notes-history-date">{[p.stage, p.bidDate && `Bid ${p.bidDate}`].filter(Boolean).join(" · ") || "—"}</div>
+              <div className="notes-history-date">{[normalizeStage(p.stage), p.bidDate && `Bid ${p.bidDate}`].filter(Boolean).join(" · ") || "—"}</div>
             </div>
           ))}
         </div>

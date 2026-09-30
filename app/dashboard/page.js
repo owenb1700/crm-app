@@ -57,6 +57,7 @@ import Icon from "../components/Icon";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { completedPayload, isOpen, doneOnly } from "../../lib/reminders";
 import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, PRE_BID, normalizeCategory } from "../../lib/projectCategories";
+import { normalizeStage } from "../../lib/pipelineStages";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -1588,7 +1589,7 @@ export default function Dashboard() {
       .map(p => ({
         key: `pipeline:${p.id}`, kind: "pipeline", id: p.id,
         label: p.title || "Untitled pipeline entry",
-        sub: [p.stage, p.bidDate && `Bid ${p.bidDate}`, p.company].filter(Boolean).join(" · ")
+        sub: [normalizeStage(p.stage), p.bidDate && `Bid ${p.bidDate}`, p.company].filter(Boolean).join(" · ")
       }));
     // Parts requests are everyone's, so they're all offered.
     const partJobs = parts.map(p => ({
@@ -1821,7 +1822,7 @@ export default function Dashboard() {
     { key: "owner", label: "Owner", type: "select", options: optionsFrom(openPipeline.map(p => p.ownerId), ownerLabel).map(o => personOption(o.value)) },
     { key: "engineeringFirm", label: "Engineering firm", type: "select", options: optionsFrom(openPipeline.map(p => p.company)) },
     { key: "bidder", label: "Bidding contractor", type: "select", options: optionsFrom(openPipeline.flatMap(p => (p.biddingCompanies || []).map(b => b.company))) },
-    { key: "stage", label: "Stage", type: "select", options: optionsFrom(openPipeline.map(p => p.stage)) },
+    { key: "stage", label: "Stage", type: "select", options: optionsFrom(openPipeline.map(p => normalizeStage(p.stage))) },
     { key: "bidDate", label: "Bid date", type: "date", presets: ["overdue", "next7", "next30", "last30", "thisYear"] }
   ];
 
@@ -1862,7 +1863,7 @@ export default function Dashboard() {
               {isOverdueItem(c) && <span className="calendar-overdue-tag">Overdue</span>}
             </div>
             {c._kind === "bid" ? (
-              <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>Bid date · {c.stage}</span>
+              <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>Bid date · {normalizeStage(c.stage) || "Pipeline"}</span>
             ) : c._kind === "ship" ? (
               /* Without this a ship date rendered exactly like a check-in
                  on the same job -- two identical rows, one job, no way to
@@ -1877,7 +1878,7 @@ export default function Dashboard() {
                  that the passed bid date no longer sits beside it, this
                  badge is the only thing saying what the row is. */
               <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>
-                {c.outcome === "Won" ? <><Icon name="check" size={12} className="mark mark-won" /> Won — Check In</> : `${c.stage || "Pipeline"} — Check In`}
+                {c.outcome === "Won" ? <><Icon name="check" size={12} className="mark mark-won" /> Won — Check In</> : `${normalizeStage(c.stage) || "Pipeline"} — Check In`}
               </span>
             ) : c._kind === "reminder" ? (
               <>
@@ -2564,7 +2565,7 @@ export default function Dashboard() {
             ...(showsType("reminders") ? activeReminders : [])
               .map(r => ({ sortFields: { date: r.date, name: r.subject, firm: "", value: "", status: "", created: r.createdAt }, element: renderReminderCard(r) })),
             ...(showsType("pipeline") ? myPipelineEntries : []).map(p => ({
-              sortFields: { date: p.bidDate, name: p.title, firm: p.company, value: p.value, status: p.stage, created: p.createdAt },
+              sortFields: { date: p.bidDate, name: p.title, firm: p.company, value: p.value, status: normalizeStage(p.stage), created: p.createdAt },
               element: (
                 <div
                   key={`pipeline-${p.id}`}
@@ -2574,7 +2575,7 @@ export default function Dashboard() {
                 >
                   <div className="customer-card-left">
                     <div className="customer-name">{p.title}</div>
-                    <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>Pipeline · {p.stage}</span>
+                    <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>Pipeline · {normalizeStage(p.stage)}</span>
                     {p.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {p.buildingSector}</div>}
                     {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
                     {p.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{p.workType}</div>}
@@ -2794,7 +2795,7 @@ export default function Dashboard() {
                 <div className="customer-name">{p.title}</div>
                 {p.company && <div className="customer-contact">{p.company}</div>}
                 {p.contact && <div className="customer-meta">{p.contact}</div>}
-                <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>{p.stage}</span>
+                <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>{normalizeStage(p.stage)}</span>
                 {p.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {p.buildingSector}</div>}
                 {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
                 {p.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{p.workType}</div>}

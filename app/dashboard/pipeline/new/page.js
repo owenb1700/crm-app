@@ -31,9 +31,10 @@ import CreditSplitEditor from "../../../components/CreditSplitEditor";
 import { normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import useLeaveGuard from "../../../components/useLeaveGuard";
+import { PIPELINE_STAGES as PIPELINE_STAGE_OPTIONS, PRE_BID } from "../../../../lib/pipelineStages";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
-const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
+
 
 const clearSession = () => {
   localStorage.removeItem("loginTimestamp");
@@ -58,7 +59,7 @@ export default function NewPipelineEntry() {
   const [products, setProducts] = useState([]);
 
   const [title, setTitle] = useState("");
-  const [stage, setStage] = useState("Pre-Bid");
+  const [stage, setStage] = useState(PRE_BID);
   const [buildingSector, setBuildingSector] = useState("");
   const [workType, setWorkType] = useState("");
   // Lead time, whether it should alert anyone, and the dates it runs on.

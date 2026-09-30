@@ -11,6 +11,7 @@ import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
 import { isTrashed } from "../../../../../lib/trash";
 import { normalizeCategory } from "../../../../../lib/projectCategories";
+import { normalizeStage } from "../../../../../lib/pipelineStages";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -228,7 +229,7 @@ export default function TowerDetail() {
           {pipelineJobs.map(p => (
             <div key={p.id} className="notes-history-item" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/pipeline/${p.id}`)}>
               <div><strong>{p.title}</strong></div>
-              <div className="notes-history-date">{p.stage}{p.bidDate ? ` · Bid: ${p.bidDate}` : ""}</div>
+              <div className="notes-history-date">{normalizeStage(p.stage)}{p.bidDate ? ` · Bid: ${p.bidDate}` : ""}</div>
             </div>
           ))}
         </div>
