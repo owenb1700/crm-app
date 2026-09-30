@@ -788,13 +788,13 @@ export default function PipelineDetail() {
       )}
       {pipeline.outcome === "Won" && (
         <>
-          <p>✅ <strong>Won</strong>{pipeline.wonByContractor ? ` — awarded to ${pipeline.wonByContractor}` : ""}</p>
+          <p><Icon name="check" size={12} className="mark mark-won" /> <strong>Won</strong>{pipeline.wonByContractor ? ` — awarded to ${pipeline.wonByContractor}` : ""}</p>
           {pipeline.nextCheckIn && (
             <p className="private-note-hint">Follow-up check-in scheduled: {pipeline.nextCheckIn}</p>
           )}
           {pipeline.convertedToProjectId ? (
             <p>
-              ✅ Converted to a project —{" "}
+              <Icon name="check" size={12} className="mark mark-won" /> Converted to a project —{" "}
               <a className="link-muted" href={`/dashboard/project/${pipeline.convertedToProjectId}`}>View project</a>
             </p>
           ) : (
@@ -811,7 +811,7 @@ export default function PipelineDetail() {
       {(pipeline.outcome === "Lost" || pipeline.outcome === "Did Not Bid") && (
         <>
           <p>
-            {pipeline.outcome === "Lost" ? "❌ " : "🚫 "}
+            {pipeline.outcome === "Lost" ? <Icon name="cross" size={12} className="mark mark-lost" /> : <Icon name="ban" size={12} className="mark mark-dnb" />}{" "}
             <strong>{pipeline.outcome === "Lost" ? "Lost" : "Did Not Bid"}</strong>
             {pipeline.resolvedAt ? ` on ${pipeline.resolvedAt.slice(0, 10)}` : ""}
           </p>
@@ -877,7 +877,7 @@ export default function PipelineDetail() {
                 <LeadTimeSummary record={pipeline} subject="This job" />
                 {pipeline.convertedToProjectId && (
                   <span>
-                    ✅ Converted —{" "}
+                    <Icon name="check" size={12} className="mark mark-won" /> Converted —{" "}
                     <a className="link-muted" href={`/dashboard/project/${pipeline.convertedToProjectId}`}>View project</a>
                   </span>
                 )}

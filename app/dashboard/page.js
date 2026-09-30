@@ -973,19 +973,17 @@ export default function Dashboard() {
     loadPipeline();
   };
 
-  // Snooze moves the date a month out rather than clearing it. Clearing
-  // it did take the job off the overdue list, but nothing ever brought it
-  // back -- it sat on My Projects with an empty date until somebody
-  // happened to notice. A month is long enough to stop being nagged and
-  // short enough that the job doesn't get lost.
-  const snoozeOffList = async (c) => {
-    const next = new Date();
-    next.setMonth(next.getMonth() + 1);
-    const to = adjustWeekend(next.toISOString());
+  // Whatever a row is moved to, it moves to a real date rather than being
+  // cleared. Clearing did take a job off the overdue list, but nothing
+  // brought it back -- it sat on My Projects with an empty date until
+  // somebody happened to notice.
+  const moveCheckInTo = async (c, to) => {
+    if (!to) return;
     await updateDoc(doc(db, collectionOf(c), c.id), {
       nextCheckIn: to,
-      activityLog: [...(c.activityLog || []), checkInMoved(c, to, "Snoozed a month")]
+      activityLog: [...(c.activityLog || []), checkInMoved(c, to, "Moved to a picked date")]
     });
+    setPickingDateFor(null);
     showToast("Back on " + to);
     loadCustomers(uid, role === "admin");
     loadPipeline();
@@ -1422,6 +1420,8 @@ export default function Dashboard() {
   // moves with the arrows or the date picker.
   const [calendarAnchor, setCalendarAnchor] = useState(() => new Date());
   const [showOverdue, setShowOverdue] = useState(false);
+  // Which overdue row has its date picker open, by "kind-id".
+  const [pickingDateFor, setPickingDateFor] = useState(null);
   const moveCalendar = (next) => { setCalendarAnchor(next); setSelectedCalendarDay(null); };
   const calendarWeeks = useMemo(() => buildCalendarWeeks(calendarAnchor, new Date()), [calendarAnchor]);
 
@@ -1460,7 +1460,7 @@ export default function Dashboard() {
     // Open pipeline entries' bid dates, for everyone on the hook for them
     // (see isPipelineBidAlertFor).
     const bidDates = pipelineEntries
-      .filter(p => isPipelineBidAlertFor(p, uid, role))
+      .filter(p => isPipelineBidAlertFor(p, uid, role, todayKey()))
       .map(p => ({ ...p, _kind: "bid", projectName: p.title, nextCheckIn: p.bidDate }));
 
     // An open entry's own next date (set when it went Post-Bid).
@@ -1802,7 +1802,14 @@ export default function Dashboard() {
                 {c._historyLabel || "Due to ship"}{c.leadTime ? ` · ${c.leadTime}` : ""}
               </span>
             ) : c._kind === "pipeline" ? (
-              <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>✅ Won — Check In</span>
+              /* Two different things arrive as "pipeline": a won entry's
+                 follow-up, and an open entry's own next date. Labelling
+                 both as won was wrong on every Post-Bid entry -- and now
+                 that the passed bid date no longer sits beside it, this
+                 badge is the only thing saying what the row is. */
+              <span className="role-badge role-badge-admin" style={{ marginTop: 4 }}>
+                {c.outcome === "Won" ? <><Icon name="check" size={12} className="mark mark-won" /> Won — Check In</> : `${c.stage || "Pipeline"} — Check In`}
+              </span>
             ) : c._kind === "reminder" ? (
               <>
                 <span className="role-badge" style={{ marginTop: 4 }}><Icon name="bell" size={11} /> Reminder</span>
@@ -1818,12 +1825,31 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* A bid date that has passed isn't rescheduled -- it's
-                answered, on the entry, with Bids Sent or Not Bidding. */}
+            {/* Late, and something can be done about it from here. A week
+                covers "not yet, but soon"; picking the day covers the rest.
+                Both work by moving the next date forward, which is what
+                takes the row off the overdue list. */}
             {isOverdueItem(c) && (c._kind === "project" || c._kind === "pipeline") && !c._done && (
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
-                <button className="btn btn-secondary" onClick={() => pushOutAWeek(c)}>Push out a week</button>
-                <button className="btn btn-secondary" onClick={() => snoozeOffList(c)}>Snooze a month</button>
+              <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button className="btn btn-secondary" onClick={() => pushOutAWeek(c)}>Snooze a week</button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => setPickingDateFor(prev => (prev === `${c._kind}-${c.id}` ? null : `${c._kind}-${c.id}`))}
+                  >
+                    Pick a date
+                  </button>
+                </div>
+                {pickingDateFor === `${c._kind}-${c.id}` && (
+                  <input
+                    className="field"
+                    type="date"
+                    style={{ marginTop: 6, marginBottom: 0 }}
+                    aria-label={`Next date for ${c.projectName || c.company}`}
+                    min={toLocalDateKey(new Date())}
+                    onChange={e => moveCheckInTo(c, e.target.value)}
+                  />
+                )}
               </div>
             )}
 
@@ -2700,7 +2726,7 @@ export default function Dashboard() {
                   </div>
                 )}
                 {p.convertedToProjectId && (
-                  <div className="private-note-hint" style={{ marginTop: 4 }}>✅ Converted to project</div>
+                  <div className="private-note-hint" style={{ marginTop: 4 }}><Icon name="check" size={12} className="mark mark-won" /> Converted to project</div>
                 )}
               </div>
 
@@ -2810,7 +2836,11 @@ export default function Dashboard() {
               <div className="customer-card-left">
                 <div className="customer-name">{p.title}</div>
                 <span className={`role-badge ${p.outcome === "Won" ? "role-badge-admin" : ""}`} style={{ marginTop: 6 }}>
-                  {p.outcome === "Won" ? "✅ Won" : p.outcome === "Did Not Bid" ? "🚫 DID NOT BID" : "❌ Lost"}
+                  {p.outcome === "Won"
+                    ? <><Icon name="check" size={12} className="mark mark-won" /> Won</>
+                    : p.outcome === "Did Not Bid"
+                      ? <><Icon name="ban" size={12} className="mark mark-dnb" /> DID NOT BID</>
+                      : <><Icon name="cross" size={12} className="mark mark-lost" /> Lost</>}
                 </span>
               </div>
               <div className="customer-card-middle">

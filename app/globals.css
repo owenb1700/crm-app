@@ -4815,3 +4815,18 @@ a {
   border-color: var(--color-primary);
   color: #fff;
 }
+
+/* Won / lost / did-not-bid marks. Drawn from the same icon set as the
+   bell and the padlock, so they render the same on every machine and at
+   the size of the text around them -- the emoji versions came out as
+   coloured cartoons at whatever size the emoji font chose, and printed
+   badly. Colour is the only thing separating them from the surrounding
+   line. */
+.mark {
+  vertical-align: -1px;
+  margin-right: 2px;
+}
+
+.mark-won { color: var(--color-success); }
+.mark-lost { color: var(--color-danger); }
+.mark-dnb { color: var(--color-danger); }

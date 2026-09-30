@@ -101,7 +101,7 @@ export default function AllAlerts() {
     const bidDates = pipelineSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(r => !isTrashed(r))
-      .filter(p => isPipelineBidAlertFor(p, currentUid, currentRole))
+      .filter(p => isPipelineBidAlertFor(p, currentUid, currentRole, todayKey()))
       .map(p => ({
         key: `bid-${p.id}`,
         kind: "pipeline",
