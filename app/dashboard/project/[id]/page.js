@@ -50,7 +50,8 @@ import ConfirmDialog from "../../../components/ConfirmDialog";
 import { manufacturerForType } from "../../../../lib/learned";
 import Suggested from "../../../components/Suggested";
 import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, PRE_BID, UNDER_CONTRACT, CLOSED, BIDS_SENT,
-  normalizeCategory, needsOutcome, afterWon, afterLost, wonNote, lostNote, lostProblem } from "../../../../lib/projectCategories";
+  normalizeCategory, needsOutcome, afterWon, afterLost, wonNote, lostNote, lostProblem,
+  closeProblem, closeNote } from "../../../../lib/projectCategories";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
@@ -121,6 +122,10 @@ export default function ProjectDetail() {
   const [lostWhy, setLostWhy] = useState("");
   const [lostToFirm, setLostToFirm] = useState("");
   const [bidAnswerProblem, setBidAnswerProblem] = useState("");
+  // Set when a save is waiting on "why is this closing?".
+  const [closeAsk, setCloseAsk] = useState(false);
+  const [closeWhy, setCloseWhy] = useState("");
+  const [closeProblemText, setCloseProblemText] = useState("");
   const [editProblem, setEditProblem] = useState("");
   const [fileProblem, setFileProblem] = useState("");
 
@@ -388,6 +393,28 @@ export default function ProjectDetail() {
     await loadProject(uid, role);
   };
 
+  const confirmClose = async () => {
+    const problem = closeProblem(closeWhy);
+    if (problem) return setCloseProblemText(problem);
+    const closed = closeProjectPayload(customer.activityLog);
+    await updateDoc(doc(db, "customers", projectId), {
+      ...closed,
+      closedReason: closeWhy.trim(),
+      activityLog: [...(customer.activityLog || []), {
+        type: "completed",
+        outcome: closeNote(closeWhy),
+        notes: null,
+        timestamp: new Date().toISOString(),
+        by: uid
+      }]
+    });
+    setCloseAsk(false);
+    setCloseWhy("");
+    setCloseProblemText("");
+    setIsEditing(false);
+    await loadProject(uid, role);
+  };
+
   const saveEdit = async () => {
     setEditProblem("");
     const missing = [];
@@ -446,6 +473,16 @@ export default function ProjectDetail() {
     // Ongoing with no record of ever having been won.
     if (needsOutcome(customer.category, editData.category)) {
       setBidAnswer({ to: editData.category });
+      return;
+    }
+
+    // Closing always says why. A job that stops has a reason, and a year
+    // later "Project Closed" on its own tells nobody which. The one case
+    // that doesn't come through here is losing a bid, which asks its own
+    // question on the way past.
+    if (normalizeCategory(editData.category) === CLOSED
+        && normalizeCategory(customer.category) !== CLOSED) {
+      setCloseAsk(true);
       return;
     }
 
@@ -1080,6 +1117,31 @@ export default function ProjectDetail() {
 
         </>)}
       </div>
+
+      {closeAsk && (
+        <div className="modal-overlay" onClick={() => setCloseAsk(false)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setCloseAsk(false)} aria-label="Close">✕</button>
+            <h3 className="modal-title">Why is this closing?</h3>
+            <p className="modal-subtitle">
+              It goes to Past Projects with a check-in a year out. A year from now this
+              sentence is the only thing that will say what happened.
+            </p>
+            <textarea
+              className="field"
+              style={{ width: "100%", height: 80 }}
+              placeholder="Building sold, budget pulled, shelved until next year..."
+              value={closeWhy}
+              onChange={e => { setCloseWhy(e.target.value); setCloseProblemText(""); }}
+            />
+            {closeProblemText && <p className="settings-status is-error">⚠ {closeProblemText}</p>}
+            <div className="modal-actions">
+              <button className="btn btn-danger-solid" onClick={confirmClose}>Close the project</button>
+              <button className="btn btn-secondary" onClick={() => setCloseAsk(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {bidAnswer && (
         <div className="modal-overlay" onClick={() => setBidAnswer(null)}>
