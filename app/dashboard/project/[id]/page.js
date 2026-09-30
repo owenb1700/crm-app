@@ -49,7 +49,7 @@ import Icon from "../../../components/Icon";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import { manufacturerForType } from "../../../../lib/learned";
 import Suggested from "../../../components/Suggested";
-import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, PRE_BID, UNDER_CONTRACT, CLOSED, BIDS_SENT,
+import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, UNDER_CONTRACT, CLOSED,
   normalizeCategory, needsOutcome, afterWon, afterLost, wonNote, lostNote, lostProblem,
   closeProblem, closeNote } from "../../../../lib/projectCategories";
 

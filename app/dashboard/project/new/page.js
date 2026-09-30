@@ -31,7 +31,7 @@ import FirmDetailsPrompt from "../../../components/FirmDetailsPrompt";
 import { normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import useLeaveGuard from "../../../components/useLeaveGuard";
-import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, PRE_BID, normalizeCategory } from "../../../../lib/projectCategories";
+import { PROJECT_CATEGORIES as CATEGORY_OPTIONS } from "../../../../lib/projectCategories";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
