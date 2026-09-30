@@ -984,6 +984,7 @@ export default function Dashboard() {
       activityLog: [...(c.activityLog || []), checkInMoved(c, to, "Moved to a picked date")]
     });
     setPickingDateFor(null);
+    setPickedDate("");
     showToast("Back on " + to);
     loadCustomers(uid, role === "admin");
     loadPipeline();
@@ -1420,8 +1421,10 @@ export default function Dashboard() {
   // moves with the arrows or the date picker.
   const [calendarAnchor, setCalendarAnchor] = useState(() => new Date());
   const [showOverdue, setShowOverdue] = useState(false);
-  // Which overdue row has its date picker open, by "kind-id".
+  // Which overdue row has its date picker open, by "kind-id", and what has
+  // been picked but not yet confirmed.
   const [pickingDateFor, setPickingDateFor] = useState(null);
+  const [pickedDate, setPickedDate] = useState("");
   const moveCalendar = (next) => { setCalendarAnchor(next); setSelectedCalendarDay(null); };
   const calendarWeeks = useMemo(() => buildCalendarWeeks(calendarAnchor, new Date()), [calendarAnchor]);
 
@@ -1835,20 +1838,38 @@ export default function Dashboard() {
                   <button className="btn btn-secondary" onClick={() => pushOutAWeek(c)}>Snooze a week</button>
                   <button
                     className="btn btn-secondary"
-                    onClick={() => setPickingDateFor(prev => (prev === `${c._kind}-${c.id}` ? null : `${c._kind}-${c.id}`))}
+                    onClick={() => {
+                      setPickedDate("");
+                      setPickingDateFor(prev => (prev === `${c._kind}-${c.id}` ? null : `${c._kind}-${c.id}`));
+                    }}
                   >
-                    Pick a date
+                    Pick a new date
                   </button>
                 </div>
+                {/* Choosing and confirming are two steps on purpose. A
+                    native date field fires a change for every part of the
+                    date as it's built -- paging to the next month counts --
+                    so saving on change moved the job to whatever the picker
+                    happened to be showing at the time. */}
                 {pickingDateFor === `${c._kind}-${c.id}` && (
-                  <input
-                    className="field"
-                    type="date"
-                    style={{ marginTop: 6, marginBottom: 0 }}
-                    aria-label={`Next date for ${c.projectName || c.company}`}
-                    min={toLocalDateKey(new Date())}
-                    onChange={e => moveCheckInTo(c, e.target.value)}
-                  />
+                  <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
+                    <input
+                      className="field"
+                      type="date"
+                      style={{ marginBottom: 0, width: "auto" }}
+                      aria-label={`New date for ${c.projectName || c.company}`}
+                      min={toLocalDateKey(new Date())}
+                      value={pickedDate}
+                      onChange={e => setPickedDate(e.target.value)}
+                    />
+                    <button
+                      className="btn btn-primary"
+                      disabled={!pickedDate}
+                      onClick={() => moveCheckInTo(c, pickedDate)}
+                    >
+                      {pickedDate ? `Push to ${pickedDate}` : "Pick a date first"}
+                    </button>
+                  </div>
                 )}
               </div>
             )}
