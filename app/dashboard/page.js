@@ -1855,7 +1855,7 @@ export default function Dashboard() {
               <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
                 <div className="overdue-actions">
                   <button className="btn btn-primary btn-small" onClick={() => markCheckedIn(c)}>Complete</button>
-                  <button className="btn btn-secondary btn-small" onClick={() => pushOutAWeek(c)}>Snooze a week</button>
+                  <button className="btn btn-secondary btn-small" onClick={() => pushOutAWeek(c)}>Push Out A Week</button>
                   <button
                     className="btn btn-secondary btn-small"
                     onClick={() => {
