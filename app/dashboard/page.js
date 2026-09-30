@@ -2461,10 +2461,6 @@ export default function Dashboard() {
                           Follow Up
                         </label>
 
-                        <label>
-                          <input type="checkbox" onChange={() => openCompletedPopup(c)} />
-                          Completed
-                        </label>
                       </div>
 
                       <button

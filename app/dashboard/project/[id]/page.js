@@ -49,7 +49,7 @@ import Icon from "../../../components/Icon";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import { manufacturerForType } from "../../../../lib/learned";
 import Suggested from "../../../components/Suggested";
-import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, UNDER_CONTRACT, CLOSED,
+import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, UNDER_CONTRACT, CLOSED, nextStage, nextStageLabel,
   normalizeCategory, needsOutcome, afterWon, afterLost, wonNote, lostNote, lostProblem,
   closeProblem, closeNote } from "../../../../lib/projectCategories";
 
@@ -393,6 +393,28 @@ export default function ProjectDetail() {
     await loadProject(uid, role);
   };
 
+  // One step forward, through the same gates the status dropdown goes
+  // through: leaving Bids Sent asks whether it was won or lost, and
+  // closing asks why. Everything else just moves.
+  const advanceStage = async () => {
+    const to = nextStage(customer.category);
+    if (!to) return;
+    if (needsOutcome(customer.category, to)) return setBidAnswer({ to });
+    if (to === CLOSED) return setCloseAsk(true);
+
+    await updateDoc(doc(db, "customers", projectId), {
+      category: to,
+      activityLog: [...(customer.activityLog || []), {
+        type: "changed",
+        outcome: `Status: ${normalizeCategory(customer.category)} → ${to}`,
+        notes: null,
+        timestamp: new Date().toISOString(),
+        by: uid
+      }]
+    });
+    await loadProject(uid, role);
+  };
+
   const confirmClose = async () => {
     const problem = closeProblem(closeWhy);
     if (problem) return setCloseProblemText(problem);
@@ -726,7 +748,12 @@ export default function ProjectDetail() {
 
             {!isEditing && (isOwner || role === "admin") && (
               <div className="detail-header-actions">
-                {isOwner && <button className="btn btn-primary" onClick={startEdit}>Edit</button>}
+                {isOwner && nextStage(customer.category) && (
+                  <button className="btn btn-primary" onClick={advanceStage}>
+                    {nextStageLabel(customer.category)}
+                  </button>
+                )}
+                {isOwner && <button className="btn btn-secondary" onClick={startEdit}>Edit</button>}
                 <DeleteRecordButton
                   kind="project"
                   id={projectId}
