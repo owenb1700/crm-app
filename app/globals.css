@@ -4839,3 +4839,19 @@ a {
 .reminder-row.is-done {
   opacity: 0.75;
 }
+
+/* The three actions on a late row. The panel column is narrow, so these
+   are sized to sit on one line rather than wrapping onto two. */
+.overdue-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.overdue-actions .btn {
+  padding: 5px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
+}
