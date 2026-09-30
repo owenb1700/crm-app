@@ -1025,7 +1025,7 @@ export default function ProjectDetail() {
                     <dt>Lead Time (longest component)</dt>
                     <dd>
                       {customer.leadTime}
-                      <LeadTimeSummary record={customer} subject="This job" className="private-note-hint" />
+                      <LeadTimeSummary record={customer} subject="This job&rsquo;s components" className="private-note-hint" />
                     </dd>
                   </>
                 )}

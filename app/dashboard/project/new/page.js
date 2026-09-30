@@ -496,7 +496,7 @@ export default function NewProject() {
           <WorkTypeSelect id="new-project-work-type" value={workType} onChange={setWorkType} />
 
           <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
-          <LeadTimeFields idPrefix="new-project" values={leadTimeData} setValues={setLeadTimeData} defaultUnit="weeks" subject="This job" allowAlerts={false} />
+          <LeadTimeFields idPrefix="new-project" values={leadTimeData} setValues={setLeadTimeData} defaultUnit="weeks" subject="This job&rsquo;s components" allowAlerts={false} />
 
           {canEnterForOthers(myProfile) && (
             <SalespersonSelect

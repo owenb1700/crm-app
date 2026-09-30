@@ -13,6 +13,7 @@ import { withoutTrashed } from "../../../../lib/trash";
 import ExportButtons from "../../../components/ExportButtons";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
+import { normalizeCategory } from "../../../../lib/projectCategories";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const STATUS_LABEL = { won: "Won", lost: "Lost", dnb: "Did Not Bid", open: "Open" };
@@ -153,7 +154,7 @@ function AnalyticsDetailsContent() {
       id: p.id,
       href: `/dashboard/project/${p.id}`,
       name: p.projectName || p.company || "Untitled project",
-      status: p.category || "",
+      status: normalizeCategory(p.category),
       stage: "",
       person: salespersonOfProject(p),
       company: p.company,

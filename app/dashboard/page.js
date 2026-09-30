@@ -1002,6 +1002,33 @@ export default function Dashboard() {
     loadPipeline();
   };
 
+  // Follow Up used to assume two weeks without asking. Two weeks is right
+  // often enough to keep as one press, but not so often it should be the
+  // only option -- so it offers that and a date of your own.
+  const [followUpFor, setFollowUpFor] = useState(null);
+  const [followUpDate, setFollowUpDate] = useState("");
+
+  const openFollowUp = (c) => { setFollowUpDate(""); setFollowUpFor(c); };
+
+  const followUpTo = async (c, to) => {
+    if (!to) return;
+    await updateDoc(doc(db, collectionOf(c), c.id), {
+      nextCheckIn: to,
+      activityLog: [...(c.activityLog || []), checkInMoved(c, to, "Pushed out")]
+    });
+    setFollowUpFor(null);
+    setFollowUpDate("");
+    showToast("Back on " + to);
+    loadCustomers(uid, role === "admin");
+    loadPipeline();
+  };
+
+  const followUpAWeek = (c) => {
+    const next = new Date();
+    next.setDate(next.getDate() + 7);
+    followUpTo(c, adjustWeekend(next.toISOString()));
+  };
+
   const stopShipAlerts = async (c) => {
     const id = c._recordId || c.id;
     await updateDoc(doc(db, collectionOf(c), id), { leadTimeAlerts: false });
@@ -2411,7 +2438,7 @@ export default function Dashboard() {
                   {c.leadTime && (
                     <div className="customer-meta" style={{ marginTop: 4 }}>
                       Lead time (longest component): {c.leadTime}
-                      <LeadTimeSummary record={c} subject="This job" className="customer-meta" />
+                      <LeadTimeSummary record={c} subject="This job&rsquo;s components" className="customer-meta" />
                     </div>
                   )}
 
@@ -2455,13 +2482,12 @@ export default function Dashboard() {
                 <div className="customer-card-right" onClick={(e) => e.stopPropagation()}>
                   {isOwner ? (
                     <>
-                      <div className="checkbox-group">
-                        <label>
-                          <input type="checkbox" onChange={() => handleFollowUp(c)} />
-                          Follow Up
-                        </label>
-
-                      </div>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={(e) => { e.stopPropagation(); openFollowUp(c); }}
+                      >
+                        Follow Up
+                      </button>
 
                       <button
                         className="btn btn-secondary"
@@ -3284,6 +3310,42 @@ export default function Dashboard() {
                   <button className="btn btn-secondary" onClick={() => completeReminder(reminders.find(r => r.id === reminderForm.id))}>Complete</button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {followUpFor && (
+        <div className="modal-overlay" onClick={() => setFollowUpFor(null)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+            <button className="modal-close" onClick={() => setFollowUpFor(null)} aria-label="Close">✕</button>
+            <h3 className="modal-title">Follow up on this</h3>
+            <p className="modal-subtitle">
+              {followUpFor.projectName || followUpFor.company} — due {String(formatDate(followUpFor.nextCheckIn) || "").slice(0, 10) || "no date yet"}.
+            </p>
+
+            <button className="btn btn-primary btn-block" onClick={() => followUpAWeek(followUpFor)}>
+              Push Out A Week
+            </button>
+
+            <label className="field-label" style={{ marginTop: 14 }} htmlFor="follow-up-date">Or pick your own date</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                id="follow-up-date"
+                className="field"
+                type="date"
+                style={{ marginBottom: 0, width: "auto" }}
+                min={toLocalDateKey(new Date())}
+                value={followUpDate}
+                onChange={e => setFollowUpDate(e.target.value)}
+              />
+              <button
+                className="btn btn-secondary"
+                disabled={!followUpDate}
+                onClick={() => followUpTo(followUpFor, followUpDate)}
+              >
+                {followUpDate ? `Push to ${followUpDate}` : "Pick a date first"}
+              </button>
             </div>
           </div>
         </div>

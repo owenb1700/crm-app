@@ -10,6 +10,7 @@ import { contactsOf } from "../../../../../lib/bidders";
 import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
 import { isTrashed } from "../../../../../lib/trash";
+import { normalizeCategory } from "../../../../../lib/projectCategories";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -216,7 +217,7 @@ export default function TowerDetail() {
           {projects.map(p => (
             <div key={p.id} className="notes-history-item" style={{ cursor: "pointer" }} onClick={() => router.push(`/dashboard/project/${p.id}`)}>
               <div><strong>{p.projectName || p.company}</strong></div>
-              <div className="notes-history-date">{p.company || "—"}{p.category ? ` · ${p.category}` : ""}</div>
+              <div className="notes-history-date">{p.company || "—"}{p.category ? ` · ${normalizeCategory(p.category)}` : ""}</div>
             </div>
           ))}
         </div>

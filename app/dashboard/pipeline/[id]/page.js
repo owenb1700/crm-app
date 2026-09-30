@@ -893,7 +893,7 @@ export default function PipelineDetail() {
                 {pipeline.bidDate && <span>Bid {pipeline.bidDate}</span>}
                 {pipeline.value && <span>Value {pipeline.value}</span>}
                 <span>{pipeline.workType || "No work type"}</span>
-                <LeadTimeSummary record={pipeline} subject="This job" />
+                <LeadTimeSummary record={pipeline} subject="This job&rsquo;s components" />
                 {pipeline.convertedToProjectId && (
                   <span>
                     <Icon name="check" size={12} className="mark mark-won" /> Converted —{" "}

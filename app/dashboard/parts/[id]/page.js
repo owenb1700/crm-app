@@ -276,7 +276,7 @@ function PartPageContent() {
               <dt>Lead time</dt>
               <dd>
                 {part.leadTime || "—"}
-                <LeadTimeSummary record={part} subject="This part" defaultUnit="days" className="private-note-hint" />
+                <LeadTimeSummary record={part} subject="This part" plural={false} defaultUnit="days" className="private-note-hint" />
               </dd>
               {part.orderedOn && <><dt>Ordered on</dt><dd>{part.orderedOn}</dd></>}
               {part.shippedOn && <><dt>Shipped on</dt><dd>{part.shippedOn}</dd></>}

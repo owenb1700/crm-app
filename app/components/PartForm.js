@@ -126,7 +126,7 @@ export default function PartForm({ values, setValues, idPrefix, companies = [], 
       </div>
 
       <div style={{ marginTop: 6 }}>
-        <LeadTimeFields idPrefix={idPrefix} values={values} setValues={setValues} defaultUnit="days" subject="This part" />
+        <LeadTimeFields idPrefix={idPrefix} values={values} setValues={setValues} defaultUnit="days" subject="This part" plural={false} />
       </div>
 
       <div style={{ marginTop: 6 }}>

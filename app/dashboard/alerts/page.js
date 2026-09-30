@@ -12,6 +12,7 @@ import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor, isLeadTim
 import { leadTimeStatus, isLeadTimeAlert, describeLeadTime, leadTimeAlertDate, todayKey } from "../../../lib/leadTimes";
 import MobileNav from "../../components/MobileNav";
 import { isTrashed } from "../../../lib/trash";
+import { normalizeCategory } from "../../../lib/projectCategories";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -65,7 +66,7 @@ export default function AllAlerts() {
         id: c.id,
         name: c.projectName || c.company || "Untitled project",
         company: c.company || "",
-        badge: c.category === "Project Closed" && c.closedOutcome === "Closed" ? "Closed project check-in" : (c.category || ""),
+        badge: c.category === "Project Closed" && c.closedOutcome === "Closed" ? "Closed project check-in" : normalizeCategory(c.category),
         nextCheckIn: c.nextCheckIn,
         link: `/dashboard/project/${c.id}`,
         field: "nextCheckIn",
@@ -119,7 +120,7 @@ export default function AllAlerts() {
     // ship and hasn't, or that should have arrived by now. The date isn't
     // editable here -- it's worked out from the order date and the lead
     // time, so it's the record itself that has to change.
-    const leadTimeRow = (record, { kind, link, name, defaultUnit, subject }) => {
+    const leadTimeRow = (record, { kind, link, name, defaultUnit, subject, plural }) => {
       const status = leadTimeStatus(record, today, { defaultUnit });
       if (!isLeadTimeAlert(status)) return null;
       return {
@@ -130,7 +131,7 @@ export default function AllAlerts() {
         company: record.company || "",
         badge: status.state === "delivery-due" ? "Delivery overdue" : "Ship date",
         nextCheckIn: leadTimeAlertDate(status),
-        note: describeLeadTime(status, { subject }),
+        note: describeLeadTime(status, { subject, plural }),
         link,
         field: null,
         canEditDate: false,
@@ -147,7 +148,8 @@ export default function AllAlerts() {
         link: `/dashboard/project/${c.id}`,
         name: c.projectName || c.company || "Untitled project",
         defaultUnit: "weeks",
-        subject: "This job"
+        subject: "This job’s components",
+        plural: true
       }))
       .filter(Boolean);
 
@@ -160,7 +162,8 @@ export default function AllAlerts() {
         link: `/dashboard/pipeline/${p.id}`,
         name: p.title || "Untitled pipeline entry",
         defaultUnit: "weeks",
-        subject: "This job"
+        subject: "This job’s components",
+        plural: true
       }))
       .filter(Boolean);
 
@@ -173,7 +176,8 @@ export default function AllAlerts() {
         link: `/dashboard/parts/${p.id}`,
         name: p.item || "Parts request",
         defaultUnit: "days",
-        subject: "This part"
+        subject: "This part",
+        plural: false
       }))
       .filter(Boolean);
 

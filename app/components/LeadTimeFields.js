@@ -73,7 +73,7 @@ export function LeadTimeFields({
   values,
   setValues,
   defaultUnit = "weeks",
-  subject = "This job",
+  subject = "This job's components", plural = true,
   allowAlerts = true
 }) {
   const set = (field) => (e) => setValues(prev => ({ ...prev, [field]: e.target.value }));
@@ -182,7 +182,7 @@ export function LeadTimeFields({
       )}
 
       {status.state !== "none" && (
-        <p className="private-note-hint" style={{ marginTop: 2 }}>{describeLeadTime(status, { subject })}</p>
+        <p className="private-note-hint" style={{ marginTop: 2 }}>{describeLeadTime(status, { subject, plural })}</p>
       )}
     </>
   );
@@ -191,7 +191,7 @@ export function LeadTimeFields({
 // The read-only line on a record's page and on list cards. A lead time
 // nobody asked to be alerted about still shows what it works out to --
 // it just never turns red, because nothing is being chased.
-export function LeadTimeSummary({ record, subject = "This job", defaultUnit = "weeks", className = "customer-meta" }) {
+export function LeadTimeSummary({ record, subject = "This job's components", plural = true, defaultUnit = "weeks", className = "customer-meta" }) {
   const status = leadTimeStatus(record, todayKey(), { defaultUnit });
   if (status.state === "none") return null;
 
@@ -211,7 +211,7 @@ export function LeadTimeSummary({ record, subject = "This job", defaultUnit = "w
         ...(late ? { color: "var(--color-danger)" } : due ? { color: "var(--color-warning-strong)" } : {})
       }}
     >
-      {late || due ? "\u26a0 " : ""}{describeLeadTime(status, { subject })}
+      {late || due ? "\u26a0 " : ""}{describeLeadTime(status, { subject, plural })}
     </span>
   );
 }

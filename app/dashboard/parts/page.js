@@ -405,7 +405,7 @@ function PartsPageContent() {
                 <div className="customer-name">{p.item}</div>
                 <span className="role-badge" style={{ marginTop: 6 }}>{p.stage}</span>
                 {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
-                <LeadTimeSummary record={p} subject="This part" defaultUnit="days" />
+                <LeadTimeSummary record={p} subject="This part" plural={false} defaultUnit="days" />
                 {p.neededBy && <div className="customer-dates">Needed by {p.neededBy}</div>}
               </div>
               <div className="customer-card-middle">
