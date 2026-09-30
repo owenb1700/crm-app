@@ -49,7 +49,8 @@ import Icon from "../../../components/Icon";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import { manufacturerForType } from "../../../../lib/learned";
 import Suggested from "../../../components/Suggested";
-import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, PRE_BID, normalizeCategory } from "../../../../lib/projectCategories";
+import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, PRE_BID, UNDER_CONTRACT, CLOSED, BIDS_SENT,
+  normalizeCategory, needsOutcome, afterWon, afterLost, wonNote, lostNote, lostProblem } from "../../../../lib/projectCategories";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
@@ -113,6 +114,13 @@ export default function ProjectDetail() {
   const [drawingsData, setDrawingsData] = useState(null);
   const [uploadingDrawing, setUploadingDrawing] = useState(false);
   const [ask, setAsk] = useState(null);
+  // Set when a save is waiting on "was this won or lost?".
+  const [bidAnswer, setBidAnswer] = useState(null);
+  const [bidOutcome, setBidOutcome] = useState("Won");
+  const [wonBy, setWonBy] = useState("");
+  const [lostWhy, setLostWhy] = useState("");
+  const [lostToFirm, setLostToFirm] = useState("");
+  const [bidAnswerProblem, setBidAnswerProblem] = useState("");
   const [editProblem, setEditProblem] = useState("");
   const [fileProblem, setFileProblem] = useState("");
 
@@ -346,6 +354,40 @@ export default function ProjectDetail() {
     setEquipmentRows(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Won moves it to Under Contract and says so. Lost closes it, with the
+  // reason and -- when it's known -- who it went to.
+  const answerBid = async () => {
+    setBidAnswerProblem("");
+    const won = bidOutcome === "Won";
+    if (!won) {
+      const problem = lostProblem(lostWhy);
+      if (problem) return setBidAnswerProblem(problem);
+    }
+    const category = won ? afterWon() : afterLost();
+    const note = won ? wonNote(wonBy.trim()) : lostNote(lostWhy, lostToFirm);
+    const payload = {
+      // The close payload goes first so the fields below win: it sets a
+      // generic closedOutcome, and a job that was bid and lost should say
+      // Lost, not Closed.
+      ...(won ? {} : closeProjectPayload(customer.activityLog)),
+      category,
+      ...(won
+        ? { wonByContractor: wonBy.trim() || null }
+        : { closedOutcome: "Lost", lostReason: lostWhy.trim(), lostTo: lostToFirm.trim() || null })
+    };
+    payload.activityLog = [...(customer.activityLog || []), {
+      type: "completed",
+      outcome: note,
+      notes: null,
+      timestamp: new Date().toISOString(),
+      by: uid
+    }];
+    await updateDoc(doc(db, "customers", projectId), payload);
+    setBidAnswer(null);
+    setIsEditing(false);
+    await loadProject(uid, role);
+  };
+
   const saveEdit = async () => {
     setEditProblem("");
     const missing = [];
@@ -397,6 +439,14 @@ export default function ProjectDetail() {
     } else if (editData.category !== "Project Closed" && customer.category === "Project Closed") {
       payload.closedOutcome = null;
       payload.closedAt = null;
+    }
+
+    // Bids went out; something came of them. Moving the job on from
+    // Bids Sent without saying which is how a project used to arrive at
+    // Ongoing with no record of ever having been won.
+    if (needsOutcome(customer.category, editData.category)) {
+      setBidAnswer({ to: editData.category });
+      return;
     }
 
     // Status, outcome, work type or owner changing is worth a line in the
@@ -717,7 +767,7 @@ export default function ProjectDetail() {
               idPrefix="project-detail"
               values={editData}
               setValues={setEditData}
-              allowAlerts={editData.category === "Order"}
+              allowAlerts={normalizeCategory(editData.category) === UNDER_CONTRACT}
             />
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Labor &amp; Work Dates</h4>
@@ -1030,6 +1080,79 @@ export default function ProjectDetail() {
 
         </>)}
       </div>
+
+      {bidAnswer && (
+        <div className="modal-overlay" onClick={() => setBidAnswer(null)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setBidAnswer(null)} aria-label="Close">✕</button>
+            <h3 className="modal-title">Did we win it?</h3>
+            <p className="modal-subtitle">
+              The bid went out on this job. Say what came of it before it moves on —
+              won files it as {UNDER_CONTRACT}, lost closes it.
+            </p>
+
+            <div className="reason-picker">
+              {["Won", "Lost"].map(choice => (
+                <button
+                  key={choice}
+                  type="button"
+                  className={`btn btn-secondary ${bidOutcome === choice ? "is-picked" : ""}`}
+                  aria-pressed={bidOutcome === choice}
+                  onClick={() => { setBidOutcome(choice); setBidAnswerProblem(""); }}
+                >
+                  {choice}
+                </button>
+              ))}
+            </div>
+
+            {bidOutcome === "Won" ? (
+              <>
+                <label className="field-label" htmlFor="project-won-by" style={{ marginTop: 12 }}>
+                  Awarded to (optional)
+                </label>
+                <input
+                  id="project-won-by"
+                  className="field"
+                  autoComplete="off"
+                  placeholder="Which contractor won it"
+                  value={wonBy}
+                  onChange={e => setWonBy(e.target.value)}
+                />
+              </>
+            ) : (
+              <>
+                <label className="field-label" htmlFor="project-lost-why" style={{ marginTop: 12 }}>
+                  Why was it lost?
+                </label>
+                <textarea
+                  id="project-lost-why"
+                  className="field"
+                  style={{ width: "100%", height: 70 }}
+                  value={lostWhy}
+                  onChange={e => { setLostWhy(e.target.value); setBidAnswerProblem(""); }}
+                />
+                <label className="field-label" htmlFor="project-lost-to">Who won it? (optional)</label>
+                <input
+                  id="project-lost-to"
+                  className="field"
+                  autoComplete="off"
+                  placeholder="Leave blank if you don't know"
+                  value={lostToFirm}
+                  onChange={e => setLostToFirm(e.target.value)}
+                />
+              </>
+            )}
+
+            {bidAnswerProblem && <p className="settings-status is-error">⚠ {bidAnswerProblem}</p>}
+            <div className="modal-actions">
+              <button className="btn btn-primary" onClick={answerBid}>
+                {bidOutcome === "Won" ? `Mark won — ${UNDER_CONTRACT}` : "Mark lost — close it"}
+              </button>
+              <button className="btn btn-secondary" onClick={() => setBidAnswer(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {ask && (
         <ConfirmDialog

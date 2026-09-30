@@ -50,6 +50,7 @@ import ConfirmDialog from "../../../components/ConfirmDialog";
 import ExportButtons from "../../../components/ExportButtons";
 import { downloadTable, csvDateStamp } from "../../../../lib/csv";
 import { DID_NOT_BID_REASONS, OTHER, didNotBidReason, didNotBidProblem } from "../../../../lib/notBidding";
+import { UNDER_CONTRACT } from "../../../../lib/projectCategories";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PIPELINE_STAGE_OPTIONS = ["Pre-Bid", "Bidding", "Post-Bid", "Design", "Budgeting"];
@@ -643,7 +644,7 @@ export default function PipelineDetail() {
         phone: convertData.phone || "",
         owners: [],
         // Won work is equipment on order, not a job already running.
-        category: "Order",
+        category: UNDER_CONTRACT,
         buildingSector: convertData.buildingSector,
         projectValue: pipeline.value || null,
         workType: convertData.workType,
