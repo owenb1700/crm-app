@@ -487,14 +487,32 @@ export default function PipelineDetail() {
     setShowBidsSentModal(true);
   };
 
+  // Bids Sent, Mark Won, Not Bidding, Reopen and Convert all changed the
+  // shape of the entry and wrote nothing down -- only the edit form logged
+  // anything, so the most important moments in a job's life were the ones
+  // with no record. This puts the same entry in the log for all of them.
+  const withStateLog = (payload) => {
+    const edits = stateChanges(pipeline, payload, "pipeline", ownerLabel);
+    if (!edits.length) return payload;
+    return {
+      ...payload,
+      activityLog: withActivity(pipeline.activityLog, activityEntry({
+        type: "changed",
+        changes: edits,
+        by: uid,
+        byName: myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown")
+      }))
+    };
+  };
+
   const confirmBidsSent = async () => {
     setBidsSentProblem("");
     if (!bidsSentDate) return setBidsSentProblem("Pick a date to follow up on.");
-    await updateDoc(doc(db, "pipeline", pipelineId), {
+    await updateDoc(doc(db, "pipeline", pipelineId), withStateLog({
       stage: POST_BID,
       nextCheckIn: bidsSentDate,
       bidsSentAt: new Date().toISOString()
-    });
+    }));
     setShowBidsSentModal(false);
     await loadPipelineEntry(uid, role);
   };
@@ -510,7 +528,7 @@ export default function PipelineDetail() {
     const followUp = new Date();
     followUp.setFullYear(followUp.getFullYear() + 1);
 
-    await updateDoc(doc(db, "pipeline", pipelineId), {
+    await updateDoc(doc(db, "pipeline", pipelineId), withStateLog({
       outcome: "Won",
       wonByContractor: wonContractor.trim(),
       resolvedAt: new Date().toISOString(),
@@ -519,7 +537,7 @@ export default function PipelineDetail() {
       // them, so the ship date is known before the job is even set up.
       ...(wonLeadTime.trim() ? { leadTime: wonLeadTime.trim() } : {}),
       ...(wonOrderedOn ? { orderedOn: wonOrderedOn } : {})
-    });
+    }));
     setShowWonModal(false);
     setWonContractor("");
     setWonLeadTime("");
@@ -539,7 +557,7 @@ export default function PipelineDetail() {
     } else if (!lostReason.trim()) {
       return setLostProblem("Say why this was lost.");
     }
-    await updateDoc(doc(db, "pipeline", pipelineId), {
+    await updateDoc(doc(db, "pipeline", pipelineId), withStateLog({
       outcome: lostModalOutcome,
       wonByContractor: null,
       lostReason: lostModalOutcome === "Did Not Bid"
@@ -548,7 +566,7 @@ export default function PipelineDetail() {
       lostTo: lostTo.trim() || null,
       resolvedAt: new Date().toISOString(),
       nextCheckIn: null
-    });
+    }));
     setLostModalOutcome(null);
     setLostReason("");
     setLostTo("");
@@ -556,14 +574,14 @@ export default function PipelineDetail() {
   };
 
   const reopenPipeline = async () => {
-    await updateDoc(doc(db, "pipeline", pipelineId), {
+    await updateDoc(doc(db, "pipeline", pipelineId), withStateLog({
       outcome: null,
       wonByContractor: null,
       lostReason: null,
       lostTo: null,
       resolvedAt: null,
       nextCheckIn: null
-    });
+    }));
     await loadPipelineEntry(uid, role);
   };
 
@@ -669,11 +687,11 @@ export default function PipelineDetail() {
 
       // The project now carries the follow-up, so the pipeline entry's own
       // 1-year Won check-in is cleared to avoid a duplicate reminder.
-      await updateDoc(doc(db, "pipeline", pipelineId), {
+      await updateDoc(doc(db, "pipeline", pipelineId), withStateLog({
         convertedToProjectId: ref3.id,
         convertedAt: now,
         nextCheckIn: null
-      });
+      }));
 
       router.push(`/dashboard/project/${ref3.id}`);
     } catch (err) {

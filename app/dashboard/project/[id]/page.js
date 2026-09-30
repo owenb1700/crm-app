@@ -49,12 +49,13 @@ import Icon from "../../../components/Icon";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import { manufacturerForType } from "../../../../lib/learned";
 import Suggested from "../../../components/Suggested";
+import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, PRE_BID, normalizeCategory } from "../../../../lib/projectCategories";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
 // a project status. Projects filed as Parts before the move keep the
 // label until someone changes it.
-const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Project Closed"];
+
 const BLANK_EQUIPMENT_ROW = { type: "", manufacturer: "", model: "", serial: "", yearInstalled: "" };
 
 const BACK_TARGETS = { personal: "My Projects", team: "Team page", pastProjects: "Past Projects" };
@@ -623,7 +624,7 @@ export default function ProjectDetail() {
             <div>
               <div className="detail-title-row">
                 <h2 className="modal-title" style={{ margin: 0 }}>{customer.projectName || customer.company}</h2>
-                {customer.category && <span className="role-badge">{customer.category}</span>}
+                {customer.category && <span className="role-badge">{normalizeCategory(customer.category)}</span>}
               </div>
               <p className="modal-subtitle detail-facts">
                 {customer.company && customer.projectName && customer.projectName !== customer.company && <span>{customer.company}</span>}
@@ -699,7 +700,7 @@ export default function ProjectDetail() {
               <BuildingSectorSelect id="project-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
               <div>
                 <label className="field-label" htmlFor="project-detail-category">Category</label>
-                <select id="project-detail-category" className="field" value={editData.category} onChange={e => setEditData({ ...editData, category: e.target.value })}>
+                <select id="project-detail-category" className="field" value={normalizeCategory(editData.category)} onChange={e => setEditData({ ...editData, category: e.target.value })}>
                   <option value="">Select category...</option>
                   {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>

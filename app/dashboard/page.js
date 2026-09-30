@@ -56,13 +56,14 @@ import { sortRows, sortMixed } from "../../lib/sorting";
 import Icon from "../components/Icon";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { completedPayload, isOpen, doneOnly } from "../../lib/reminders";
+import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, PRE_BID, normalizeCategory } from "../../lib/projectCategories";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
 // a project status. Projects filed as Parts before the move keep the
 // label until someone changes it.
-const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Project Closed"];
+
 
 
 // A pipeline entry with one of these outcomes is finished and lives in
@@ -693,7 +694,7 @@ export default function Dashboard() {
       }
       // Prospecting Only still comes back to My Projects on its date.
       if (c.closedOutcome === "Prospecting Only" && c.nextCheckIn && new Date(c.nextCheckIn) <= now) {
-        return apply(c, { category: "Prospecting", closedOutcome: null, nextCheckIn: null },
+        return apply(c, { category: PRE_BID, closedOutcome: null, nextCheckIn: null },
           (label) => `Reminder: reach out to the contractor on ${label} (prospecting follow-up)`);
       }
       return null;
@@ -998,6 +999,29 @@ export default function Dashboard() {
     loadPipeline();
   };
 
+  // A check-in done late is still done. Without this the only way off the
+  // overdue list was to push the date, which records the admin and loses
+  // the fact that somebody actually made the call.
+  const markCheckedIn = async (c) => {
+    const due = String(c.nextCheckIn || "").slice(0, 10);
+    const today = toLocalDateKey(new Date());
+    await updateDoc(doc(db, collectionOf(c), c.id), {
+      lastContact: today,
+      nextCheckIn: "",
+      activityLog: [...(c.activityLog || []), {
+        type: "handled",
+        outcome: due && due !== today ? `Checked in ${today} (was due ${due})` : "Checked in",
+        notes: null,
+        onDate: due || today,
+        timestamp: new Date().toISOString(),
+        by: uid
+      }]
+    });
+    showToast(due && due !== today ? `Checked in — was due ${due}` : "Checked in");
+    loadCustomers(uid, role === "admin");
+    loadPipeline();
+  };
+
   const stopShipAlerts = async (c) => {
     const id = c._recordId || c.id;
     await updateDoc(doc(db, collectionOf(c), id), { leadTimeAlerts: false });
@@ -1278,7 +1302,7 @@ export default function Dashboard() {
     if (f.sector) list = list.filter(c => c.buildingSector === f.sector);
     if (f.workType) list = list.filter(c => c.workType === f.workType);
     if (f.firm) list = list.filter(c => c.company === f.firm || (c.owners || []).some(o => o.company === f.firm));
-    if (f.status) list = list.filter(c => c.category === f.status);
+    if (f.status) list = list.filter(c => normalizeCategory(c.category) === normalizeCategory(f.status));
     list = list.filter(c => matchesDateFilter(c.nextCheckIn, f.due));
 
     return sortRows(list, PROJECT_SORTS, personalSort);
@@ -1391,7 +1415,7 @@ export default function Dashboard() {
     if (f.workType) list = list.filter(c => c.workType === f.workType);
     if (f.person) list = list.filter(c => c.ownerId === f.person);
     if (f.firm) list = list.filter(c => c.company === f.firm || (c.owners || []).some(o => o.company === f.firm));
-    if (f.status) list = list.filter(c => c.category === f.status);
+    if (f.status) list = list.filter(c => normalizeCategory(c.category) === normalizeCategory(f.status));
     if (f.outcome) list = list.filter(c => c.closedOutcome === f.outcome);
     list = list.filter(c => matchesDateFilter(c.nextCheckIn, f.due));
 
@@ -1834,7 +1858,7 @@ export default function Dashboard() {
                 {(c.projectId || c.pipelineId || c.partId) && <div className="customer-meta" style={{ marginTop: 4 }}>For {jobTitleOf(c)}</div>}
               </>
             ) : (
-              c.category && <span className="role-badge" style={{ marginTop: 4 }}>{c.category}</span>
+              c.category && <span className="role-badge" style={{ marginTop: 4 }}>{normalizeCategory(c.category)}</span>
             )}
             {c._kind === "reminder" && (
               <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
@@ -1850,6 +1874,7 @@ export default function Dashboard() {
             {isOverdueItem(c) && (c._kind === "project" || c._kind === "pipeline") && !c._done && (
               <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button className="btn btn-primary" onClick={() => markCheckedIn(c)}>Complete</button>
                   <button className="btn btn-secondary" onClick={() => pushOutAWeek(c)}>Snooze a week</button>
                   <button
                     className="btn btn-secondary"
@@ -2395,7 +2420,7 @@ export default function Dashboard() {
                         </div>
                       )}
 
-                      {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
+                      {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{normalizeCategory(c.category)}</span>}
                   {c.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {c.buildingSector}</div>}
                       {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(c.projectValue)}</div>}
                   {c.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{c.workType}</div>}
@@ -2644,7 +2669,7 @@ export default function Dashboard() {
                       {[c.email, formatPhone(c.phone)].filter(Boolean).join(" | ")}
                     </div>
                   )}
-                  {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{c.category}</span>}
+                  {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{normalizeCategory(c.category)}</span>}
                   {c.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {c.buildingSector}</div>}
                   {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(c.projectValue)}</div>}
                   {c.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{c.workType}</div>}
@@ -2822,7 +2847,7 @@ export default function Dashboard() {
                   {/* A closed project with a future alert on file (Won awaiting
                       start, or Prospecting Only awaiting its next check-in)
                       isn't done for good -- it's just parked until then. */}
-                  {c.closedOutcome === "Prospecting Only" && c.nextCheckIn ? "Temporarily Closed" : c.category}
+                  {c.closedOutcome === "Prospecting Only" && c.nextCheckIn ? "Temporarily Closed" : normalizeCategory(c.category)}
                 </span>
                 {c.closedOutcome && c.closedOutcome !== CLOSED_OUTCOME && (
                   <span className={`role-badge ${c.closedOutcome === "Won" ? "role-badge-admin" : ""}`} style={{ marginTop: 4 }}>

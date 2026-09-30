@@ -31,12 +31,13 @@ import FirmDetailsPrompt from "../../../components/FirmDetailsPrompt";
 import { normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import useLeaveGuard from "../../../components/useLeaveGuard";
+import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, PRE_BID, normalizeCategory } from "../../../../lib/projectCategories";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
 // a project status. Projects filed as Parts before the move keep the
 // label until someone changes it.
-const CATEGORY_OPTIONS = ["Pre-Bid", "Bidding", "Prospecting", "Ongoing Project", "Order", "Project Closed"];
+
 const BLANK_EQUIPMENT_ROW = { type: "", manufacturer: "", model: "", serial: "", yearInstalled: "" };
 
 const clearSession = () => {
