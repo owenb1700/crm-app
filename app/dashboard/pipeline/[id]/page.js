@@ -934,6 +934,12 @@ export default function PipelineDetail() {
             <h4 className="field-label">Project / Opportunity Name</h4>
             <input className="field" name="pd-title" autoComplete="off" value={editData.title} onChange={e => setEditData({ ...editData, title: e.target.value })} />
 
+            {/* Straight under the name. Two jobs for the same contractor
+                read identically until you can see which building they are
+                at, and the address was three sections down. */}
+            <label className="field-label">Project Address</label>
+            <AddressAutocomplete name="pipeline-detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
+
             <div className="form-grid-2">
               <BuildingSectorSelect id="pipeline-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
               <div>
@@ -983,10 +989,6 @@ export default function PipelineDetail() {
                 onPhoneChange={v => setEditData(prev => ({ ...prev, phone: v }))}
               />
 
-              <div>
-                <label className="field-label">Project Address</label>
-                <AddressAutocomplete name="pipeline-detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
-              </div>
             </div>
 
             <h4 className="field-label" style={{ marginTop: 16 }}>Assigned Team</h4>

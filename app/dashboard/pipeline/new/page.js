@@ -332,6 +332,29 @@ export default function NewPipelineEntry() {
         <div className="project-section">
           <input className="field" autoComplete="off" placeholder="Project / Opportunity Name" value={title} onChange={e => setTitle(e.target.value)} />
 
+          {/* Straight under the name. Two jobs for the same contractor read
+              identically until you can see which building they are at -- and
+              this is also where the "we have worked here before" block
+              belongs, since it is the address that triggers it. */}
+          <label className="field-label">Project Address</label>
+          <AddressAutocomplete value={projectAddress} onChange={setProjectAddress} />
+
+          {(building.engineers.length > 0 || building.equipment.length > 0) && (
+            <SuggestedBlock title="We have worked at this building before" source={building.source}>
+              {building.engineers.length > 0 && (
+                <div className="private-note-hint">
+                  Building engineer: <strong>{building.engineers[0].contact || building.engineers[0].company}</strong>
+                  {building.engineers[0].contact && building.engineers[0].company ? ` at ${building.engineers[0].company}` : ""}
+                </div>
+              )}
+              {building.equipment.length > 0 && (
+                <div className="private-note-hint">
+                  On site: {building.equipment.map(e => [e.manufacturer, e.model, e.serial && `#${e.serial}`].filter(Boolean).join(" ")).join("; ")}
+                </div>
+              )}
+            </SuggestedBlock>
+          )}
+
           <div className="form-grid-2">
             <BuildingSectorSelect id="new-pipeline-sector" value={buildingSector} onChange={setBuildingSector} />
             <div>
@@ -397,26 +420,6 @@ export default function NewPipelineEntry() {
               />
             </div>
 
-            <div>
-              <label className="field-label">Project Address</label>
-              <AddressAutocomplete value={projectAddress} onChange={setProjectAddress} />
-
-              {(building.engineers.length > 0 || building.equipment.length > 0) && (
-                <SuggestedBlock title="We have worked at this building before" source={building.source}>
-                  {building.engineers.length > 0 && (
-                    <div className="private-note-hint">
-                      Building engineer: <strong>{building.engineers[0].contact || building.engineers[0].company}</strong>
-                      {building.engineers[0].contact && building.engineers[0].company ? ` at ${building.engineers[0].company}` : ""}
-                    </div>
-                  )}
-                  {building.equipment.length > 0 && (
-                    <div className="private-note-hint">
-                      On site: {building.equipment.map(e => [e.manufacturer, e.model, e.serial && `#${e.serial}`].filter(Boolean).join(" ")).join("; ")}
-                    </div>
-                  )}
-                </SuggestedBlock>
-              )}
-            </div>
           </div>
         </div>
 

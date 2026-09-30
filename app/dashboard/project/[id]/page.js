@@ -794,6 +794,12 @@ export default function ProjectDetail() {
             <label className="field-label" htmlFor="project-detail-name" style={{ marginTop: 0 }}>Project Name</label>
             <input id="project-detail-name" className="field" name="detail-projectName" autoComplete="off" value={editData.projectName} onChange={e => setEditData({ ...editData, projectName: e.target.value })} />
 
+            {/* Straight under the name. Two jobs for the same contractor
+                read identically until you can see which building they are
+                at, and this sat three sections down next to the dates. */}
+            <label className="field-label">Project Address (required)</label>
+            <AddressAutocomplete name="detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
+
             <div className="form-grid-3">
               <FirmTypeSelect id="project-detail-company-type" value={editData.companyCategory} onChange={v => setEditData({ ...editData, companyCategory: v })} />
               <CompanyContactFields
@@ -851,10 +857,6 @@ export default function ProjectDetail() {
             <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split</h4>
             <CreditSplitEditor idPrefix="project-detail-split" users={users} value={splitRows} onChange={setSplitRows} ownerId={customer.ownerId} ownerLabel="the project owner" />
             <div className="form-grid-3">
-              <div>
-                <label className="field-label">Project Address (required)</label>
-                <AddressAutocomplete name="detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
-              </div>
               <div>
                 <label className="field-label" htmlFor="project-detail-next">Next Check-In</label>
                 <input id="project-detail-next" className="field" type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />

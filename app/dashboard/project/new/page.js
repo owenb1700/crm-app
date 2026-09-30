@@ -444,6 +444,40 @@ export default function NewProject() {
         <div className="project-section">
           <input className="field" autoComplete="off" placeholder="Project Name" value={projectName} onChange={e => setProjectName(e.target.value)} />
 
+          {/* Straight under the name. Two jobs for the same contractor read
+              identically until you can see which building they are at -- and
+              this is where the "we have worked here before" block belongs,
+              since it is the address that finds it. */}
+          <div>
+            <label className="field-label">Project Address</label>
+            <AddressAutocomplete placeholder="Project Address (required)" value={projectAddress} onChange={setProjectAddress} />
+
+            {(building.engineers.length > 0 || building.equipment.length > 0) && (
+              <SuggestedBlock
+                title="We have worked at this building before"
+                source={building.source}
+                applied={usedBuilding}
+                onUse={useBuilding}
+                onDismiss={usedBuilding ? undoBuilding : () => setUsedBuilding(true)}
+              >
+                {building.engineers.length > 0 && (
+                  <div className="private-note-hint">
+                    Building engineer: <strong>{building.engineers[0].contact || building.engineers[0].company}</strong>
+                    {building.engineers[0].contact && building.engineers[0].company ? ` at ${building.engineers[0].company}` : ""}
+                    {" "}({building.engineers[0].source})
+                  </div>
+                )}
+                {building.equipment.length > 0 && (
+                  <div className="private-note-hint">
+                    {building.equipment.length} {building.equipment.length === 1 ? "machine" : "machines"} on file here:{" "}
+                    {building.equipment.map(e => [e.manufacturer, e.model, e.serial && `#${e.serial}`].filter(Boolean).join(" ")).join("; ")}
+                  </div>
+                )}
+              </SuggestedBlock>
+            )}
+          </div>
+
+
           <FirmTypeSelect id="new-project-company-type" value={companyCategory} onChange={setCompanyCategory} />
 
           <div>
@@ -527,35 +561,6 @@ export default function NewProject() {
           <div>
             <label className="field-label">Next Date</label>
             <input className="field" type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
-          </div>
-
-          <div>
-            <label className="field-label">Project Address</label>
-            <AddressAutocomplete placeholder="Project Address (required)" value={projectAddress} onChange={setProjectAddress} />
-
-            {(building.engineers.length > 0 || building.equipment.length > 0) && (
-              <SuggestedBlock
-                title="We have worked at this building before"
-                source={building.source}
-                applied={usedBuilding}
-                onUse={useBuilding}
-                onDismiss={usedBuilding ? undoBuilding : () => setUsedBuilding(true)}
-              >
-                {building.engineers.length > 0 && (
-                  <div className="private-note-hint">
-                    Building engineer: <strong>{building.engineers[0].contact || building.engineers[0].company}</strong>
-                    {building.engineers[0].contact && building.engineers[0].company ? ` at ${building.engineers[0].company}` : ""}
-                    {" "}({building.engineers[0].source})
-                  </div>
-                )}
-                {building.equipment.length > 0 && (
-                  <div className="private-note-hint">
-                    {building.equipment.length} {building.equipment.length === 1 ? "machine" : "machines"} on file here:{" "}
-                    {building.equipment.map(e => [e.manufacturer, e.model, e.serial && `#${e.serial}`].filter(Boolean).join(" ")).join("; ")}
-                  </div>
-                )}
-              </SuggestedBlock>
-            )}
           </div>
 
           <input className="field" autoComplete="off" placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />

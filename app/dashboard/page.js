@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   onAuthStateChanged,
@@ -75,7 +75,9 @@ const clearSession = () => {
 };
 
 // Tabs that can be opened directly with a #hash (e.g. /dashboard#pipeline).
-const HASH_VIEWS = ["personal", "pipeline", "team", "pastProjects", "admin"];
+// Home is in here too: every tab belongs in the URL, or Back has nothing
+// to go back to.
+const HASH_VIEWS = ["home", "personal", "pipeline", "team", "pastProjects", "admin"];
 
 export default function Dashboard() {
   const router = useRouter();
@@ -91,26 +93,44 @@ export default function Dashboard() {
     const hash = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
     return HASH_VIEWS.includes(hash) ? hash : "home";
   }); // 'home' | 'personal' | 'team' | 'admin'
-  // Arriving from another page (e.g. Back to Pipeline), Next.js only puts
-  // the #hash on the URL after this page first renders, so check again once
-  // it's on screen and whenever the hash changes.
+  // Switching tabs used to be state only: no trace in the URL, no entry in
+  // history. So Back from My Projects went wherever you were before the
+  // dashboard entirely, and coming back from a project landed on Home at
+  // the top of the page. The tab is part of the address now.
+  //
+  // The hash used to be stripped off again the moment it was read, which
+  // is why Back forgot -- by the time anyone pressed it there was nothing
+  // left to read.
+  const scrollByView = useRef({});
+
+  const openView = (name) => {
+    if (name === view) return;
+    // Where they were before leaving, so coming back lands there.
+    scrollByView.current[view] = window.scrollY;
+    window.history.pushState({ view: name }, "", name === "home" ? window.location.pathname : `#${name}`);
+    setView(name);
+    window.scrollTo(0, 0);
+  };
+
   useEffect(() => {
-    const openHashView = () => {
+    const readHash = () => {
       const hash = window.location.hash.slice(1);
-      if (!HASH_VIEWS.includes(hash)) return;
-      setView(hash);
-      // Take the hash back off the URL once it's been used. Otherwise it
-      // sits there for the rest of the session and the next reload (or
-      // reopening the tab) starts on that tab instead of Home.
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      const next = HASH_VIEWS.includes(hash) ? hash : "home";
+      setView(next);
+      const y = scrollByView.current[next];
+      if (typeof y === "number") requestAnimationFrame(() => window.scrollTo(0, y));
     };
-    openHashView();
-    const soon = setTimeout(openHashView, 0);
-    window.addEventListener("hashchange", openHashView);
+    // Next.js only puts an arriving #hash on the URL after the first
+    // render, so read it once more once it's on screen.
+    const soon = setTimeout(readHash, 0);
+    window.addEventListener("popstate", readHash);
+    window.addEventListener("hashchange", readHash);
     return () => {
       clearTimeout(soon);
-      window.removeEventListener("hashchange", openHashView);
+      window.removeEventListener("popstate", readHash);
+      window.removeEventListener("hashchange", readHash);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(null); // null = "this week" panel
 
@@ -2072,7 +2092,7 @@ export default function Dashboard() {
           {role === "admin" && (
             <button
               className="btn btn-secondary hide-with-mobile-nav"
-              onClick={() => setView(view === "admin" ? "personal" : "admin")}
+              onClick={() => openView(view === "admin" ? "personal" : "admin")}
             >
               {view === "admin" ? "Back to My Projects" : "Admin Settings"}
             </button>
@@ -2219,7 +2239,7 @@ export default function Dashboard() {
           profile={myProfile}
           role={role}
           view={view}
-          onSelectView={setView}
+          onSelectView={openView}
           onAddReminder={openNewReminder}
           searchData={{ customers, pipelineEntries, companies, contacts, parts }}
         />
