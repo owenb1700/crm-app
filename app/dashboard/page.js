@@ -1903,7 +1903,7 @@ export default function Dashboard() {
                 />
               </div>
             )}
-            {c._kind === "pipeline" && (
+            {c._kind === "pipeline" && c.outcome === "Won" && (
               <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
                 <button className="btn btn-secondary" onClick={() => snoozePipelineFollowUp(c)}>Snooze 3 Months</button>
                 <button className="btn btn-secondary" onClick={() => pipelineFollowUpAnotherYear(c)}>Follow Up in 1 Year</button>
@@ -3116,7 +3116,7 @@ export default function Dashboard() {
         const kindLabel = c._kind === "reminder"
           ? "Reminder"
           : c._kind === "bid" ? `Bid date · ${c.stage || "Pipeline"}`
-          : c._kind === "pipeline" ? "Won — check in"
+          : c._kind === "pipeline" ? (c.outcome === "Won" ? "Won — check in" : `${c.stage || "Pipeline"} — check in`)
           : isClosedWithCheckIn(c) ? "Closed project check-in"
           : (c.category || "Project check-in");
         return (
@@ -3176,7 +3176,7 @@ export default function Dashboard() {
                     onDone={(msg) => { setCalendarPopup(null); showToast(msg); loadCustomers(uid, role === "admin"); }}
                   />
                 )}
-                {c._kind === "pipeline" && (
+                {c._kind === "pipeline" && c.outcome === "Won" && (
                   <>
                     <button className="btn btn-secondary" onClick={fromPopup(snoozePipelineFollowUp)}>Snooze 3 Months</button>
                     <button className="btn btn-secondary" onClick={fromPopup(pipelineFollowUpAnotherYear)}>Follow Up in 1 Year</button>
