@@ -81,6 +81,29 @@ const clearSession = () => {
 // to go back to.
 const HASH_VIEWS = ["home", "personal", "pipeline", "team", "pastProjects", "admin"];
 
+// Scroll positions survive leaving the dashboard, but not closing the tab:
+// where you were reading is worth a moment, not a week.
+const SCROLL_MEMORY = "dashboardScrollByView";
+
+const readScrollMemory = () => {
+  if (typeof window === "undefined") return {};
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem(SCROLL_MEMORY) || "{}");
+    return saved && typeof saved === "object" ? saved : {};
+  } catch {
+    return {};
+  }
+};
+
+const writeScrollMemory = (byView) => {
+  try {
+    window.sessionStorage.setItem(SCROLL_MEMORY, JSON.stringify(byView));
+  } catch {
+    // Private windows and blocked site data: the page works, it just
+    // forgets where you were.
+  }
+};
+
 export default function Dashboard() {
   const router = useRouter();
 
@@ -103,15 +126,73 @@ export default function Dashboard() {
   // The hash used to be stripped off again the moment it was read, which
   // is why Back forgot -- by the time anyone pressed it there was nothing
   // left to read.
-  const scrollByView = useRef({});
+  //
+  // Where you were on each tab. Held in sessionStorage rather than in
+  // React, because opening a project leaves this page entirely -- coming
+  // back is a fresh mount with every ref gone, and that was the case that
+  // sent you to the top of the list every time.
+  const scrollByView = useRef(readScrollMemory());
+  const viewRef = useRef(view);
+  useEffect(() => { viewRef.current = view; }, [view]);
+
+  // A scroll we caused ourselves isn't the user choosing a spot, so it
+  // doesn't get written down.
+  const holdUntil = useRef(0);
+  const scrollTo = (y) => {
+    holdUntil.current = Date.now() + 400;
+    window.scrollTo(0, y);
+  };
+
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = () => {
+      if (frame || Date.now() < holdUntil.current) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        scrollByView.current[viewRef.current] = window.scrollY;
+        writeScrollMemory(scrollByView.current);
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  // On arrival the page is still empty -- the projects come from Firestore
+  // a moment later -- so scrolling straight to the remembered spot lands
+  // at the bottom of a page that isn't built yet. Wait until it's tall
+  // enough to hold that spot, and give up after a couple of seconds in
+  // case the list genuinely got shorter.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+    const target = scrollByView.current[view];
+    if (!target) { restored.current = true; return; }
+    let tries = 0;
+    const id = setInterval(() => {
+      tries += 1;
+      const room = document.documentElement.scrollHeight - window.innerHeight;
+      if (room >= target || tries > 40) {
+        if (room >= target) scrollTo(target);
+        restored.current = true;
+        clearInterval(id);
+      }
+    }, 50);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   const openView = (name) => {
     if (name === view) return;
     // Where they were before leaving, so coming back lands there.
     scrollByView.current[view] = window.scrollY;
+    scrollByView.current[name] = 0;
+    writeScrollMemory(scrollByView.current);
     window.history.pushState({ view: name }, "", name === "home" ? window.location.pathname : `#${name}`);
     setView(name);
-    window.scrollTo(0, 0);
+    scrollTo(0);
   };
 
   useEffect(() => {
@@ -120,7 +201,7 @@ export default function Dashboard() {
       const next = HASH_VIEWS.includes(hash) ? hash : "home";
       setView(next);
       const y = scrollByView.current[next];
-      if (typeof y === "number") requestAnimationFrame(() => window.scrollTo(0, y));
+      if (typeof y === "number") requestAnimationFrame(() => scrollTo(y));
     };
     // Next.js only puts an arriving #hash on the URL after the first
     // render, so read it once more once it's on screen.
@@ -952,6 +1033,13 @@ export default function Dashboard() {
   // nothing, so "what was due last Tuesday" had no answer -- which is why
   // scrolling back through the calendar shows no check-in history before
   // today. Logging it means that history builds from here.
+  // Whoever is signed in, by name. Written onto the entry at the time so
+  // it still reads right after someone leaves the company.
+  const myName = () =>
+    myProfile && myProfile.firstName && myProfile.lastName
+      ? `${myProfile.firstName} ${myProfile.lastName}`
+      : (auth.currentUser?.email || null);
+
   const checkInMoved = (record, to, what) => ({
     // "handled", not "completed": the check-in was dealt with, the job
     // wasn't finished. The old label read as the whole job being done.
@@ -963,7 +1051,8 @@ export default function Dashboard() {
     // it's why snoozing something doesn't wipe it off the week it was on.
     onDate: String(record.nextCheckIn || "").slice(0, 10) || null,
     timestamp: new Date().toISOString(),
-    by: uid
+    by: uid,
+    authorName: myName()
   });
 
   // An overdue check-in had nowhere to go from the panel: only reminders

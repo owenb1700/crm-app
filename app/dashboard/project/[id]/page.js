@@ -1098,7 +1098,13 @@ export default function ProjectDetail() {
           {(customer.activityLog || []).map((a, i) => (
             <div key={i} className="notes-history-item">
               <div>{a.type} — {a.outcome}</div>
-              {a.by && <div className="private-note-hint">By {a.by}</div>}
+              {/* This printed the raw uid, so a pushed-out check-in read
+                  "By AJsVfhLVPBO4Y4OT666YOwxjIlE3". The name written down
+                  at the time wins, because people leave and their name on
+                  an old entry should stay what it was. */}
+              {(a.authorName || a.by) && (
+                <div className="private-note-hint">By {a.authorName || ownerLabel(a.by)}</div>
+              )}
               {a.startDate && <div className="private-note-hint">Estimated start: {a.startDate}</div>}
               {a.nextDueDate && <div className="private-note-hint">Next due: {a.nextDueDate}</div>}
               {a.notes && <div className="private-note-hint">{a.outcome === "Lost" ? "Why: " : ""}{a.notes}</div>}

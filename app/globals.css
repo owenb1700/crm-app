@@ -111,6 +111,17 @@ a {
   transform: translateY(1px);
 }
 
+/* A button you can't press should look like one. Most of these are the
+   moment while something saves, but a few are real gates -- Confirm on
+   Mark as Won waits for a winning bidder to be picked, and until this it
+   sat there full blue and did nothing when pressed. */
+.btn:disabled,
+.btn:disabled:active {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
 .btn-primary {
   background: var(--color-primary);
   color: #fff;
