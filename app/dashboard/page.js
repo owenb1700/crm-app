@@ -561,55 +561,6 @@ export default function Dashboard() {
     }
   };
 
-  // One-time correction: the Project "Company" field used to auto-capture
-  // into the Directory under the "Customer" category, but it's actually
-  // always been the contractor a project runs through, not the end
-  // customer -- so every company that landed under "Customer" this way
-  // needs to move to "Contractor". Safe to re-run; it's a no-op once
-  // there's nothing left categorized as Customer.
-  const [fixingContractorCategories, setFixingContractorCategories] = useState(false);
-
-  const fixContractorCategories = async () => {
-    setFixingContractorCategories(true);
-    try {
-      const toFix = companies.filter(c => c.category === "Customer");
-      await Promise.all(toFix.map(c => updateDoc(doc(db, "companies", c.id), { category: "Contractor" })));
-      await loadDirectory();
-      showToast(`Recategorized ${toFix.length} compan${toFix.length === 1 ? "y" : "ies"} to Contractor`);
-    } finally {
-      setFixingContractorCategories(false);
-    }
-  };
-
-  // Bringing stored project statuses in line after the renames. Look
-  // before you leap: the first press only reports what would change.
-  const [statusFix, setStatusFix] = useState(null);   // null | dry-run result | applied result
-  const [statusFixBusy, setStatusFixBusy] = useState("");
-  const [statusFixError, setStatusFixError] = useState("");
-
-  const runStatusFix = async (apply) => {
-    setStatusFixBusy(apply ? "apply" : "check");
-    setStatusFixError("");
-    try {
-      const idToken = await auth.currentUser.getIdToken();
-      const res = await fetch("/api/admin/migrate-categories", {
-        method: apply ? "POST" : "GET",
-        headers: { Authorization: `Bearer ${idToken}` }
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "That didn't work");
-      setStatusFix({ ...data, applied: apply ? data.applied : undefined });
-      if (apply) {
-        showToast(data.applied ? `${data.applied} project${data.applied === 1 ? "" : "s"} updated` : "Nothing needed changing");
-        loadCustomers(uid, role === "admin");
-      }
-    } catch (err) {
-      setStatusFixError(err.message);
-    } finally {
-      setStatusFixBusy("");
-    }
-  };
-
   const sendNotificationEmail = async (to, subject, html) => {
     try {
       const idToken = await auth.currentUser.getIdToken();
@@ -2970,66 +2921,6 @@ export default function Dashboard() {
           </div>
 
           <div className="admin-card">
-            <h3 className="modal-title">Project statuses</h3>
-            <p className="modal-subtitle" style={{ marginTop: 2 }}>
-              Pre-Bid and Prospecting became one status, and Order became Under
-              Contract/Ordered. Every screen already reads the old names correctly —
-              this brings the stored values in line so they agree. Checking changes
-              nothing; safe to run twice.
-            </p>
-
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-              <button
-                className="btn btn-secondary"
-                disabled={!!statusFixBusy}
-                onClick={() => runStatusFix(false)}
-              >
-                {statusFixBusy === "check" ? "Checking…" : "Check what would change"}
-              </button>
-              {statusFix && statusFix.total > 0 && statusFix.applied === undefined && (
-                <button
-                  className="btn btn-primary"
-                  disabled={!!statusFixBusy}
-                  onClick={() => runStatusFix(true)}
-                >
-                  {statusFixBusy === "apply" ? "Updating…" : `Update ${statusFix.total} project${statusFix.total === 1 ? "" : "s"}`}
-                </button>
-              )}
-            </div>
-
-            {statusFixError && <p className="settings-status is-error" style={{ marginTop: 8 }}>⚠ {statusFixError}</p>}
-
-            {statusFix && (
-              <div style={{ marginTop: 10 }}>
-                {statusFix.total === 0 ? (
-                  <p className="settings-status is-ok">Nothing to change — every project already uses the current statuses.</p>
-                ) : statusFix.applied !== undefined ? (
-                  <p className="settings-status is-ok">
-                    Updated {statusFix.applied} project{statusFix.applied === 1 ? "" : "s"}. Each one records what its status used to say.
-                  </p>
-                ) : (
-                  <>
-                    <p className="private-note-hint" style={{ marginBottom: 6 }}>
-                      {statusFix.total} project{statusFix.total === 1 ? "" : "s"} would change. Nothing has been altered yet.
-                    </p>
-                    {Object.entries(statusFix.moves || {}).map(([move, n]) => (
-                      <div key={move} className="notes-history-date">{move} — {n}</div>
-                    ))}
-                    <div style={{ marginTop: 6 }}>
-                      {(statusFix.records || []).slice(0, 25).map((r, i) => (
-                        <div key={i} className="notes-history-date">{r.name}: {r.from} → {r.to}</div>
-                      ))}
-                      {(statusFix.records || []).length > 25 && (
-                        <div className="notes-history-date">…and {statusFix.records.length - 25} more</div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="admin-card">
             <h3 className="modal-title">Team Members</h3>
 
             <table className="admin-table team-table stack-on-phone">
@@ -3080,14 +2971,6 @@ export default function Dashboard() {
             </p>
             <button className="btn btn-secondary" disabled={rebuildingDirectory} onClick={rebuildDirectory}>
               {rebuildingDirectory ? "Rebuilding..." : "Rebuild Directory From Existing Data"}
-            </button>
-
-            <p className="modal-subtitle" style={{ marginTop: 16, marginBottom: 12 }}>
-              A project's "Company" field is the contractor the job runs through, not the end customer --
-              run this once to move anything that landed under "Customer" over to "Contractor."
-            </p>
-            <button className="btn btn-secondary" disabled={fixingContractorCategories} onClick={fixContractorCategories}>
-              {fixingContractorCategories ? "Fixing..." : "Fix Contractor Categories"}
             </button>
           </div>
         </div>
