@@ -18,6 +18,7 @@ import ExportDataModal from "../../components/ExportDataModal";
 import MobileNav from "../../components/MobileNav";
 import ViewTabs from "../../components/ViewTabs";
 import { withoutTrashed } from "../../../lib/trash";
+import { performanceByManufacturer, describeVariance } from "../../../lib/leadTimePerformance";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -494,6 +495,15 @@ function AnalyticsPageContent() {
 
   const partsStats = useMemo(() => summarizeParts(filteredParts), [filteredParts]);
 
+  // What was quoted against what actually shipped. Both numbers have been
+  // on the records for months; this is the first thing to put them side by
+  // side. Projects, pipeline entries and parts all carry a lead time and
+  // an order date, so all three count.
+  const shipping = useMemo(
+    () => performanceByManufacturer([...filteredProjects, ...filtered, ...filteredParts]),
+    [filteredProjects, filtered, filteredParts]
+  );
+
   const stats = useMemo(() => summarizeMixed(bidRecords({ entries: filtered, projects: filteredProjects })), [filtered, filteredProjects]);
   const volumeStats = useMemo(() => summarizeMixed(volumeRecords({ entries: filtered, projects: filteredProjects })), [filtered, filteredProjects]);
   const repairStats = useMemo(() => summarizeProjects(repairRecords({ projects: filteredProjects }).projects), [filteredProjects]);
@@ -716,6 +726,51 @@ function AnalyticsPageContent() {
             </table>
           </div>
         </div>
+      )}
+
+      {shipping.length > 0 && (
+        <>
+          <h2 className="analytics-section-title">Lead times kept</h2>
+          <div className="analytics-card">
+            <h3 className="analytics-card-title">By manufacturer</h3>
+            <p className="private-note-hint" style={{ marginTop: -4 }}>
+              The lead time quoted when the job was entered against the days it actually
+              took to ship, in business days. Worst average first. A job naming several
+              manufacturers counts once for each, since they ship together and the quote
+              is the longest component&apos;s.
+            </p>
+            <div className="analytics-table-wrap">
+              <table className="analytics-table stack-on-phone">
+                <thead>
+                  <tr>
+                    <th>Manufacturer</th>
+                    <th>Shipments</th>
+                    <th>On time</th>
+                    <th>Avg. quoted</th>
+                    <th>Avg. actual</th>
+                    <th>Difference</th>
+                    <th>Worst</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shipping.map(row => (
+                    <tr key={row.manufacturer}>
+                      <td className="analytics-table-name" data-label="Manufacturer">{row.manufacturer}</td>
+                      <td data-label="Shipments">{row.jobs}</td>
+                      <td data-label="On time">{row.onTime} of {row.jobs} ({row.onTimeRate}%)</td>
+                      <td data-label="Avg. quoted">{row.avgQuotedDays} days</td>
+                      <td data-label="Avg. actual">{row.avgActualDays} days</td>
+                      <td data-label="Difference" style={row.avgVarianceDays > 0 ? { color: "var(--color-warning-strong)" } : undefined}>
+                        {describeVariance(row.avgVarianceDays)}
+                      </td>
+                      <td data-label="Worst">{row.worstVarianceDays > 0 ? describeVariance(row.worstVarianceDays) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
 
       <h2 className="analytics-section-title">Repair projects</h2>
