@@ -46,7 +46,7 @@ import ViewTabs from "../components/ViewTabs";
 import RecordNotes from "../components/RecordNotes";
 import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabels, startOfWeek, dateKey, calendarKeyFor as calendarDayKeyFor } from "../../lib/calendarDays";
 import CalendarNav from "../components/CalendarNav";
-import { resolvedBidItems, outcomeItems, activityItems, leadTimeItems, dedupeByDay } from "../../lib/calendarHistory";
+import { resolvedBidItems, outcomeItems, activityItems, leadTimeItems, doneReminderItems, dedupeByDay } from "../../lib/calendarHistory";
 import { leadTimeStatus, todayKey } from "../../lib/leadTimes";
 import { hasShare, splitShares } from "../../lib/splits";
 import { exportDashboardView } from "../../lib/viewExport";
@@ -55,6 +55,7 @@ import SortPicker from "../components/SortPicker";
 import { sortRows, sortMixed } from "../../lib/sorting";
 import Icon from "../components/Icon";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { completedPayload, isOpen, doneOnly } from "../../lib/reminders";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -453,17 +454,18 @@ export default function Dashboard() {
 
   const completeReminder = (r) => setAsk({
     title: "Mark this reminder complete?",
-    message: `"${r.subject}" is deleted permanently when you do.`,
+    message: `"${r.subject}" moves to Done. It stays on your calendar on the day it was due, and on the job it belongs to.`,
     confirmLabel: "Mark complete",
-    danger: true,
     onConfirm: () => reallyCompleteReminder(r)
   });
 
   const reallyCompleteReminder = async (r) => {
     setAsk(null);
     try {
-      await deleteDoc(doc(db, "reminders", r.id));
-      setReminders(prev => prev.filter(x => x.id !== r.id));
+      // Marked done, not deleted: the day it was due is history worth
+      // keeping, and it stays on that day in the calendar.
+      await updateDoc(doc(db, "reminders", r.id), completedPayload(uid));
+      setReminders(prev => prev.map(x => (x.id === r.id ? { ...x, ...completedPayload(uid) } : x)));
       setReminderForm(null);
       showToast("Reminder completed");
     } catch (err) {
@@ -948,9 +950,15 @@ export default function Dashboard() {
   // scrolling back through the calendar shows no check-in history before
   // today. Logging it means that history builds from here.
   const checkInMoved = (record, to, what) => ({
-    type: "completed",
+    // "handled", not "completed": the check-in was dealt with, the job
+    // wasn't finished. The old label read as the whole job being done.
+    type: "handled",
     outcome: what,
     notes: `Check-in ${String(record.nextCheckIn || "").slice(0, 10) || "(none)"} → ${String(to).slice(0, 10)}`,
+    // The day the check-in was due. That is where it belongs on the
+    // calendar -- moving it is admin, the due date is the history -- and
+    // it's why snoozing something doesn't wipe it off the week it was on.
+    onDate: String(record.nextCheckIn || "").slice(0, 10) || null,
     timestamp: new Date().toISOString(),
     by: uid
   });
@@ -1432,10 +1440,15 @@ export default function Dashboard() {
 
   // Reminders attached to a job that's been deleted (in the Trash) stay
   // hidden until the job is restored.
-  const activeReminders = useMemo(
+  const visibleReminders = useMemo(
     () => reminders.filter(r => reminderJobIsActive(r, customers, pipelineEntries, parts)),
     [reminders, customers, pipelineEntries, parts]
   );
+
+  // Still to do -- what the panel, the overdue list and the digest chase.
+  const activeReminders = useMemo(() => visibleReminders.filter(isOpen), [visibleReminders]);
+  // Done, and kept: these sit on the calendar on the day they were due.
+  const finishedReminders = useMemo(() => doneOnly(visibleReminders), [visibleReminders]);
 
   // Restoring something from the Trash refreshes the lists here.
   useEffect(() => {
@@ -1489,7 +1502,9 @@ export default function Dashboard() {
       ...activityItems(pipelineEntries, minePipeline, "outcome"),
       // Ship dates only for records someone asked to be told about.
       ...leadTimeItems(customers, mineProject, r => leadTimeStatus(r, todayKey())),
-      ...leadTimeItems(pipelineEntries, minePipeline, r => leadTimeStatus(r, todayKey()))
+      ...leadTimeItems(pipelineEntries, minePipeline, r => leadTimeStatus(r, todayKey())),
+      // Reminders you finished, on the day they were due.
+      ...doneReminderItems(finishedReminders)
     ]);
 
     // A Won entry's follow-up and an open entry's check-in are the same
@@ -1503,7 +1518,7 @@ export default function Dashboard() {
       ...reminderItems,
       ...history
     ];
-  }, [customers, pipelineEntries, activeReminders, uid, role]);
+  }, [customers, pipelineEntries, activeReminders, finishedReminders, uid, role]);
 
   // Jobs a reminder can be attached to: active projects you own or
   // collaborate on (every active project for admins) and open pipeline

@@ -4830,3 +4830,12 @@ a {
 .mark-won { color: var(--color-success); }
 .mark-lost { color: var(--color-danger); }
 .mark-dnb { color: var(--color-danger); }
+
+/* A finished item in a history list: still readable, clearly behind you. */
+.notes-history-item.is-done {
+  opacity: 0.75;
+}
+
+.reminder-row.is-done {
+  opacity: 0.75;
+}

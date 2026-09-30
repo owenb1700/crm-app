@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "../../../lib/firebase";
 import { localDateKey, weekdayKey } from "../../../lib/closedProjects";
 import { withoutTrashed } from "../../../lib/trash";
@@ -13,6 +13,8 @@ import JobPicker from "../../components/JobPicker";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import SortPicker from "../../components/SortPicker";
 import { sortRows } from "../../../lib/sorting";
+import { completedPayload, openOnly, doneOnly, describeDone } from "../../../lib/reminders";
+import Icon from "../../components/Icon";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -222,8 +224,11 @@ export default function RemindersPage() {
 
   const complete = async (r) => {
     try {
-      await deleteDoc(doc(db, "reminders", r.id));
-      setReminders(prev => prev.filter(x => x.id !== r.id));
+      const done = completedPayload(uid);
+      await updateDoc(doc(db, "reminders", r.id), done);
+      // Kept in the list, marked done -- dropping it here would hide the
+      // very record the write just preserved.
+      setReminders(prev => prev.map(x => (x.id === r.id ? { ...x, ...done } : x)));
       setConfirmComplete(null);
       setNotice("Reminder completed");
     } catch (err) {
@@ -250,8 +255,12 @@ export default function RemindersPage() {
     subject: { kind: "text", get: r => r.subject, label: "Subject" },
     added: { kind: "date", get: r => r.createdAt, label: "Date added" }
   };
-  const overdue = sortRows(reminders.filter(r => String(r.date) < today), REMINDER_SORTS, sort);
-  const upcoming = sortRows(reminders.filter(r => String(r.date) >= today), REMINDER_SORTS, sort);
+  // Only what's still to do is overdue or upcoming; finished ones are a
+  // record, listed separately rather than nagging from the top of the page.
+  const live = openOnly(reminders);
+  const overdue = sortRows(live.filter(r => String(r.date) < today), REMINDER_SORTS, sort);
+  const upcoming = sortRows(live.filter(r => String(r.date) >= today), REMINDER_SORTS, sort);
+  const finished = sortRows(doneOnly(reminders), REMINDER_SORTS, sort);
 
   const renderReminder = (r) => {
     const job = jobOf(r);
@@ -353,17 +362,37 @@ export default function RemindersPage() {
           {upcoming.length === 0 && <p className="private-note-hint">Nothing coming up.</p>}
           {upcoming.map(renderReminder)}
         </div>
+
+        {/* Kept, not deleted. This is the answer to "when did I chase
+            that?", which nothing could answer while completing threw the
+            row away. */}
+        {finished.length > 0 && (
+          <div className="project-section">
+            <h4 className="field-label" style={{ marginTop: 0 }}>Done ({finished.length})</h4>
+            {finished.map(r => (
+              <div key={r.id} className="reminder-row is-done">
+                <div className="reminder-row-main">
+                  <div className="reminder-row-title">
+                    <Icon name="check" size={12} className="mark mark-won" />
+                    <strong>{r.subject}</strong>
+                  </div>
+                  <div className="notes-history-date">{describeDone(r)}</div>
+                  {r.notes && <div className="reminder-row-notes">{r.notes}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {confirmComplete && (
         <ConfirmDialog
           title={`Complete "${confirmComplete.subject}"?`}
           confirmLabel="Complete"
-          danger
           onCancel={() => setConfirmComplete(null)}
           onConfirm={() => complete(confirmComplete)}
         >
-          <p>Completing a reminder deletes it for good. Use Follow Up (1 Week) instead to push it out.</p>
+          <p>It moves to Done and stays there — on your calendar on the day it was due, and on the job it belongs to. Use Follow Up (1 Week) to push it out instead.</p>
         </ConfirmDialog>
       )}
     </div>

@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, deleteDoc, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
+import { collection, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { localDateKey, weekdayKey } from "../../lib/closedProjects";
 import ConfirmDialog from "./ConfirmDialog";
+import { completedPayload, openOnly, doneOnly, describeDone } from "../../lib/reminders";
+import Icon from "./Icon";
 
 const fromKey = (key) => {
   const [y, m, d] = key.split("-").map(Number);
@@ -61,8 +63,8 @@ export default function ProjectMyReminders({ projectId, uid }) {
     setAsk(null);
     setError("");
     try {
-      await deleteDoc(doc(db, "reminders", r.id));
-      setReminders(prev => prev.filter(x => x.id !== r.id));
+      await updateDoc(doc(db, "reminders", r.id), completedPayload(uid));
+      setReminders(prev => prev.map(x => (x.id === r.id ? { ...x, ...completedPayload(uid) } : x)));
     } catch (err) {
       setError(`Couldn't complete the reminder: ${err.message}`);
     }
@@ -74,13 +76,14 @@ export default function ProjectMyReminders({ projectId, uid }) {
     <div className="project-section">
       <h4 className="field-label">My Reminders</h4>
       <p className="private-note-hint" style={{ marginBottom: 10 }}>
-        Reminders you attached to this project with + Add Reminder. Only you see these.
+        Reminders you attached to this project with + Add Reminder. Only you see these,
+        finished ones included — they stay as a record of when you chased what.
       </p>
 
       {loadError && <p className="settings-status is-error">⚠ Couldn't load your reminders: {loadError}</p>}
       {!loadError && reminders.length === 0 && <p className="private-note-hint">No reminders attached to this project.</p>}
 
-      {reminders.map(r => (
+      {openOnly(reminders).map(r => (
         <div key={r.id} className="notes-history-item">
           <div><strong>{r.subject}</strong></div>
           <div className="notes-history-date">
@@ -94,17 +97,32 @@ export default function ProjectMyReminders({ projectId, uid }) {
           </div>
         </div>
       ))}
+
+      {/* Finished ones read as a log of what was chased and when -- the
+          thing a project page could never answer while completing deleted
+          the row. Still private: these are your reminders. */}
+      {doneOnly(reminders).length > 0 && (
+        <>
+          <h4 className="field-label" style={{ marginTop: 14 }}>Done ({doneOnly(reminders).length})</h4>
+          {doneOnly(reminders).map(r => (
+            <div key={r.id} className="notes-history-item is-done">
+              <div><Icon name="check" size={12} className="mark mark-won" /> {r.subject}</div>
+              <div className="notes-history-date">{describeDone(r)}</div>
+              {r.notes && <div className="notes-history-date" style={{ whiteSpace: "pre-wrap" }}>{r.notes}</div>}
+            </div>
+          ))}
+        </>
+      )}
       {error && <p className="settings-status is-error">{error}</p>}
 
       {ask && (
         <ConfirmDialog
           title="Mark this reminder complete?"
           confirmLabel="Mark complete"
-          danger
           onCancel={() => setAsk(null)}
           onConfirm={ask.onConfirm}
         >
-          <p>&quot;{ask.subject}&quot; is deleted permanently when you do.</p>
+          <p>&quot;{ask.subject}&quot; moves to Done. It stays on this project and on your calendar on the day it was due.</p>
         </ConfirmDialog>
       )}
     </div>
