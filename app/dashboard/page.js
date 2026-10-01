@@ -2070,7 +2070,6 @@ export default function Dashboard() {
               <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
                 <ClosedCheckInActions
                   project={c}
-                  compact
                   byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
                   onDone={(msg) => { showToast(msg); loadCustomers(uid, role === "admin"); }}
                 />
@@ -3345,7 +3344,6 @@ export default function Dashboard() {
                 {c._kind === "project" && isClosedWithCheckIn(c) && isOwnerOfProject && (
                   <ClosedCheckInActions
                     project={c}
-                    compact
                     byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
                     onDone={(msg) => { setCalendarPopup(null); showToast(msg); loadCustomers(uid, role === "admin"); }}
                   />

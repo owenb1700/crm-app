@@ -24,7 +24,7 @@ import BidHistory from "../../../components/BidHistory";
 import DeleteRecordButton from "../../../components/DeleteRecordButton";
 import ClosedCheckInActions from "../../../components/ClosedCheckInActions";
 import { closeProjectPayload, isClosedWithCheckIn, isCheckInDue, lostCheckIn, lostCheckInProblem, weekdayKey,
-  CHECK_IN_OFFERS, CHECK_IN_UNITS, blankCheckInPlan, checkInPlanPayload, checkInPlanProblem, describeCheckInPlan
+  CHECK_IN_OFFERS, CHECK_IN_UNITS, blankCheckInPlan, checkInPlanPayload, checkInPlanProblem, describeCheckInPlan, hasCheckInsComing
 } from "../../../../lib/closedProjects";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import { PRODUCT_TYPES, manufacturerOptionsFor } from "../../../../lib/products";
@@ -769,11 +769,13 @@ export default function ProjectDetail() {
         {isCheckInDue(customer) && <span className="role-badge" style={{ marginLeft: 8 }}>Due</span>}
       </p>
       <p className="private-note-hint" style={{ marginBottom: 10 }}>
-        {customer.closedOutcome === "Lost"
-          ? "This bid was lost and you asked to look at it again. Log what you find with Update, or move the date."
-          : (customer.checkInSchedule || customer.checkInEveryMonths)
-            ? "Check in with the customer, then log it with Update. The next one comes from the plan set when the job closed."
-            : "Check in with the customer, then log it with Update to set the next check-in 2 years out, or snooze it."}
+        {!hasCheckInsComing(customer)
+          ? "Nothing scheduled — this job has been left alone. Snooze gives it a new date if you change your mind."
+          : customer.closedOutcome === "Lost"
+            ? "This bid was lost and you asked to look at it again. Log what you find with Update, or move the date."
+            : (customer.checkInSchedule || customer.checkInEveryMonths)
+              ? "Check in with the customer, then log it with Update. The next one comes from the plan set when the job closed."
+              : "Check in with the customer, then log it with Update to set the next check-in 2 years out, or snooze it."}
       </p>
       {(isOwner || role === "admin") ? (
         <ClosedCheckInActions

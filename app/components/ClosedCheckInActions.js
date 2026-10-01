@@ -3,13 +3,17 @@
 import { useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { checkInUpdatePayload, snoozePayload, yearsFrom, localDateKey, UPDATE_CHECK_IN_YEARS } from "../../lib/closedProjects";
+import { checkInUpdatePayload, snoozePayload, localDateKey, SNOOZE_OPTIONS, snoozeMonthsPayload, stopCheckInsPayload, hasCheckInsComing } from "../../lib/closedProjects";
 
 // Update / Snooze buttons for a closed project's check-in. Update requires
-// saying who you checked in with and resets the check-in to 2 years out;
-// Snooze 1 Year or Pick a date just moves it. Every action is written to
-// the project's activity log so the history of check-ins is kept.
-export default function ClosedCheckInActions({ project, byName, onDone, compact = false }) {
+// saying who you checked in with and moves on to the next date the plan
+// asked for; Snooze just moves this one.
+//
+// A check-in that has come back is not always wrong, only early -- so the
+// snooze offers two months, a year, two years, a date of your own, or
+// indefinitely for the jobs that are genuinely finished with. Every
+// action is written to the project's activity log, including stopping.
+export default function ClosedCheckInActions({ project, byName, onDone }) {
   const [mode, setMode] = useState(null); // null | "update" | "snooze"
   const [person, setPerson] = useState("");
   const [notes, setNotes] = useState("");
@@ -45,8 +49,8 @@ export default function ClosedCheckInActions({ project, byName, onDone, compact 
     write(payload, `Check-in logged — next one ${payload.nextCheckIn}`);
   };
 
-  const snoozeYear = () => {
-    const payload = snoozePayload(project, { dateKey: yearsFrom(new Date(), 1), byName });
+  const snoozeMonths = (months) => {
+    const payload = snoozeMonthsPayload(project, { months, byName });
     write(payload, `Snoozed to ${payload.nextCheckIn}`);
   };
 
@@ -57,12 +61,15 @@ export default function ClosedCheckInActions({ project, byName, onDone, compact 
     write(payload, `Snoozed to ${payload.nextCheckIn}`);
   };
 
+  const stopForGood = () => {
+    write(stopCheckInsPayload(project, { byName }), "Check-ins stopped for this job");
+  };
+
   return (
     <>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>
-        <button className="btn btn-primary" disabled={saving} onClick={() => setMode("update")}>Update</button>
-        <button className="btn btn-secondary" disabled={saving} onClick={snoozeYear}>{compact ? "Snooze 1 Yr" : "Snooze 1 Year"}</button>
-        <button className="btn btn-secondary" disabled={saving} onClick={() => setMode("snooze")}>Pick a date</button>
+        <button className="btn btn-primary" disabled={saving || !hasCheckInsComing(project)} onClick={() => setMode("update")}>Update</button>
+        <button className="btn btn-secondary" disabled={saving} onClick={() => setMode("snooze")}>Snooze</button>
       </div>
       {error && !mode && <p className="settings-status is-error">{error}</p>}
 
@@ -75,7 +82,7 @@ export default function ClosedCheckInActions({ project, byName, onDone, compact 
               <>
                 <h3 className="modal-title">Log a check-in</h3>
                 <p className="modal-subtitle" style={{ marginBottom: 12 }}>
-                  {project.projectName || project.company} — the next check-in will be set {UPDATE_CHECK_IN_YEARS} years out.
+                  {project.projectName || project.company} — logging this moves on to the next check-in the plan asked for.
                 </p>
                 <label className="field-label" htmlFor={`checkin-person-${project.id}`}>Who did you check in with?</label>
                 <input
@@ -99,23 +106,53 @@ export default function ClosedCheckInActions({ project, byName, onDone, compact 
             ) : (
               <>
                 <h3 className="modal-title">Snooze check-in</h3>
-                <p className="modal-subtitle" style={{ marginBottom: 12 }}>Choose when this check-in should come up again.</p>
-                <label className="field-label" htmlFor={`checkin-snooze-${project.id}`}>Next check-in date</label>
+                <p className="modal-subtitle" style={{ marginBottom: 12 }}>
+                  {project.projectName || project.company} — when should this come up again?
+                </p>
+                <div className="reason-picker">
+                  {SNOOZE_OPTIONS.map(opt => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={saving}
+                      onClick={() => snoozeMonths(opt.months)}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                <label className="field-label" htmlFor={`checkin-snooze-${project.id}`}>Or pick your own date</label>
                 <input
                   id={`checkin-snooze-${project.id}`}
                   className="field"
                   type="date"
                   value={snoozeDate}
-                  onChange={e => setSnoozeDate(e.target.value)}
+                  onChange={e => { setSnoozeDate(e.target.value); setError(""); }}
                 />
+
+                {/* Last, and on its own, because it is the one that can't
+                    be undone by waiting. */}
+                {hasCheckInsComing(project) && (
+                  <>
+                    <label className="field-label" style={{ marginTop: 14 }}>Done with this one</label>
+                    <button className="btn btn-secondary btn-block" disabled={saving} onClick={stopForGood}>
+                      Stop asking about this job
+                    </button>
+                    <p className="private-note-hint">
+                      Clears this check-in and the rest of the plan. You can set a new date any time.
+                    </p>
+                  </>
+                )}
               </>
             )}
 
             {error && <p className="settings-status is-error">{error}</p>}
 
             <div className="modal-actions">
-              <button className="btn btn-primary" disabled={saving} onClick={mode === "update" ? submitUpdate : submitSnoozeDate}>
-                {saving ? "Saving…" : mode === "update" ? "Log Check-In" : "Snooze"}
+              <button className="btn btn-primary" disabled={saving || (mode === "snooze" && !snoozeDate)} onClick={mode === "update" ? submitUpdate : submitSnoozeDate}>
+                {saving ? "Saving…" : mode === "update" ? "Log Check-In" : snoozeDate ? `Snooze to ${snoozeDate}` : "Pick a date first"}
               </button>
               <button className="btn btn-secondary" onClick={close}>Cancel</button>
             </div>
