@@ -961,109 +961,145 @@ export default function PipelineDetail() {
 
         {isEditing ? (
           <div className="project-section">
-            <h4 className="field-label">Project / Opportunity Name</h4>
-            <input className="field" name="pd-title" autoComplete="off" value={editData.title} onChange={e => setEditData({ ...editData, title: e.target.value })} />
+            {/* The form reads as labelled blocks, in the order someone
+                coming back to an entry actually wants them: what the job
+                is, where the bid stands, then the people on it, then the
+                equipment. Everything that belongs together sits together,
+                and a block uses three columns when three fields fit --
+                a two-wide grid made every select twice as wide as it
+                needed to be and pushed the rest off the screen. */}
+            <label className="field-label" style={{ marginTop: 0 }} htmlFor="pipeline-detail-title">Project / Opportunity Name</label>
+            <input id="pipeline-detail-title" className="field" name="pd-title" autoComplete="off" value={editData.title} onChange={e => setEditData({ ...editData, title: e.target.value })} />
 
             {/* Straight under the name. Two jobs for the same contractor
                 read identically until you can see which building they are
                 at, and the address was three sections down. */}
-            <label className="field-label">Project Address</label>
+            <label className="field-label" htmlFor="pipeline-detail-address">Project Address</label>
             <AddressAutocomplete name="pipeline-detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
 
-            <div className="form-grid-2">
-              <BuildingSectorSelect id="pipeline-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
-              <div>
-                <h4 className="field-label">Stage</h4>
-                <select className="field" value={normalizeStage(editData.stage)} onChange={e => setEditData({ ...editData, stage: e.target.value })}>
-                  {PIPELINE_STAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
+            <div className="edit-block">
+              <h4 className="edit-block-title">Bid</h4>
+              <div className="form-grid-3">
+                <div>
+                  <label className="field-label" htmlFor="pipeline-detail-bid-date">Bid Date</label>
+                  <input id="pipeline-detail-bid-date" className="field" type="date" value={editData.bidDate} onChange={e => setEditData({ ...editData, bidDate: e.target.value })} />
+                </div>
+                <div>
+                  <label className="field-label" htmlFor="pipeline-detail-stage">Stage</label>
+                  <select id="pipeline-detail-stage" className="field" value={normalizeStage(editData.stage)} onChange={e => setEditData({ ...editData, stage: e.target.value })}>
+                    {PIPELINE_STAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label" htmlFor="pipeline-detail-value">Estimated Value</label>
+                  <MoneyInput id="pipeline-detail-value" name="pd-value" value={editData.value} onChange={v => setEditData(prev => ({ ...prev, value: v }))} />
+                </div>
               </div>
-              <div>
-                <h4 className="field-label">Bid Date</h4>
-                <input className="field" type="date" value={editData.bidDate} onChange={e => setEditData({ ...editData, bidDate: e.target.value })} />
-              </div>
+            </div>
 
-              <div>
-                <h4 className="field-label">Estimated Value</h4>
-                <MoneyInput name="pd-value" value={editData.value} onChange={v => setEditData(prev => ({ ...prev, value: v }))} />
+            <div className="edit-block">
+              <h4 className="edit-block-title">The Job</h4>
+              <div className="form-grid-3">
+                <BuildingSectorSelect id="pipeline-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
+                <WorkTypeSelect id="pipeline-detail-work-type" value={editData.workType} onChange={v => setEditData({ ...editData, workType: v })} />
               </div>
-              <WorkTypeSelect id="pipeline-detail-work-type" value={editData.workType} onChange={v => setEditData({ ...editData, workType: v })} />
-              <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
+            </div>
+
+            <div className="edit-block">
+              <h4 className="edit-block-title">Engineering Firm</h4>
+              <div className="form-grid-3">
+                <CompanyContactFields
+                  idPrefix="pipeline-detail"
+                  companies={companies}
+                  contacts={contacts}
+                  companyLabel="Firm"
+                  companyCategory="Engineering Firm"
+                  companyValue={editData.company}
+                  contactValue={editData.contact}
+                  emailValue={editData.email}
+                  phoneValue={editData.phone}
+                  onCompanyChange={v => setEditData(prev => ({
+                    ...prev,
+                    company: v,
+                    salespersonId: salespersonAfterFirmChange({ companies, users, previousFirm: prev.company, nextFirm: v, currentSalespersonId: prev.salespersonId })
+                  }))}
+                  onContactChange={v => setEditData(prev => ({ ...prev, contact: v }))}
+                  onEmailChange={v => setEditData(prev => ({ ...prev, email: v }))}
+                  onPhoneChange={v => setEditData(prev => ({ ...prev, phone: v }))}
+                />
+              </div>
+            </div>
+
+            <div className="edit-block">
+              <h4 className="edit-block-title">Assigned Team</h4>
+              <div className="form-grid-3">
+                <div>
+                  <label className="field-label" htmlFor="pipeline-detail-salesperson">Salesperson</label>
+                  <select id="pipeline-detail-salesperson" className="field" value={editData.salespersonId} onChange={e => setEditData({ ...editData, salespersonId: e.target.value })}>
+                    <option value="">Unassigned</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label" htmlFor="pipeline-detail-point-person">Project Point Person</label>
+                  <select id="pipeline-detail-point-person" className="field" value={editData.projectPointPersonId} onChange={e => setEditData({ ...editData, projectPointPersonId: e.target.value })}>
+                    <option value="">Unassigned</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* "Equipment Lead Time" as a heading sat directly on top of a
+                field labelled "Lead time (longest component)" -- the same
+                words twice. The block is the equipment, and the fields
+                inside it name themselves. */}
+            <div className="edit-block">
+              <h4 className="edit-block-title">Equipment Lead Time</h4>
               <LeadTimeFields
                 idPrefix="pipeline-detail"
                 values={editData}
                 setValues={setEditData}
+                inSection
                 /* Winning the bid is when the equipment gets ordered, so
                    that is when an order date means something -- the same
                    moment a project reaching Order does. Before that a
                    lead time here is still just a note. */
                 allowAlerts={pipeline.outcome === "Won"}
               />
-              <CompanyContactFields
-                idPrefix="pipeline-detail"
+            </div>
+
+            <div className="edit-block">
+              <h4 className="edit-block-title">Product Options</h4>
+              <ProductOptionsEditor
+                idPrefix="pipeline-detail-product"
+                rows={productRows}
+                onChange={setProductRows}
+                products={products}
+                history={{ projects: pastProjects }}
+              />
+            </div>
+
+            <div className="edit-block">
+              <h4 className="edit-block-title">Credit Split</h4>
+              <CreditSplitEditor idPrefix="pipeline-detail-split" users={users} value={splitRows} onChange={setSplitRows} ownerId={editData.salespersonId || pipeline.ownerId} />
+            </div>
+
+            <div className="edit-block">
+              <h4 className="edit-block-title">Contractors &amp; Owners Bidding</h4>
+              <BidderEditor
+                idPrefix="pipeline-detail-bidder"
+                bidders={biddingRows}
+                onChange={setBiddingRows}
                 companies={companies}
                 contacts={contacts}
-                companyLabel="Engineering Firm"
-                companyCategory="Engineering Firm"
-                companyValue={editData.company}
-                contactValue={editData.contact}
-                emailValue={editData.email}
-                phoneValue={editData.phone}
-                onCompanyChange={v => setEditData(prev => ({
-                  ...prev,
-                  company: v,
-                  salespersonId: salespersonAfterFirmChange({ companies, users, previousFirm: prev.company, nextFirm: v, currentSalespersonId: prev.salespersonId })
-                }))}
-                onContactChange={v => setEditData(prev => ({ ...prev, contact: v }))}
-                onEmailChange={v => setEditData(prev => ({ ...prev, email: v }))}
-                onPhoneChange={v => setEditData(prev => ({ ...prev, phone: v }))}
+                users={users}
               />
-
             </div>
-
-            <h4 className="field-label" style={{ marginTop: 16 }}>Assigned Team</h4>
-            <div className="form-grid-2">
-              <div>
-                <label className="field-label">Salesperson</label>
-                <select className="field" value={editData.salespersonId} onChange={e => setEditData({ ...editData, salespersonId: e.target.value })}>
-                  <option value="">Unassigned</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="field-label">Project Point Person</label>
-                <select className="field" value={editData.projectPointPersonId} onChange={e => setEditData({ ...editData, projectPointPersonId: e.target.value })}>
-                  <option value="">Unassigned</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split</h4>
-            <CreditSplitEditor idPrefix="pipeline-detail-split" users={users} value={splitRows} onChange={setSplitRows} ownerId={editData.salespersonId || pipeline.ownerId} />
-
-            <h4 className="field-label" style={{ marginTop: 16 }}>Contractors & Owners Bidding</h4>
-            <BidderEditor
-              idPrefix="pipeline-detail-bidder"
-              bidders={biddingRows}
-              onChange={setBiddingRows}
-              companies={companies}
-              contacts={contacts}
-              users={users}
-            />
-
-            <h4 className="field-label" style={{ marginTop: 16 }}>Product Options</h4>
-            <ProductOptionsEditor
-              idPrefix="pipeline-detail-product"
-              rows={productRows}
-              onChange={setProductRows}
-              products={products}
-              history={{ projects: pastProjects }}
-            />
           </div>
         ) : (
           <>
@@ -1092,6 +1128,17 @@ export default function PipelineDetail() {
               </div>
 
               {outcomeSection}
+
+              {uid && (
+                <PipelineNotes
+                  pipelineId={pipelineId}
+                  uid={uid}
+                  myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown")}
+                  legacyNotes={canSeeNotes ? privateData?.notes : ""}
+                  legacyHistory={canSeeNotes ? privateData?.notesHistory : []}
+                  span=""
+                />
+              )}
 
               <div className="project-section detail-span-2">
                 <div className="section-head-row">
@@ -1141,18 +1188,6 @@ export default function PipelineDetail() {
                 )}
               </div>
 
-              <div className="project-section">
-                <h4 className="field-label">Product Options</h4>
-                {productRowsFrom(pipeline).length === 0 ? (
-                  <p className="private-note-hint">None added yet.</p>
-                ) : (
-                  productRowsFrom(pipeline).map((row, i) => (
-                    <p key={i}>
-                      <strong>{row.type || "Product"}:</strong> {[row.manufacturer, row.model].filter(Boolean).join(" — ") || "—"}
-                    </p>
-                  ))
-                )}
-              </div>
             </div>
           </>
         )}
@@ -1164,15 +1199,18 @@ export default function PipelineDetail() {
             <PipelineMyAlerts pipeline={pipeline} uid={uid} users={users} />
           )}
 
-          {uid && (
-            <PipelineNotes
-              pipelineId={pipelineId}
-              uid={uid}
-              myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown")}
-              legacyNotes={canSeeNotes ? privateData?.notes : ""}
-              legacyHistory={canSeeNotes ? privateData?.notesHistory : []}
-            />
-          )}
+          <div className="project-section">
+            <h4 className="field-label">Product Options</h4>
+            {productRowsFrom(pipeline).length === 0 ? (
+              <p className="private-note-hint">None added yet.</p>
+            ) : (
+              productRowsFrom(pipeline).map((row, i) => (
+                <p key={i}>
+                  <strong>{row.type || "Product"}:</strong> {[row.manufacturer, row.model].filter(Boolean).join(" — ") || "—"}
+                </p>
+              ))
+            )}
+          </div>
 
           <div className="project-section">
             <h4 className="field-label">Files (PDF)</h4>

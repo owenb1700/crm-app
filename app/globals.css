@@ -93,6 +93,41 @@ a {
   margin: 10px 0 4px;
 }
 
+/* Editing a record reads as a handful of labelled blocks rather than one
+   long column of fields. Somebody coming back to move a bid date should
+   find it without scrolling past the engineering firm's phone number, and
+   the things that belong together -- a firm and its contact details --
+   should sit together and look like they do. */
+.edit-block {
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.edit-block-title {
+  display: block;
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text);
+}
+
+/* A line of explanation under a block heading, before its fields. */
+.edit-block-note {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* The first field in a block sits under the heading, not pushed down by
+   the label's own top margin. */
+.edit-block > .form-grid-2 > div > .field-label:first-child,
+.edit-block > .form-grid-3 > div > .field-label:first-child {
+  margin-top: 6px;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;

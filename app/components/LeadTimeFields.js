@@ -74,7 +74,10 @@ export function LeadTimeFields({
   setValues,
   defaultUnit = "weeks",
   subject = "This job's components", plural = true,
-  allowAlerts = true
+  allowAlerts = true,
+  // True when a section heading above already says "Equipment Lead Time".
+  // Without this the field repeated the words directly under them.
+  inSection = false
 }) {
   const set = (field) => (e) => setValues(prev => ({ ...prev, [field]: e.target.value }));
   const stamp = (field) => () => setValues(prev => ({ ...prev, [field]: todayKey() }));
@@ -113,7 +116,9 @@ export function LeadTimeFields({
       <div className="form-grid-2">
         <div>
           <label className="field-label" htmlFor={`${idPrefix}-lead-low`}>
-            Lead time{defaultUnit === "days" ? "" : " (longest component)"}
+            {inSection
+              ? (defaultUnit === "days" ? "How long" : "Longest component")
+              : `Lead time${defaultUnit === "days" ? "" : " (longest component)"}`}
           </label>
           <LeadTimeInput
             idPrefix={idPrefix}

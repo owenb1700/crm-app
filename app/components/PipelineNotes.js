@@ -17,7 +17,9 @@ import ConfirmDialog from "./ConfirmDialog";
 //
 // Nothing is removed when an entry is won, lost or converted; the entry
 // keeps its notes and the project it becomes links back to it.
-export default function PipelineNotes({ pipelineId, uid, myName, legacyNotes, legacyHistory }) {
+// `span` is how wide the box sits in the detail grid. It was always a
+// full row; beside the bidding list it wants one column.
+export default function PipelineNotes({ pipelineId, uid, myName, legacyNotes, legacyHistory, span = "detail-span-full" }) {
   const [tab, setTab] = useState("team");
   const [mine, setMine] = useState([]);
   const [team, setTeam] = useState([]);
@@ -101,7 +103,7 @@ export default function PipelineNotes({ pipelineId, uid, myName, legacyNotes, le
   const shown = tab === "mine" ? mine : team;
 
   return (
-    <div className="project-section detail-span-full">
+    <div className={`project-section ${span}`.trim()}>
       <div className="notes-tabs">
         <button type="button" className={`tab-btn ${tab === "team" ? "tab-btn-active" : ""}`} onClick={() => setTab("team")}>
           Team notes ({team.length})

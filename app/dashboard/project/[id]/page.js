@@ -800,7 +800,52 @@ export default function ProjectDetail() {
             <label className="field-label">Project Address (required)</label>
             <AddressAutocomplete name="detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
 
-            <div className="form-grid-3">
+            {/* What gets changed sits first. A job's stage and the dates
+                you move are the reason anyone opens this form twice; the
+                firm, the sector and the value are typed once when the job
+                is entered and barely touched again. The Add Project form
+                keeps its old order -- filling in a blank is a different
+                job from coming back to change one thing. */}
+            <div className="edit-block">
+              <h4 className="edit-block-title">Where It Stands</h4>
+              <div className="form-grid-3">
+              <div>
+                <label className="field-label" htmlFor="project-detail-category">Category</label>
+                <select id="project-detail-category" className="field" value={normalizeCategory(editData.category)} onChange={e => setEditData({ ...editData, category: e.target.value })}>
+                  <option value="">Select category...</option>
+                  {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="field-label" htmlFor="project-detail-next">Next Check-In</label>
+                <input id="project-detail-next" className="field" type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="project-detail-last">Last Contact</label>
+                <input id="project-detail-last" className="field" type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
+              </div>
+              </div>
+            </div>
+
+            <div className="edit-block">
+              <h4 className="edit-block-title">Labor &amp; Work Dates</h4>
+              <p className="edit-block-note">
+                These days show on Project Scheduling, where anyone can see and change them.
+              </p>
+              {boardProblem && <p className="settings-status is-error">{boardProblem}</p>}
+              <LaborScheduleEditor
+                idPrefix="project-detail-labor"
+                value={editData.laborSchedule || blankLaborSchedule()}
+                onChange={v => setEditData(prev => ({ ...prev, laborSchedule: v }))}
+                byDate={laborByDate(scheduledProjects)}
+                projectId={projectId}
+                crew={crew}
+              />
+            </div>
+
+            <div className="edit-block">
+              <h4 className="edit-block-title">Firm &amp; Contact</h4>
+              <div className="form-grid-3">
               <FirmTypeSelect id="project-detail-company-type" value={editData.companyCategory} onChange={v => setEditData({ ...editData, companyCategory: v })} />
               <CompanyContactFields
                 idPrefix="project-detail"
@@ -817,57 +862,42 @@ export default function ProjectDetail() {
                 onEmailChange={v => setEditData(prev => ({ ...prev, email: v }))}
                 onPhoneChange={v => setEditData(prev => ({ ...prev, phone: v }))}
               />
-              <BuildingSectorSelect id="project-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
-              <div>
-                <label className="field-label" htmlFor="project-detail-category">Category</label>
-                <select id="project-detail-category" className="field" value={normalizeCategory(editData.category)} onChange={e => setEditData({ ...editData, category: e.target.value })}>
-                  <option value="">Select category...</option>
-                  {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="field-label" htmlFor="project-detail-value">Project Value</label>
-                <MoneyInput id="project-detail-value" name="detail-projectValue" value={editData.projectValue} onChange={v => setEditData(prev => ({ ...prev, projectValue: v }))} />
-              </div>
-              <WorkTypeSelect id="project-detail-work-type" value={editData.workType} onChange={v => setEditData(prev => ({ ...prev, workType: v }))} />
-            </div>
-
-            <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
-            <LeadTimeFields
-              idPrefix="project-detail"
-              values={editData}
-              setValues={setEditData}
-              allowAlerts={normalizeCategory(editData.category) === UNDER_CONTRACT}
-            />
-
-            <h4 className="field-label" style={{ marginTop: 16 }}>Labor &amp; Work Dates</h4>
-            <p className="private-note-hint" style={{ marginTop: -4 }}>
-              These days show on Project Scheduling, where anyone can see and change them.
-            </p>
-            {boardProblem && <p className="settings-status is-error">{boardProblem}</p>}
-            <LaborScheduleEditor
-              idPrefix="project-detail-labor"
-              value={editData.laborSchedule || blankLaborSchedule()}
-              onChange={v => setEditData(prev => ({ ...prev, laborSchedule: v }))}
-              byDate={laborByDate(scheduledProjects)}
-              projectId={projectId}
-              crew={crew}
-            />
-
-            <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split</h4>
-            <CreditSplitEditor idPrefix="project-detail-split" users={users} value={splitRows} onChange={setSplitRows} ownerId={customer.ownerId} ownerLabel="the project owner" />
-            <div className="form-grid-3">
-              <div>
-                <label className="field-label" htmlFor="project-detail-next">Next Check-In</label>
-                <input id="project-detail-next" className="field" type="date" value={editData.nextCheckIn} onChange={e => setEditData({ ...editData, nextCheckIn: e.target.value })} />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="project-detail-last">Last Contact</label>
-                <input id="project-detail-last" className="field" type="date" value={editData.lastContact} onChange={e => setEditData({ ...editData, lastContact: e.target.value })} />
               </div>
             </div>
 
-            <h4 className="field-label" style={{ marginTop: 16 }}>Owners & Building Engineers</h4>
+            <div className="edit-block">
+              <h4 className="edit-block-title">The Job</h4>
+              <div className="form-grid-3">
+                <BuildingSectorSelect id="project-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
+                <div>
+                  <label className="field-label" htmlFor="project-detail-value">Project Value</label>
+                  <MoneyInput id="project-detail-value" name="detail-projectValue" value={editData.projectValue} onChange={v => setEditData(prev => ({ ...prev, projectValue: v }))} />
+                </div>
+                <WorkTypeSelect id="project-detail-work-type" value={editData.workType} onChange={v => setEditData(prev => ({ ...prev, workType: v }))} />
+              </div>
+            </div>
+
+            {/* "Equipment Lead Time" as a heading sat directly on top of a
+                field labelled "Lead time (longest component)" -- the same
+                words twice. The block is the equipment; the fields inside
+                it name themselves. */}
+            <div className="edit-block">
+              <h4 className="edit-block-title">Equipment Lead Time</h4>
+              <LeadTimeFields
+                idPrefix="project-detail"
+                values={editData}
+                setValues={setEditData}
+                inSection
+                allowAlerts={normalizeCategory(editData.category) === UNDER_CONTRACT}
+              />
+            </div>
+
+            <div className="edit-block">
+              <h4 className="edit-block-title">Credit Split</h4>
+              <CreditSplitEditor idPrefix="project-detail-split" users={users} value={splitRows} onChange={setSplitRows} ownerId={customer.ownerId} ownerLabel="the project owner" />
+            </div>
+
+            <h4 className="edit-block-title" style={{ marginTop: 22 }}>Owners &amp; Building Engineers</h4>
             {ownerRows.map((row, i) => (
               <div key={i} className="bidding-company-row">
                 <CompanyContactFields
@@ -890,7 +920,7 @@ export default function ProjectDetail() {
             ))}
             <button className="btn btn-secondary" onClick={() => setOwnerRows(prev => [...prev, { ...BLANK_OWNER_ROW }])}>+ Add Owner / Building Engineer</button>
 
-            <h4 className="field-label" style={{ marginTop: 16 }}>Equipment & Site Details</h4>
+            <h4 className="edit-block-title" style={{ marginTop: 22 }}>Equipment &amp; Site Details</h4>
             {equipmentRows.map((row, i) => (
               <div
                 key={i}
