@@ -1054,6 +1054,18 @@ export default function PipelineDetail() {
               </div>
             </div>
 
+            <div className="edit-block">
+              <h4 className="edit-block-title">Contractors &amp; Owners Bidding</h4>
+              <BidderEditor
+                idPrefix="pipeline-detail-bidder"
+                bidders={biddingRows}
+                onChange={setBiddingRows}
+                companies={companies}
+                contacts={contacts}
+                users={users}
+              />
+            </div>
+
             {/* "Equipment Lead Time" as a heading sat directly on top of a
                 field labelled "Lead time (longest component)" -- the same
                 words twice. The block is the equipment, and the fields
@@ -1089,17 +1101,6 @@ export default function PipelineDetail() {
               <CreditSplitEditor idPrefix="pipeline-detail-split" users={users} value={splitRows} onChange={setSplitRows} ownerId={editData.salespersonId || pipeline.ownerId} />
             </div>
 
-            <div className="edit-block">
-              <h4 className="edit-block-title">Contractors &amp; Owners Bidding</h4>
-              <BidderEditor
-                idPrefix="pipeline-detail-bidder"
-                bidders={biddingRows}
-                onChange={setBiddingRows}
-                companies={companies}
-                contacts={contacts}
-                users={users}
-              />
-            </div>
           </div>
         ) : (
           <>
