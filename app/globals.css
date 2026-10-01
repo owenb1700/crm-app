@@ -2790,6 +2790,20 @@ a {
   font-weight: 700;
 }
 
+/* The stage sits beside the name rather than a line or four below it, so
+   every card reads the same way: what the job is, then where it is. On a
+   narrow card a long name wraps and the badge follows it down. */
+.customer-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.customer-name-row .role-badge {
+  flex: none;
+}
+
 .customer-contact {
   font-size: 13px;
   color: var(--color-text-muted);

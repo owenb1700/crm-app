@@ -2517,7 +2517,10 @@ export default function Dashboard() {
                 {/* LEFT */}
                 <div className="customer-card-left">
                   {!isOwner && <div className="owner-badge" style={{ marginBottom: 6 }}>Collaborating with {ownerLabel(c.ownerId)}</div>}
-                      <div className="customer-name">{c.projectName || c.company}</div>
+                      <div className="customer-name-row">
+                        <div className="customer-name">{c.projectName || c.company}</div>
+                        {c.category && <span className="role-badge">{normalizeCategory(c.category)}</span>}
+                      </div>
                       {c.company && (c.projectName && c.projectName !== c.company) && (
                         <div className="customer-contact">{c.company}</div>
                       )}
@@ -2532,7 +2535,6 @@ export default function Dashboard() {
                         </div>
                       )}
 
-                      {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{normalizeCategory(c.category)}</span>}
                   {c.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {c.buildingSector}</div>}
                       {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(c.projectValue)}</div>}
                   {c.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{c.workType}</div>}
@@ -2628,9 +2630,11 @@ export default function Dashboard() {
                     style={{ cursor: "pointer" }}
                   >
                     <div className="customer-card-left">
-                      <div className="customer-name">{c.projectName || c.company}</div>
+                      <div className="customer-name-row">
+                        <div className="customer-name">{c.projectName || c.company}</div>
+                        <span className="role-badge">Closed project check-in</span>
+                      </div>
                       {c.company && c.projectName && c.projectName !== c.company && <div className="customer-contact">{c.company}</div>}
-                      <span className="role-badge" style={{ marginTop: 6 }}>Closed project check-in</span>
                       <div className="customer-dates">Due: {formatDate(c.nextCheckIn)}</div>
                     </div>
                     <div className="customer-card-middle">
@@ -2658,8 +2662,10 @@ export default function Dashboard() {
                   style={{ cursor: "pointer" }}
                 >
                   <div className="customer-card-left">
-                    <div className="customer-name">{p.title}</div>
-                    <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>Pipeline · {normalizeStage(p.stage)}</span>
+                    <div className="customer-name-row">
+                      <div className="customer-name">{p.title}</div>
+                      <span className="role-badge role-badge-admin">Pipeline · {normalizeStage(p.stage)}</span>
+                    </div>
                     {p.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {p.buildingSector}</div>}
                     {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
                     {p.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{p.workType}</div>}
@@ -2766,7 +2772,10 @@ export default function Dashboard() {
                 style={{ cursor: "pointer" }}
               >
                 <div className="customer-card-left">
-                  <div className="customer-name">{c.projectName || c.company}</div>
+                  <div className="customer-name-row">
+                    <div className="customer-name">{c.projectName || c.company}</div>
+                    {c.category && <span className="role-badge">{normalizeCategory(c.category)}</span>}
+                  </div>
                   {c.company && (c.projectName && c.projectName !== c.company) && (
                     <div className="customer-contact">{c.company}</div>
                   )}
@@ -2776,7 +2785,6 @@ export default function Dashboard() {
                       {[c.email, formatPhone(c.phone)].filter(Boolean).join(" | ")}
                     </div>
                   )}
-                  {c.category && <span className="role-badge" style={{ marginTop: 6 }}>{normalizeCategory(c.category)}</span>}
                   {c.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {c.buildingSector}</div>}
                   {c.projectValue && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(c.projectValue)}</div>}
                   {c.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{c.workType}</div>}
@@ -2876,10 +2884,12 @@ export default function Dashboard() {
               style={{ cursor: "pointer" }}
             >
               <div className="customer-card-left">
-                <div className="customer-name">{p.title}</div>
+                <div className="customer-name-row">
+                  <div className="customer-name">{p.title}</div>
+                  <span className="role-badge role-badge-admin">{normalizeStage(p.stage)}</span>
+                </div>
                 {p.company && <div className="customer-contact">{p.company}</div>}
                 {p.contact && <div className="customer-meta">{p.contact}</div>}
-                <span className="role-badge role-badge-admin" style={{ marginTop: 6 }}>{normalizeStage(p.stage)}</span>
                 {p.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {p.buildingSector}</div>}
                 {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
                 {p.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{p.workType}</div>}
@@ -2949,13 +2959,15 @@ export default function Dashboard() {
               style={{ cursor: "pointer" }}
             >
               <div className="customer-card-left">
-                <div className="customer-name">{c.projectName || c.company}</div>
-                <span className="role-badge" style={{ marginTop: 6 }}>
-                  {/* A closed project with a future alert on file (Won awaiting
-                      start, or Prospecting Only awaiting its next check-in)
-                      isn't done for good -- it's just parked until then. */}
-                  {c.closedOutcome === "Prospecting Only" && c.nextCheckIn ? "Temporarily Closed" : normalizeCategory(c.category)}
-                </span>
+                <div className="customer-name-row">
+                  <div className="customer-name">{c.projectName || c.company}</div>
+                  <span className="role-badge">
+                    {/* A closed project with a future alert on file (Won awaiting
+                        start, or Prospecting Only awaiting its next check-in)
+                        isn't done for good -- it's just parked until then. */}
+                    {c.closedOutcome === "Prospecting Only" && c.nextCheckIn ? "Temporarily Closed" : normalizeCategory(c.category)}
+                  </span>
+                </div>
                 {c.closedOutcome && c.closedOutcome !== CLOSED_OUTCOME && (
                   <span className={`role-badge ${c.closedOutcome === "Won" ? "role-badge-admin" : ""}`} style={{ marginTop: 4 }}>
                     {c.closedOutcome}
@@ -3002,14 +3014,16 @@ export default function Dashboard() {
               style={{ cursor: "pointer" }}
             >
               <div className="customer-card-left">
-                <div className="customer-name">{p.title}</div>
-                <span className={`role-badge ${p.outcome === "Won" ? "role-badge-admin" : ""}`} style={{ marginTop: 6 }}>
-                  {p.outcome === "Won"
-                    ? <><Icon name="check" size={12} className="mark mark-won" /> Won</>
-                    : p.outcome === "Did Not Bid"
-                      ? <><Icon name="ban" size={12} className="mark mark-dnb" /> DID NOT BID</>
-                      : <><Icon name="cross" size={12} className="mark mark-lost" /> Lost</>}
-                </span>
+                <div className="customer-name-row">
+                  <div className="customer-name">{p.title}</div>
+                  <span className={`role-badge ${p.outcome === "Won" ? "role-badge-admin" : ""}`}>
+                    {p.outcome === "Won"
+                      ? <><Icon name="check" size={12} className="mark mark-won" /> Won</>
+                      : p.outcome === "Did Not Bid"
+                        ? <><Icon name="ban" size={12} className="mark mark-dnb" /> DID NOT BID</>
+                        : <><Icon name="cross" size={12} className="mark mark-lost" /> Lost</>}
+                  </span>
+                </div>
               </div>
               <div className="customer-card-middle">
                 {p.company && <div className="private-note-hint">{p.company}</div>}
