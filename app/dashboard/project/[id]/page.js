@@ -23,7 +23,7 @@ import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import BidHistory from "../../../components/BidHistory";
 import DeleteRecordButton from "../../../components/DeleteRecordButton";
 import ClosedCheckInActions from "../../../components/ClosedCheckInActions";
-import { closeProjectPayload, isClosedWithCheckIn, isCheckInDue } from "../../../../lib/closedProjects";
+import { closeProjectPayload, isClosedWithCheckIn, isCheckInDue, lostCheckIn, lostCheckInProblem, weekdayKey } from "../../../../lib/closedProjects";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import { PRODUCT_TYPES, manufacturerOptionsFor } from "../../../../lib/products";
 import { equipmentRowsFrom as sharedEquipmentRowsFrom } from "../../../../lib/equipment";
@@ -49,11 +49,23 @@ import Icon from "../../../components/Icon";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import { manufacturerForType } from "../../../../lib/learned";
 import Suggested from "../../../components/Suggested";
-import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, UNDER_CONTRACT, CLOSED, nextStage, nextStageLabel,
-  normalizeCategory, needsOutcome, afterWon, afterLost, wonNote, lostNote, lostProblem,
-  closeProblem, closeNote } from "../../../../lib/projectCategories";
+import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, BIDS_SENT, UNDER_CONTRACT, CLOSED, nextStage, nextStageLabel, normalizeCategory, needsOutcome, afterWon, afterLost, wonNote, lostNote, lostProblem, closeProblem, closeNote } from "../../../../lib/projectCategories";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
+
+// Quick answers to "when would you look at this again?" on a lost bid.
+// Typing a date a year out is six keystrokes nobody enjoys.
+const LOST_CHECK_BACK = [
+  { label: "In 3 months", date: () => monthsFrom(3) },
+  { label: "In 6 months", date: () => monthsFrom(6) },
+  { label: "In a year", date: () => monthsFrom(12) }
+];
+
+const monthsFrom = (months) => {
+  const d = new Date();
+  d.setMonth(d.getMonth() + months);
+  return weekdayKey(d);
+};
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
 // a project status. Projects filed as Parts before the move keep the
 // label until someone changes it.
@@ -120,6 +132,9 @@ export default function ProjectDetail() {
   const [bidOutcome, setBidOutcome] = useState("Won");
   const [wonBy, setWonBy] = useState("");
   const [lostWhy, setLostWhy] = useState("");
+  // A date to come back on after losing. Optional -- some jobs are dead,
+  // some are "they went with someone else for now".
+  const [lostNextDate, setLostNextDate] = useState("");
   const [lostToFirm, setLostToFirm] = useState("");
   const [bidAnswerProblem, setBidAnswerProblem] = useState("");
   // Set when a save is waiting on "why is this closing?".
@@ -365,7 +380,7 @@ export default function ProjectDetail() {
     setBidAnswerProblem("");
     const won = bidOutcome === "Won";
     if (!won) {
-      const problem = lostProblem(lostWhy);
+      const problem = lostProblem(lostWhy) || lostCheckInProblem(lostNextDate);
       if (problem) return setBidAnswerProblem(problem);
     }
     const category = won ? afterWon() : afterLost();
@@ -378,14 +393,23 @@ export default function ProjectDetail() {
       category,
       ...(won
         ? { wonByContractor: wonBy.trim() || null }
-        : { closedOutcome: "Lost", lostReason: lostWhy.trim(), lostTo: lostToFirm.trim() || null })
+        : {
+            closedOutcome: "Lost",
+            lostReason: lostWhy.trim(),
+            lostTo: lostToFirm.trim() || null,
+            // Overrides the year-out date the close payload sets. A lost
+            // job only comes back if somebody asked it to.
+            nextCheckIn: lostCheckIn(lostNextDate)
+          })
     };
     payload.activityLog = [...(customer.activityLog || []), {
       type: "completed",
       outcome: note,
-      notes: null,
+      notes: !won && payload.nextCheckIn ? `Checking back on ${payload.nextCheckIn}` : null,
+      nextDueDate: !won ? payload.nextCheckIn : null,
       timestamp: new Date().toISOString(),
-      by: uid
+      by: uid,
+      authorName: myName()
     }];
     await updateDoc(doc(db, "customers", projectId), payload);
     setBidAnswer(null);
@@ -396,6 +420,25 @@ export default function ProjectDetail() {
   // One step forward, through the same gates the status dropdown goes
   // through: leaving Bids Sent asks whether it was won or lost, and
   // closing asks why. Everything else just moves.
+  // Whoever is signed in, by name, written onto the entry at the time so
+  // it still reads right after someone leaves.
+  const myName = () =>
+    myProfile && myProfile.firstName && myProfile.lastName
+      ? `${myProfile.firstName} ${myProfile.lastName}`
+      : (auth.currentUser?.email || null);
+
+  // The bid answer, asked for straight rather than as a gate on moving the
+  // stage. Same popup either way.
+  const askBidAnswer = (choice) => {
+    setBidOutcome(choice);
+    setWonBy("");
+    setLostWhy("");
+    setLostToFirm("");
+    setLostNextDate("");
+    setBidAnswerProblem("");
+    setBidAnswer({ to: choice === "Won" ? afterWon() : afterLost() });
+  };
+
   const advanceStage = async () => {
     const to = nextStage(customer.category);
     if (!to) return;
@@ -699,7 +742,9 @@ export default function ProjectDetail() {
         {isCheckInDue(customer) && <span className="role-badge" style={{ marginLeft: 8 }}>Due</span>}
       </p>
       <p className="private-note-hint" style={{ marginBottom: 10 }}>
-        Check in with the customer, then log it with Update to set the next check-in 2 years out, or snooze it.
+        {customer.closedOutcome === "Lost"
+          ? "This bid was lost and you asked to look at it again. Log what you find with Update, or move the date."
+          : "Check in with the customer, then log it with Update to set the next check-in 2 years out, or snooze it."}
       </p>
       {(isOwner || role === "admin") ? (
         <ClosedCheckInActions
@@ -1064,6 +1109,27 @@ export default function ProjectDetail() {
               </dl>
             </div>
 
+            {/* A bid that has gone out and not been answered, asked about
+                the same way a pipeline entry is: two buttons, not a gate
+                you only meet by trying to move the stage. */}
+            {normalizeCategory(customer.category) === BIDS_SENT && !customer.closedOutcome && (
+              <div className="project-section">
+                <h4 className="field-label">Outcome</h4>
+                <p className="private-note-hint">
+                  Bid is in &mdash; waiting to hear.
+                  {customer.nextCheckIn ? ` Following up ${String(customer.nextCheckIn).slice(0, 10)}.` : ""}
+                </p>
+                {isOwner ? (
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                    <button className="btn btn-primary" onClick={() => askBidAnswer("Won")}>Project Won</button>
+                    <button className="btn btn-danger" onClick={() => askBidAnswer("Lost")}>Project Lost</button>
+                  </div>
+                ) : (
+                  <p className="private-note-hint">Only {ownerLabel(customer.ownerId)} can answer this bid.</p>
+                )}
+              </div>
+            )}
+
             <div className="project-section">
               <h4 className="field-label">Owners & Building Engineers</h4>
               {(customer.owners || []).length === 0 && (
@@ -1267,6 +1333,47 @@ export default function ProjectDetail() {
                   value={lostToFirm}
                   onChange={e => setLostToFirm(e.target.value)}
                 />
+
+                {/* Losing a bid isn't always the end of it -- they put it
+                    off, or the job comes back around. A date here puts it
+                    on your calendar on the day; blank means it goes quiet,
+                    which is what most lost jobs should do. */}
+                <label className="field-label" htmlFor="project-lost-next">Check back on (optional)</label>
+                <input
+                  id="project-lost-next"
+                  className="field"
+                  type="date"
+                  value={lostNextDate}
+                  onChange={e => { setLostNextDate(e.target.value); setBidAnswerProblem(""); }}
+                />
+                <div className="reason-picker">
+                  {LOST_CHECK_BACK.map(opt => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      className={`btn btn-secondary btn-small ${lostNextDate === opt.date() ? "is-picked" : ""}`}
+                      onClick={() => { setLostNextDate(opt.date()); setBidAnswerProblem(""); }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                  {lostNextDate && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-small"
+                      onClick={() => { setLostNextDate(""); setBidAnswerProblem(""); }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <p className="private-note-hint">
+                  {!lostNextDate
+                    ? "Leave it blank and the job closes quietly."
+                    : lostCheckInProblem(lostNextDate)
+                      ? ""
+                      : `It comes back at you on ${lostCheckIn(lostNextDate)}.`}
+                </p>
               </>
             )}
 
