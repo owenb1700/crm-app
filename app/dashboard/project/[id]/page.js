@@ -23,7 +23,9 @@ import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import BidHistory from "../../../components/BidHistory";
 import DeleteRecordButton from "../../../components/DeleteRecordButton";
 import ClosedCheckInActions from "../../../components/ClosedCheckInActions";
-import { closeProjectPayload, isClosedWithCheckIn, isCheckInDue, lostCheckIn, lostCheckInProblem, weekdayKey } from "../../../../lib/closedProjects";
+import { closeProjectPayload, isClosedWithCheckIn, isCheckInDue, lostCheckIn, lostCheckInProblem, weekdayKey,
+  CHECK_IN_OFFERS, CHECK_IN_UNITS, blankCheckInPlan, checkInPlanPayload, checkInPlanProblem, describeCheckInPlan
+} from "../../../../lib/closedProjects";
 import { ensureTowerModel } from "../../../../lib/towerModels";
 import { PRODUCT_TYPES, manufacturerOptionsFor } from "../../../../lib/products";
 import { equipmentRowsFrom as sharedEquipmentRowsFrom } from "../../../../lib/equipment";
@@ -49,7 +51,7 @@ import Icon from "../../../components/Icon";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import { manufacturerForType } from "../../../../lib/learned";
 import Suggested from "../../../components/Suggested";
-import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, BIDS_SENT, UNDER_CONTRACT, CLOSED, nextStage, nextStageLabel, normalizeCategory, needsOutcome, afterWon, afterLost, wonNote, lostNote, lostProblem, closeProblem, closeNote } from "../../../../lib/projectCategories";
+import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, BIDS_SENT, stageIndex, UNDER_CONTRACT, CLOSED, nextStage, nextStageLabel, normalizeCategory, needsOutcome, afterWon, afterLost, wonNote, lostNote, lostProblem, closeProblem, closeNote } from "../../../../lib/projectCategories";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -141,6 +143,15 @@ export default function ProjectDetail() {
   const [closeAsk, setCloseAsk] = useState(false);
   const [closeWhy, setCloseWhy] = useState("");
   const [closeProblemText, setCloseProblemText] = useState("");
+  // How often to go back to this customer once the job is done. Offered
+  // when the project closes, because that is the only moment anyone is
+  // thinking about it.
+  const [closePlan, setClosePlan] = useState(blankCheckInPlan());
+  // Everything else the form changed on the way to closing. Pressing Save
+  // with the status set to closed used to drop the other edits on the
+  // floor: the question came up, the answer wrote only the close, and the
+  // address or contact you had just fixed never landed.
+  const [closePending, setClosePending] = useState(null);
   const [editProblem, setEditProblem] = useState("");
   const [fileProblem, setFileProblem] = useState("");
 
@@ -420,6 +431,11 @@ export default function ProjectDetail() {
   // One step forward, through the same gates the status dropdown goes
   // through: leaving Bids Sent asks whether it was won or lost, and
   // closing asks why. Everything else just moves.
+  // A job that reached Under Contract or beyond is one this company did
+  // the work on. Closing one of those is the moment to ask whether to stay
+  // in touch; closing something that never got past the bid is not.
+  const wasWon = !!customer && stageIndex(customer.category) >= stageIndex(UNDER_CONTRACT);
+
   // Whoever is signed in, by name, written onto the entry at the time so
   // it still reads right after someone leaves.
   const myName = () =>
@@ -459,23 +475,33 @@ export default function ProjectDetail() {
   };
 
   const confirmClose = async () => {
-    const problem = closeProblem(closeWhy);
+    const problem = closeProblem(closeWhy) || (wasWon && checkInPlanProblem(closePlan));
     if (problem) return setCloseProblemText(problem);
     const closed = closeProjectPayload(customer.activityLog);
+    // The plan replaces the check-in the close payload sets on its own.
+    // A job nobody wants to go back to shouldn't keep asking.
+    const plan = wasWon ? checkInPlanPayload(closePlan) : { checkInSchedule: [], checkInEveryMonths: null, nextCheckIn: closed.nextCheckIn };
     await updateDoc(doc(db, "customers", projectId), {
+      // Whatever else the form changed first, then the close on top of it.
+      ...(closePending || {}),
       ...closed,
+      ...plan,
       closedReason: closeWhy.trim(),
       activityLog: [...(customer.activityLog || []), {
         type: "completed",
         outcome: closeNote(closeWhy),
-        notes: null,
+        notes: wasWon ? describeCheckInPlan(closePlan) : null,
+        nextDueDate: plan.nextCheckIn,
         timestamp: new Date().toISOString(),
-        by: uid
+        by: uid,
+        authorName: myName()
       }]
     });
     setCloseAsk(false);
     setCloseWhy("");
     setCloseProblemText("");
+    setClosePlan(blankCheckInPlan());
+    setClosePending(null);
     setIsEditing(false);
     await loadProject(uid, role);
   };
@@ -547,6 +573,7 @@ export default function ProjectDetail() {
     // question on the way past.
     if (normalizeCategory(editData.category) === CLOSED
         && normalizeCategory(customer.category) !== CLOSED) {
+      setClosePending(payload);
       setCloseAsk(true);
       return;
     }
@@ -744,7 +771,9 @@ export default function ProjectDetail() {
       <p className="private-note-hint" style={{ marginBottom: 10 }}>
         {customer.closedOutcome === "Lost"
           ? "This bid was lost and you asked to look at it again. Log what you find with Update, or move the date."
-          : "Check in with the customer, then log it with Update to set the next check-in 2 years out, or snooze it."}
+          : (customer.checkInSchedule || customer.checkInEveryMonths)
+            ? "Check in with the customer, then log it with Update. The next one comes from the plan set when the job closed."
+            : "Check in with the customer, then log it with Update to set the next check-in 2 years out, or snooze it."}
       </p>
       {(isOwner || role === "admin") ? (
         <ClosedCheckInActions
@@ -1250,13 +1279,13 @@ export default function ProjectDetail() {
       </div>
 
       {closeAsk && (
-        <div className="modal-overlay" onClick={() => setCloseAsk(false)}>
+        <div className="modal-overlay" onClick={() => { setCloseAsk(false); setClosePending(null); }}>
           <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setCloseAsk(false)} aria-label="Close">✕</button>
+            <button className="modal-close" onClick={() => { setCloseAsk(false); setClosePending(null); }} aria-label="Close">✕</button>
             <h3 className="modal-title">Why is this closing?</h3>
             <p className="modal-subtitle">
-              It goes to Past Projects with a check-in a year out. A year from now this
-              sentence is the only thing that will say what happened.
+              It goes to Past Projects. A year from now this sentence is the only thing
+              that will say what happened.
             </p>
             <textarea
               className="field"
@@ -1265,10 +1294,56 @@ export default function ProjectDetail() {
               value={closeWhy}
               onChange={e => { setCloseWhy(e.target.value); setCloseProblemText(""); }}
             />
+
+            {/* Only for a job this company actually did. The check-in used
+                to be a single date a year out that nobody chose and nobody
+                could see coming. */}
+            {wasWon && (
+              <>
+                <label className="field-label" style={{ marginTop: 14 }}>Staying in touch</label>
+                {CHECK_IN_OFFERS.map(offer => (
+                  <label key={offer.key} className="export-notes-toggle" htmlFor={`close-plan-${offer.key}`}>
+                    <input
+                      id={`close-plan-${offer.key}`}
+                      type="checkbox"
+                      checked={!!closePlan[offer.key]}
+                      onChange={e => { setClosePlan(prev => ({ ...prev, [offer.key]: e.target.checked })); setCloseProblemText(""); }}
+                    />
+                    <span>
+                      <strong>{offer.label}</strong>
+                      <span className="export-row-desc">{offer.why}</span>
+                    </span>
+                  </label>
+                ))}
+
+                <label className="field-label" htmlFor="close-plan-every">Then every (optional)</label>
+                <div className="close-plan-every">
+                  <input
+                    id="close-plan-every"
+                    className="field"
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 2"
+                    value={closePlan.every}
+                    onChange={e => { setClosePlan(prev => ({ ...prev, every: e.target.value })); setCloseProblemText(""); }}
+                  />
+                  <select
+                    className="field"
+                    aria-label="Repeat unit"
+                    value={closePlan.everyUnit}
+                    onChange={e => setClosePlan(prev => ({ ...prev, everyUnit: e.target.value }))}
+                  >
+                    {CHECK_IN_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+                <p className="private-note-hint">{describeCheckInPlan(closePlan)}</p>
+              </>
+            )}
+
             {closeProblemText && <p className="settings-status is-error">⚠ {closeProblemText}</p>}
             <div className="modal-actions">
               <button className="btn btn-danger-solid" onClick={confirmClose}>Close the project</button>
-              <button className="btn btn-secondary" onClick={() => setCloseAsk(false)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={() => { setCloseAsk(false); setClosePending(null); }}>Cancel</button>
             </div>
           </div>
         </div>

@@ -150,6 +150,15 @@ a {
    moment while something saves, but a few are real gates -- Confirm on
    Mark as Won waits for a winning bidder to be picked, and until this it
    sat there full blue and did nothing when pressed. */
+/* "every [2] [years]" -- a number beside its unit, not a number taking
+   the whole width of the dialog. */
+.close-plan-every {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 8px;
+  align-items: start;
+}
+
 .btn:disabled,
 .btn:disabled:active {
   opacity: 0.45;
