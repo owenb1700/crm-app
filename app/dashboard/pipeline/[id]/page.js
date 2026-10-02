@@ -283,7 +283,7 @@ export default function PipelineDetail() {
     if (!wants) return;
     askedToEdit.current = true;
     if (canEdit) startEdit();
-    window.history.replaceState({}, "", window.location.pathname);
+    router.replace(`/dashboard/pipeline/${pipelineId}`, { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pipeline, canEdit, isEditing]);
   const canEditPrivate = isOwner;
