@@ -2837,6 +2837,43 @@ a {
   align-items: center;
 }
 
+/* Follow Up and Edit side by side, with the stage button on its own line
+   under them -- it carries the name of where the job is going, which is
+   too long to sit in the row.
+
+   The column is as wide as the widest of the two, and every button fills
+   it, so the three line up as one block whatever the stage is called.
+   Without the nowrap the column collapsed to whatever the stage button
+   happened to need and "Follow Up" broke across two lines on the short
+   ones. */
+.card-actions-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  flex: none;
+  /* Sized to the longest stage button there is, "Move to Under
+     Contract/Ordered", so the block is the same width on every card
+     and the buttons line up down the page instead of stepping in and
+     out with whatever the next stage happens to be called. If a stage
+     is ever renamed to something longer, this is the number to revisit. */
+  min-width: 260px;
+}
+
+.card-actions-row {
+  display: flex;
+  gap: 8px;
+}
+
+.card-actions-row > .btn {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.card-actions-stack > .btn {
+  white-space: nowrap;
+}
+
 .checkbox-group {
   display: flex;
   flex-direction: column;
@@ -3392,6 +3429,11 @@ a {
   .customer-card-right {
     flex-wrap: wrap;
     gap: 8px;
+  }
+
+  .card-actions-stack {
+    min-width: 0;
+    width: 100%;
   }
 
   .checkbox-group {

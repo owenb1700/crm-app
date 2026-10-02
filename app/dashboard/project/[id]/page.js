@@ -331,9 +331,24 @@ export default function ProjectDetail() {
     askedToEdit.current = true;
     if (isOwner || role === "admin") startEdit();
     // Take the flag out of the address bar so a refresh doesn't reopen it.
-    window.history.replaceState({}, "", window.location.pathname);
+    router.replace(`/dashboard/project/${projectId}`, { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customer, isOwner, role, isEditing]);
+
+  // Arriving from the stage button on a card (?advance=1). The card moves
+  // the quiet steps itself and sends the ones with a question here, so
+  // this always ends up opening a popup -- the same one the button on this
+  // page opens, because it is the same call.
+  const askedToAdvance = useRef(false);
+  useEffect(() => {
+    if (askedToAdvance.current || !customer) return;
+    const wants = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("advance") === "1";
+    if (!wants) return;
+    askedToAdvance.current = true;
+    router.replace(`/dashboard/project/${projectId}`, { scroll: false });
+    if (isOwner) advanceStage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer, isOwner]);
   const isCollaborator = customer && (customer.collaboratorIds || []).includes(uid);
   const canSeeNotes = isOwner || isCollaborator || role === "admin";
   const canEditNotes = isOwner || isCollaborator;
@@ -468,7 +483,8 @@ export default function ProjectDetail() {
         outcome: `Status: ${normalizeCategory(customer.category)} → ${to}`,
         notes: null,
         timestamp: new Date().toISOString(),
-        by: uid
+        by: uid,
+        authorName: myName()
       }]
     });
     await loadProject(uid, role);

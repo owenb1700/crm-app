@@ -57,7 +57,7 @@ import { sortRows, sortMixed } from "../../lib/sorting";
 import Icon from "../components/Icon";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { completedPayload, isOpen, doneOnly } from "../../lib/reminders";
-import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, PRE_BID, normalizeCategory } from "../../lib/projectCategories";
+import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, PRE_BID, normalizeCategory, nextStage, nextStageLabel, stageNeedsInput } from "../../lib/projectCategories";
 import { normalizeStage } from "../../lib/pipelineStages";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
@@ -1117,6 +1117,32 @@ export default function Dashboard() {
   // often enough to keep as one press, but not so often it should be the
   // only option -- so it offers that and a date of your own.
   const [followUpFor, setFollowUpFor] = useState(null);
+
+  // Moving a project on from its card. The quiet steps are written here;
+  // anything that needs a form opens the project with ?advance=1, which
+  // the project page reads and turns into the same popup its own button
+  // raises. One copy of each question, wherever it was asked from.
+  const advanceProject = async (c) => {
+    const to = nextStage(c.category);
+    if (!to) return;
+    if (stageNeedsInput(c.category)) {
+      router.push(`/dashboard/project/${c.id}?advance=1`);
+      return;
+    }
+    await updateDoc(doc(db, "customers", c.id), {
+      category: to,
+      activityLog: [...(c.activityLog || []), {
+        type: "changed",
+        outcome: `Status: ${normalizeCategory(c.category)} → ${to}`,
+        notes: null,
+        timestamp: new Date().toISOString(),
+        by: uid,
+        authorName: myName()
+      }]
+    });
+    showToast(`Moved to ${to}`);
+    await loadCustomers(uid, role === "admin");
+  };
   const [followUpDate, setFollowUpDate] = useState("");
 
   const openFollowUp = (c) => { setFollowUpDate(""); setFollowUpFor(c); };
@@ -2587,21 +2613,36 @@ export default function Dashboard() {
                 {/* RIGHT */}
                 <div className="customer-card-right" onClick={(e) => e.stopPropagation()}>
                   {isOwner ? (
-                    <>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={(e) => { e.stopPropagation(); openFollowUp(c); }}
-                      >
-                        Follow Up
-                      </button>
+                    <div className="card-actions-stack">
+                      <div className="card-actions-row">
+                        <button
+                          className="btn btn-secondary"
+                          onClick={(e) => { e.stopPropagation(); openFollowUp(c); }}
+                        >
+                          Follow Up
+                        </button>
 
-                      <button
-                        className="btn btn-secondary"
-                        onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/project/${c.id}?edit=1`); }}
-                      >
-                        Edit
-                      </button>
-                    </>
+                        <button
+                          className="btn btn-secondary"
+                          onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/project/${c.id}?edit=1`); }}
+                        >
+                          Edit
+                        </button>
+                      </div>
+
+                      {/* One step along, without opening the job. The steps
+                          that ask a question first -- won or lost, and why
+                          it's closing -- open the project and raise it
+                          there, so those forms live in one place. */}
+                      {nextStage(c.category) && (
+                        <button
+                          className="btn btn-primary"
+                          onClick={(e) => { e.stopPropagation(); advanceProject(c); }}
+                        >
+                          {nextStageLabel(c.category)}
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <>
                       <span className="private-note-hint">Notes only — owned by {ownerLabel(c.ownerId)}</span>
