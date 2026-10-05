@@ -2163,9 +2163,16 @@ export default function Dashboard() {
           {r.notes ? <div style={{ whiteSpace: "pre-wrap" }}>{r.notes}</div> : <div className="private-note-hint">No notes</div>}
         </div>
         <div className="customer-card-right" onClick={e => e.stopPropagation()}>
-          <button className="btn btn-secondary" onClick={() => followUpReminder(r)}>Follow Up (1 Week)</button>
-          <button className="btn btn-primary" onClick={() => completeReminder(r)}>Complete</button>
-          <button className="btn btn-secondary" onClick={() => openEditReminder(r)}>Edit</button>
+          {/* The same block the project and pipeline cards use: the two
+              that put it off or change it side by side, and the one that
+              finishes it on its own line underneath. */}
+          <div className="card-actions-stack">
+            <div className="card-actions-row">
+              <button className="btn btn-secondary" onClick={() => followUpReminder(r)}>Follow Up (1 Week)</button>
+              <button className="btn btn-secondary" onClick={() => openEditReminder(r)}>Edit</button>
+            </div>
+            <button className="btn btn-primary" onClick={() => completeReminder(r)}>Complete</button>
+          </div>
         </div>
       </div>
     );
