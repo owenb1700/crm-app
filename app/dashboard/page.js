@@ -58,7 +58,8 @@ import Icon from "../components/Icon";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { completedPayload, isOpen, doneOnly } from "../../lib/reminders";
 import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, PRE_BID, normalizeCategory, nextStage, nextStageLabel, stageNeedsInput } from "../../lib/projectCategories";
-import { normalizeStage } from "../../lib/pipelineStages";
+import { normalizeStage, nextPipelineStep, nextPipelineStepLabel, pipelineStepNeedsInput, groupByBid,
+  movedToPostBid, postBidCheckIn } from "../../lib/pipelineStages";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -1117,6 +1118,33 @@ export default function Dashboard() {
   // often enough to keep as one press, but not so often it should be the
   // only option -- so it offers that and a date of your own.
   const [followUpFor, setFollowUpFor] = useState(null);
+
+  // Moving a pipeline entry on from its card. Same shape as the project
+  // one: the quiet steps are written here, and answering the bid opens the
+  // entry, because there are two answers and each asks its own questions.
+  const advancePipeline = async (p) => {
+    const to = nextPipelineStep(p.stage);
+    if (!to) return;
+    if (pipelineStepNeedsInput(p.stage)) {
+      router.push(`/dashboard/pipeline/${p.id}`);
+      return;
+    }
+    const payload = { stage: to };
+    if (movedToPostBid(p, payload)) payload.nextCheckIn = postBidCheckIn();
+    await updateDoc(doc(db, "pipeline", p.id), {
+      ...payload,
+      activityLog: [...(p.activityLog || []), {
+        type: "changed",
+        outcome: `Stage: ${normalizeStage(p.stage)} → ${to}`,
+        notes: null,
+        timestamp: new Date().toISOString(),
+        by: uid,
+        authorName: myName()
+      }]
+    });
+    showToast(`Moved to ${to}`);
+    await loadPipeline();
+  };
 
   // Moving a project on from its card. The quiet steps are written here;
   // anything that needs a form opens the project with ?advance=1, which
@@ -2714,6 +2742,25 @@ export default function Dashboard() {
                     {p.company && <div className="private-note-hint">{p.company}</div>}
                     {p.bidDate && <div className="customer-dates">Bid: {p.bidDate}</div>}
                   </div>
+
+                  <div className="customer-card-right" onClick={(e) => e.stopPropagation()}>
+                    <div className="card-actions-stack">
+                      <button
+                        className="btn btn-secondary"
+                        onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/pipeline/${p.id}?edit=1`); }}
+                      >
+                        Edit
+                      </button>
+                      {nextPipelineStep(p.stage) && (
+                        <button
+                          className="btn btn-primary"
+                          onClick={(e) => { e.stopPropagation(); advancePipeline(p); }}
+                        >
+                          {nextPipelineStepLabel(p.stage)}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )
             }))
@@ -2916,7 +2963,14 @@ export default function Dashboard() {
             />
           )}
 
-          {filteredPipeline.map(p => (
+          {groupByBid(filteredPipeline).map(group => (
+            <div key={group.key} className="pipeline-group">
+              <div className="pipeline-group-head">
+                <h3 className="pipeline-group-title">{group.title}</h3>
+                <span className="pipeline-group-blurb">{group.blurb}</span>
+                <span className="pipeline-group-count">{group.entries.length}</span>
+              </div>
+              {group.entries.map(p => (
             <div
               key={p.id}
               className="customer-card"
@@ -2949,8 +3003,32 @@ export default function Dashboard() {
               </div>
 
               <div className="customer-card-right" onClick={(e) => e.stopPropagation()}>
-                {p.ownerId !== uid && <span className="private-note-hint">View only</span>}
+                {/* A pipeline entry is the team's, not one person's: the
+                    entry page lets anyone signed in edit it and the rules
+                    agree, so "View only" on this card was never true. */}
+                {uid ? (
+                  <div className="card-actions-stack">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/pipeline/${p.id}?edit=1`); }}
+                    >
+                      Edit
+                    </button>
+                    {nextPipelineStep(p.stage) && (
+                      <button
+                        className="btn btn-primary"
+                        onClick={(e) => { e.stopPropagation(); advancePipeline(p); }}
+                      >
+                        {nextPipelineStepLabel(p.stage)}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <span className="private-note-hint">View only</span>
+                )}
               </div>
+            </div>
+              ))}
             </div>
           ))}
 

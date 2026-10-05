@@ -2846,6 +2846,40 @@ a {
    Without the nowrap the column collapsed to whatever the stage button
    happened to need and "Follow Up" broke across two lines on the short
    ones. */
+/* The Pipeline page in two halves: everything still being put together,
+   then everything out and waiting to hear. */
+.pipeline-group {
+  margin-bottom: 8px;
+}
+
+.pipeline-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 18px 0 10px;
+}
+
+.pipeline-group-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text);
+}
+
+.pipeline-group-blurb {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.pipeline-group-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
 .card-actions-stack {
   display: flex;
   flex-direction: column;
