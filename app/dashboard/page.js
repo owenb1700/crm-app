@@ -33,6 +33,7 @@ import UserSettingsModal from "../components/UserSettingsModal";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../components/FilterBar";
 import { canViewAnalytics, withDollar } from "../../lib/analytics";
 import ClosedCheckInActions from "../components/ClosedCheckInActions";
+import PipelineMyAlerts from "../components/PipelineMyAlerts";
 import MyScorecard from "../components/MyScorecard";
 import ExportDataModal from "../components/ExportDataModal";
 import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, yearsFrom, localDateKey } from "../../lib/closedProjects";
@@ -1118,6 +1119,10 @@ export default function Dashboard() {
   // often enough to keep as one press, but not so often it should be the
   // only option -- so it offers that and a date of your own.
   const [followUpFor, setFollowUpFor] = useState(null);
+  // The pipeline entry whose reminders are open from a card. It renders
+  // the entry page's own box, so there is one copy of the thing that
+  // writes a reminder for everyone working the job.
+  const [remindersFor, setRemindersFor] = useState(null);
 
   // Moving a pipeline entry on from its card. Same shape as the project
   // one: the quiet steps are written here, and answering the bid opens the
@@ -2752,12 +2757,20 @@ export default function Dashboard() {
 
                   <div className="customer-card-right" onClick={(e) => e.stopPropagation()}>
                     <div className="card-actions-stack">
-                      <button
-                        className="btn btn-secondary"
-                        onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/pipeline/${p.id}?edit=1`); }}
-                      >
-                        Edit
-                      </button>
+                      <div className="card-actions-row">
+                        <button
+                          className="btn btn-secondary"
+                          onClick={(e) => { e.stopPropagation(); setRemindersFor(p); }}
+                        >
+                          Set Reminder
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/pipeline/${p.id}?edit=1`); }}
+                        >
+                          Edit
+                        </button>
+                      </div>
                       {nextPipelineStep(p.stage) && (
                         <button
                           className="btn btn-primary"
@@ -3015,12 +3028,20 @@ export default function Dashboard() {
                     agree, so "View only" on this card was never true. */}
                 {uid ? (
                   <div className="card-actions-stack">
-                    <button
-                      className="btn btn-secondary"
-                      onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/pipeline/${p.id}?edit=1`); }}
-                    >
-                      Edit
-                    </button>
+                    <div className="card-actions-row">
+                      <button
+                        className="btn btn-secondary"
+                        onClick={(e) => { e.stopPropagation(); setRemindersFor(p); }}
+                      >
+                        Set Reminder
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/pipeline/${p.id}?edit=1`); }}
+                      >
+                        Edit
+                      </button>
+                    </div>
                     {nextPipelineStep(p.stage) && (
                       <button
                         className="btn btn-primary"
@@ -3553,6 +3574,25 @@ export default function Dashboard() {
                   <button className="btn btn-secondary" onClick={() => completeReminder(reminders.find(r => r.id === reminderForm.id))}>Complete</button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* The entry page's own reminder box, opened from a card. Rendering
+          the component itself rather than a copy of it means "remind
+          everyone on this entry" still reaches the owner, the salesperson,
+          the point person and every bidding contractor's salesperson --
+          one list, one place. */}
+      {remindersFor && (
+        <div className="modal-overlay" onClick={() => setRemindersFor(null)}>
+          <div className="modal-card modal-wide" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setRemindersFor(null)} aria-label="Close">✕</button>
+            <h3 className="modal-title">Set a reminder</h3>
+            <p className="modal-subtitle">{remindersFor.title}</p>
+            <PipelineMyAlerts pipeline={remindersFor} uid={uid} users={users} />
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setRemindersFor(null)}>Done</button>
             </div>
           </div>
         </div>

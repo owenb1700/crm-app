@@ -44,7 +44,7 @@ export default function PipelineMyAlerts({ pipeline, uid, users = [] }) {
   }, [uid, pipeline?.id]);
 
   const add = async () => {
-    if (!date) return setError("Pick a date for the alert.");
+    if (!date) return setError("Pick a date for the reminder.");
     setSaving(true);
     setError("");
     setNotice("");
@@ -89,14 +89,14 @@ export default function PipelineMyAlerts({ pipeline, uid, users = [] }) {
 
   return (
     <div className="project-section">
-      <h4 className="field-label">My Alerts</h4>
+      <h4 className="field-label">My Reminders</h4>
       <p className="private-note-hint" style={{ marginBottom: 10 }}>
-        Add your own alert dates for this entry, before or after the bid date{pipeline.bidDate ? ` (${pipeline.bidDate})` : ""}.
+        Add your own reminder dates for this entry, before or after the bid date{pipeline.bidDate ? ` (${pipeline.bidDate})` : ""}.
         These are yours -- they show on your calendar, My Projects and digest emails, and nobody else sees them unless you tick &quot;Remind everyone on this entry&quot; below. Reminders you attach to this entry from + Add Reminder show here too.
       </p>
 
-      {loadError && <p className="settings-status is-error">⚠ Couldn't load your alerts: {loadError}</p>}
-      {!loadError && alerts.length === 0 && <p className="private-note-hint">You haven't added any alerts for this entry.</p>}
+      {loadError && <p className="settings-status is-error">⚠ Couldn't load your reminders: {loadError}</p>}
+      {!loadError && alerts.length === 0 && <p className="private-note-hint">You haven't added any reminders for this entry.</p>}
 
       {alerts.map(a => (
         <div key={a.id} className="notes-history-item notes-history-row">
@@ -114,7 +114,7 @@ export default function PipelineMyAlerts({ pipeline, uid, users = [] }) {
 
       <div className="my-alert-add">
         <div>
-          <label className="field-label" htmlFor={`my-alert-date-${pipeline.id}`}>Alert date</label>
+          <label className="field-label" htmlFor={`my-alert-date-${pipeline.id}`}>Reminder date</label>
           <input id={`my-alert-date-${pipeline.id}`} className="field" type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
         <div>
@@ -129,7 +129,7 @@ export default function PipelineMyAlerts({ pipeline, uid, users = [] }) {
             onKeyDown={e => { if (e.key === "Enter") add(); }}
           />
         </div>
-        <button className="btn btn-primary" disabled={saving} onClick={add}>{saving ? "Adding…" : "Add Alert"}</button>
+        <button className="btn btn-primary" disabled={saving} onClick={add}>{saving ? "Adding…" : "Add Reminder"}</button>
       </div>
 
       {/* Always here, so it's findable even on an entry that currently has

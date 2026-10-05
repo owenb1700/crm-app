@@ -39,7 +39,7 @@ export default function PartMyAlerts({ part, uid }) {
   }, [uid, part?.id]);
 
   const add = async () => {
-    if (!date) return setError("Pick a date for the alert.");
+    if (!date) return setError("Pick a date for the reminder.");
     setSaving(true);
     setError("");
     try {
@@ -74,7 +74,7 @@ export default function PartMyAlerts({ part, uid }) {
 
   return (
     <div className="project-section">
-      <h4 className="field-label">My Alerts</h4>
+      <h4 className="field-label">My Reminders</h4>
       <p className="private-note-hint" style={{ marginBottom: 10 }}>
         A lead time alerts whoever entered the request when it&apos;s late. Anything else is yours to
         set: add a date here{part.neededBy ? ` — it's needed by ${part.neededBy}` : ""} and
@@ -99,7 +99,7 @@ export default function PartMyAlerts({ part, uid }) {
 
       <div className="my-alert-add">
         <div>
-          <label className="field-label" htmlFor={`part-alert-date-${part.id}`}>Alert date</label>
+          <label className="field-label" htmlFor={`part-alert-date-${part.id}`}>Reminder date</label>
           <input id={`part-alert-date-${part.id}`} className="field" type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
         <div>
@@ -114,7 +114,7 @@ export default function PartMyAlerts({ part, uid }) {
             onKeyDown={e => { if (e.key === "Enter") add(); }}
           />
         </div>
-        <button className="btn btn-primary" disabled={saving} onClick={add}>{saving ? "Adding…" : "Add Alert"}</button>
+        <button className="btn btn-primary" disabled={saving} onClick={add}>{saving ? "Adding…" : "Add Reminder"}</button>
       </div>
       {error && <p className="settings-status is-error">{error}</p>}
     </div>
