@@ -2769,7 +2769,15 @@ a {
   border: 1px solid var(--color-border);
   border-left-width: 5px;
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.15s ease, transform 0.05s ease;
+  transition: box-shadow 0.15s ease;
+  /* Cards sit 12px apart and the hover shadow reaches about 20, so it
+     lands on the card below. Without a stacking order that neighbour
+     paints over it as the pointer moves, which showed up as a grey band
+     flickering along the join. Raising the hovered card puts its shadow
+     on top where it belongs. The transform transition went with it --
+     nothing on a card has ever transformed, so it was only ever telling
+     the browser to watch for something that never happened. */
+  position: relative;
 }
 
 .customer-notes-preview {
@@ -2778,6 +2786,7 @@ a {
 
 .customer-card:hover {
   box-shadow: var(--shadow-md);
+  z-index: 1;
 }
 
 .customer-card-left {
