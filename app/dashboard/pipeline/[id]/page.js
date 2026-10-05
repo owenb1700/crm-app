@@ -520,13 +520,28 @@ export default function PipelineDetail() {
   // comes after a bid is an answer, so Bids Sent and then Won or Lost take
   // over, and a won entry gets Convert to Project. Same permission as any
   // other edit to an entry -- if you can change it, you can move it.
-  const advanceStage = async () => {
+  // Asked about first, like everywhere else a stage moves.
+  const [stageMove, setStageMove] = useState(null);
+  const [movingStage, setMovingStage] = useState(false);
+
+  const advanceStage = () => {
     const to = nextPipelineStage(pipeline.stage);
     if (!to) return;
-    const payload = { stage: to };
-    if (movedToPostBid(pipeline, payload)) payload.nextCheckIn = postBidCheckIn();
-    await updateDoc(doc(db, "pipeline", pipelineId), withStateLog(payload));
-    await loadPipelineEntry(uid, role);
+    setStageMove({ to, from: normalizeStage(pipeline.stage) });
+  };
+
+  const confirmStageMove = async () => {
+    if (!stageMove) return;
+    setMovingStage(true);
+    try {
+      const payload = { stage: stageMove.to };
+      if (movedToPostBid(pipeline, payload)) payload.nextCheckIn = postBidCheckIn();
+      await updateDoc(doc(db, "pipeline", pipelineId), withStateLog(payload));
+      setStageMove(null);
+      await loadPipelineEntry(uid, role);
+    } finally {
+      setMovingStage(false);
+    }
   };
 
   const confirmBidsSent = async () => {
@@ -1296,6 +1311,19 @@ export default function PipelineDetail() {
             </button>
           </div>
         </div>
+      )}
+
+      {stageMove && (
+        <ConfirmDialog
+          title={`Move to ${stageMove.to}?`}
+          confirmLabel="Move it"
+          busy={movingStage}
+          onCancel={() => setStageMove(null)}
+          onConfirm={confirmStageMove}
+        >
+          <p><strong>{pipeline.title}</strong> moves from {stageMove.from} to {stageMove.to}.</p>
+          <p className="private-note-hint">It&apos;s written into the entry&apos;s history, and you can move it back.</p>
+        </ConfirmDialog>
       )}
 
       {showWonModal && (

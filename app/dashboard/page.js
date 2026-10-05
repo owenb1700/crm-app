@@ -1149,13 +1149,17 @@ export default function Dashboard() {
   // Moving a pipeline entry on from its card. Same shape as the project
   // one: the quiet steps are written here, and answering the bid opens the
   // entry, because there are two answers and each asks its own questions.
-  const advancePipeline = async (p) => {
+  const advancePipeline = (p) => {
     const to = nextPipelineStep(p.stage);
     if (!to) return;
     if (pipelineStepNeedsInput(p.stage)) {
       router.push(`/dashboard/pipeline/${p.id}`);
       return;
     }
+    setStageMove({ kind: "pipeline", record: p, to, from: normalizeStage(p.stage) });
+  };
+
+  const doAdvancePipeline = async (p, to) => {
     const payload = { stage: to };
     if (movedToPostBid(p, payload)) payload.nextCheckIn = postBidCheckIn();
     await updateDoc(doc(db, "pipeline", p.id), {
@@ -1173,17 +1177,40 @@ export default function Dashboard() {
     await loadPipeline();
   };
 
+  const confirmStageMove = async () => {
+    if (!stageMove) return;
+    setMovingStage(true);
+    try {
+      if (stageMove.kind === "project") await doAdvanceProject(stageMove.record, stageMove.to);
+      else await doAdvancePipeline(stageMove.record, stageMove.to);
+      setStageMove(null);
+    } finally {
+      setMovingStage(false);
+    }
+  };
+
   // Moving a project on from its card. The quiet steps are written here;
   // anything that needs a form opens the project with ?advance=1, which
   // the project page reads and turns into the same popup its own button
   // raises. One copy of each question, wherever it was asked from.
-  const advanceProject = async (c) => {
+  // Moving a stage is asked about first. The steps that open a form of
+  // their own -- won or lost, and why it's closing -- do their own asking,
+  // so they go straight there rather than putting a question in front of a
+  // question.
+  const [stageMove, setStageMove] = useState(null); // { kind, record, to }
+  const [movingStage, setMovingStage] = useState(false);
+
+  const advanceProject = (c) => {
     const to = nextStage(c.category);
     if (!to) return;
     if (stageNeedsInput(c.category)) {
       router.push(`/dashboard/project/${c.id}?advance=1`);
       return;
     }
+    setStageMove({ kind: "project", record: c, to, from: normalizeCategory(c.category) });
+  };
+
+  const doAdvanceProject = async (c, to) => {
     await updateDoc(doc(db, "customers", c.id), {
       category: to,
       activityLog: [...(c.activityLog || []), {
@@ -3634,6 +3661,25 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {stageMove && (
+        <ConfirmDialog
+          title={`Move to ${stageMove.to}?`}
+          confirmLabel="Move it"
+          busy={movingStage}
+          onCancel={() => setStageMove(null)}
+          onConfirm={confirmStageMove}
+        >
+          <p>
+            <strong>{stageMove.record.projectName || stageMove.record.title || stageMove.record.company}</strong>{" "}
+            moves from {stageMove.from || "no stage"} to {stageMove.to}.
+          </p>
+          <p className="private-note-hint">
+            It&apos;s written into the {stageMove.kind === "pipeline" ? "entry" : "job"}&apos;s history,
+            and you can move it back.
+          </p>
+        </ConfirmDialog>
       )}
 
       {remindersFor && (

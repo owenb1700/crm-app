@@ -470,12 +470,20 @@ export default function ProjectDetail() {
     setBidAnswer({ to: choice === "Won" ? afterWon() : afterLost() });
   };
 
-  const advanceStage = async () => {
+  // Asked about first, like everywhere else. The two steps that raise a
+  // form of their own do their own asking.
+  const [stageMove, setStageMove] = useState(null);
+  const [movingStage, setMovingStage] = useState(false);
+
+  const advanceStage = () => {
     const to = nextStage(customer.category);
     if (!to) return;
     if (needsOutcome(customer.category, to)) return setBidAnswer({ to });
     if (to === CLOSED) return setCloseAsk(true);
+    setStageMove({ to, from: normalizeCategory(customer.category) });
+  };
 
+  const doAdvanceStage = async (to) => {
     await updateDoc(doc(db, "customers", projectId), {
       category: to,
       activityLog: [...(customer.activityLog || []), {
@@ -488,6 +496,17 @@ export default function ProjectDetail() {
       }]
     });
     await loadProject(uid, role);
+  };
+
+  const confirmStageMove = async () => {
+    if (!stageMove) return;
+    setMovingStage(true);
+    try {
+      await doAdvanceStage(stageMove.to);
+      setStageMove(null);
+    } finally {
+      setMovingStage(false);
+    }
   };
 
   const confirmClose = async () => {
@@ -1365,6 +1384,19 @@ export default function ProjectDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {stageMove && (
+        <ConfirmDialog
+          title={`Move to ${stageMove.to}?`}
+          confirmLabel="Move it"
+          busy={movingStage}
+          onCancel={() => setStageMove(null)}
+          onConfirm={confirmStageMove}
+        >
+          <p><strong>{customer.projectName || customer.company}</strong> moves from {stageMove.from} to {stageMove.to}.</p>
+          <p className="private-note-hint">It&apos;s written into the job&apos;s history, and you can move it back.</p>
+        </ConfirmDialog>
       )}
 
       {bidAnswer && (
