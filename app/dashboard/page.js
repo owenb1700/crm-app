@@ -34,6 +34,7 @@ import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../co
 import { canViewAnalytics, withDollar } from "../../lib/analytics";
 import ClosedCheckInActions from "../components/ClosedCheckInActions";
 import PipelineMyAlerts from "../components/PipelineMyAlerts";
+import PipelineNotes from "../components/PipelineNotes";
 import MyScorecard from "../components/MyScorecard";
 import ExportDataModal from "../components/ExportDataModal";
 import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, yearsFrom, localDateKey } from "../../lib/closedProjects";
@@ -1123,6 +1124,27 @@ export default function Dashboard() {
   // the entry page's own box, so there is one copy of the thing that
   // writes a reminder for everyone working the job.
   const [remindersFor, setRemindersFor] = useState(null);
+
+  // The pipeline entry whose notes are open from a card. Projects have had
+  // this since the start -- their grey box opens the thread -- and pipeline
+  // entries never did, so the only way to leave a note on one was to open
+  // the entry.
+  const [notesFor, setNotesFor] = useState(null);
+  const [pipelinePrivate, setPipelinePrivate] = useState({});
+
+  const openPipelineNotes = async (p) => {
+    setNotesFor(p);
+    // Notes written before the thread existed live on the private doc, and
+    // only the owner and an admin can read it -- the same rule the entry
+    // page uses. Anyone else just gets the thread.
+    if (!(p.ownerId === uid || role === "admin")) return;
+    try {
+      const snap = await getDoc(doc(db, "pipeline", p.id, "private", "data"));
+      setPipelinePrivate(prev => ({ ...prev, [p.id]: snap.exists() ? snap.data() : {} }));
+    } catch {
+      // A private doc we can't read is not worth failing the popup over.
+    }
+  };
 
   // Moving a pipeline entry on from its card. Same shape as the project
   // one: the quiet steps are written here, and answering the bid opens the
@@ -2750,9 +2772,13 @@ export default function Dashboard() {
                     {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
                     {p.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{p.workType}</div>}
                   </div>
-                  <div className="customer-card-middle">
+                  <div
+                    className="customer-card-middle customer-notes-preview"
+                    onClick={(e) => { e.stopPropagation(); openPipelineNotes(p); }}
+                  >
                     {p.company && <div className="private-note-hint">{p.company}</div>}
                     {p.bidDate && <div className="customer-dates">Bid: {p.bidDate}</div>}
+                    <div className="private-note-hint">Notes</div>
                   </div>
 
                   <div className="customer-card-right" onClick={(e) => e.stopPropagation()}>
@@ -3009,7 +3035,10 @@ export default function Dashboard() {
                 {p.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{p.workType}</div>}
               </div>
 
-              <div className="customer-card-middle">
+              <div
+                className="customer-card-middle customer-notes-preview"
+                onClick={(e) => { e.stopPropagation(); openPipelineNotes(p); }}
+              >
                 <div className="owner-badge">Owned by {ownerLabel(p.ownerId)}</div>
                 {p.bidDate && <div className="customer-dates">Bid Date: {p.bidDate}</div>}
                 {(p.biddingCompanies || []).length > 0 && (
@@ -3584,6 +3613,29 @@ export default function Dashboard() {
           everyone on this entry" still reaches the owner, the salesperson,
           the point person and every bidding contractor's salesperson --
           one list, one place. */}
+      {notesFor && (
+        <div className="modal-overlay" onClick={() => setNotesFor(null)}>
+          <div className="modal-card modal-wide" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setNotesFor(null)} aria-label="Close">✕</button>
+            <h3 className="modal-title">{notesFor.title}</h3>
+            <p className="modal-subtitle">Notes on this pipeline entry.</p>
+            {uid && (
+              <PipelineNotes
+                pipelineId={notesFor.id}
+                uid={uid}
+                myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown")}
+                legacyNotes={pipelinePrivate[notesFor.id]?.notes}
+                legacyHistory={pipelinePrivate[notesFor.id]?.notesHistory}
+                span=""
+              />
+            )}
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setNotesFor(null)}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {remindersFor && (
         <div className="modal-overlay" onClick={() => setRemindersFor(null)}>
           <div className="modal-card modal-wide" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
