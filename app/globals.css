@@ -22,6 +22,10 @@
   --radius-pill: 999px;
   --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
   --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.10);
+  /* Lift for a hovered list card. Deliberately smaller than --shadow-md:
+     it has to fit inside the 12px gap between cards (2 + 8 = 10 below,
+     8 - 2 = 6 above) so it can never land on a neighbour. */
+  --shadow-card-hover: 0 2px 8px rgba(16, 24, 40, 0.13);
   --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.18);
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
 }
@@ -2770,14 +2774,21 @@ a {
   border-left-width: 5px;
   box-shadow: var(--shadow-sm);
   transition: box-shadow 0.15s ease;
-  /* Cards sit 12px apart and the hover shadow reaches about 20, so it
-     lands on the card below. Without a stacking order that neighbour
-     paints over it as the pointer moves, which showed up as a grey band
-     flickering along the join. Raising the hovered card puts its shadow
-     on top where it belongs. The transform transition went with it --
-     nothing on a card has ever transformed, so it was only ever telling
-     the browser to watch for something that never happened. */
+  /* Two things made a hovered card flash grey.
+     The shadow: cards sit 12px apart and --shadow-md reaches about 20, so
+     it landed on the card below, and whichever card painted later won.
+     --shadow-card-hover is bounded to fit the gap, so nothing overlaps
+     and there is nothing to fight over.
+     The stacking: raising only the hovered card meant z-index went from
+     auto to 1 and back, building and tearing down a stacking context on
+     every hover and making the browser re-layerise the card mid-paint --
+     which is what showed as the top half going grey when you came back to
+     a card you had just left. Every card now has the context all the
+     time, and hovering only changes the order within it.
+     (The transform transition came off here too: nothing on a card has
+     ever transformed.) */
   position: relative;
+  z-index: 0;
 }
 
 .customer-notes-preview {
@@ -2785,7 +2796,7 @@ a {
 }
 
 .customer-card:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-card-hover);
   z-index: 1;
 }
 
