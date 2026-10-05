@@ -108,6 +108,10 @@ export default function PipelineDetail() {
   const [fileProblem, setFileProblem] = useState("");
   const [bidsSentProblem, setBidsSentProblem] = useState("");
   const [wonProblem, setWonProblem] = useState("");
+  const [markingWon, setMarkingWon] = useState(false);
+  // The new project's first check-in. Two weeks out by default -- the job
+  // is equipment on order, not something to look at again next year.
+  const [wonNextDate, setWonNextDate] = useState("");
   const [lostProblem, setLostProblem] = useState("");
   const [convertProblem, setConvertProblem] = useState("");
 
@@ -140,14 +144,6 @@ export default function PipelineDetail() {
     return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
   };
 
-  const adjustWeekend = (date) => {
-    const d = new Date(date);
-    const day = d.getDay();
-    // Back to the Friday before, so it lands ahead of the weekend.
-    if (day === 6) d.setDate(d.getDate() - 1);
-    if (day === 0) d.setDate(d.getDate() - 2);
-    return d.toISOString().split("T")[0];
-  };
 
   // The bidders list as a spreadsheet: one row per person, since that is
   // what someone chasing a job actually works down.
@@ -556,36 +552,51 @@ export default function PipelineDetail() {
     await loadPipelineEntry(uid, role);
   };
 
+  // Winning a job makes it a project, in one go.
+  //
+  // This used to be two steps: mark it won, then press Convert in the
+  // dialog that opened. Dismiss that dialog and the entry was won but not
+  // converted -- and because both working lists hide anything with an
+  // outcome, it vanished from My Projects and the Pipeline tab the moment
+  // it was won, with no project anywhere to replace it. The job was in
+  // Past Projects, which is where you look at history, not at live work.
+  //
+  // So the conversion happens here rather than being offered. The only
+  // thing it needs that the entry can't supply is the next check-in date,
+  // which is asked for on the Won box and starts two weeks out.
   const confirmMarkWon = async () => {
     setWonProblem("");
     if (!wonContractor.trim()) return setWonProblem("Select which of the bidders won the job.");
+    if (!wonNextDate) return setWonProblem("Pick a next check-in date for the new project.");
 
-    // Won work gets a 1-year check-in with whoever's actually responsible
-    // for the relationship (point person, then salesperson, then owner) --
-    // same follow-up/snooze pattern as a closed project. Lost work never
-    // gets a nextCheckIn at all, so it's never followed up on.
-    const followUp = new Date();
-    followUp.setFullYear(followUp.getFullYear() + 1);
+    setMarkingWon(true);
+    try {
+      await updateDoc(doc(db, "pipeline", pipelineId), withStateLog({
+        outcome: "Won",
+        wonByContractor: wonContractor.trim(),
+        resolvedAt: new Date().toISOString(),
+        // The project carries the follow-up from here, so the entry gets
+        // no check-in of its own -- two reminders for one job is one too
+        // many, and the conversion below would clear it anyway.
+        nextCheckIn: null,
+        // Asked for on the Won box when the entry doesn't already carry
+        // them, so the ship date is known before the job is even set up.
+        ...(wonLeadTime.trim() ? { leadTime: wonLeadTime.trim() } : {}),
+        ...(wonOrderedOn ? { orderedOn: wonOrderedOn } : {})
+      }));
 
-    await updateDoc(doc(db, "pipeline", pipelineId), withStateLog({
-      outcome: "Won",
-      wonByContractor: wonContractor.trim(),
-      resolvedAt: new Date().toISOString(),
-      nextCheckIn: adjustWeekend(followUp.toISOString()),
-      // Asked for on the Won box when the entry doesn't already carry
-      // them, so the ship date is known before the job is even set up.
-      ...(wonLeadTime.trim() ? { leadTime: wonLeadTime.trim() } : {}),
-      ...(wonOrderedOn ? { orderedOn: wonOrderedOn } : {})
-    }));
-    setShowWonModal(false);
-    setWonContractor("");
-    setWonLeadTime("");
-    setWonOrderedOn("");
-    await loadPipelineEntry(uid, role);
-    // Won work becomes a project; there's no reason to make someone go
-    // looking for the button. The winner is handed over directly -- see
-    // openConvert on why reading it back off state doesn't work here.
-    openConvert(wonContractor.trim());
+      await createProjectFromEntry({
+        data: convertDataFor(wonContractor.trim()),
+        projectAddress: pipeline.projectAddress || "",
+        nextDate: wonNextDate
+      });
+    } catch (err) {
+      // The entry is already marked won at this point. Saying so matters:
+      // the Convert button is still there to finish the job by hand.
+      setWonProblem(`Marked won, but the project wasn't created: ${err.message}. Use Convert to Project to finish it.`);
+      setMarkingWon(false);
+      await loadPipelineEntry(uid, role);
+    }
   };
 
   const confirmMarkLost = async () => {
@@ -631,13 +642,16 @@ export default function PipelineDetail() {
   // job won: the reload has happened but this closure still holds the
   // pipeline object from before it, so reading wonByContractor off state
   // gave nothing and the modal asked for a firm it had just been told.
-  const openConvert = (wonBy = null) => {
+  // Everything a project needs that can be worked out from the entry. Used
+  // both by Mark Won, which converts on the spot, and by the Convert
+  // button that entries won before that still carry.
+  const convertDataFor = (wonBy = null) => {
     const winnerName = wonBy || pipeline.wonByContractor || "";
     const winner = groupBidders(pipeline.biddingCompanies).find(
       b => (b.company || "").toLowerCase() === winnerName.toLowerCase()
     );
     const winnerContact = contactsOf(winner)[0] || {};
-    setConvertData({
+    return {
       salespersonId: pipeline.salespersonId || pipeline.ownerId || "",
       companyCategory: firmTypeOf(winner?.category),
       company: winner?.company || winnerName,
@@ -646,26 +660,44 @@ export default function PipelineDetail() {
       phone: winnerContact.phone || "",
       buildingSector: pipeline.buildingSector || "",
       workType: pipeline.workType || ""
-    });
+    };
+  };
+
+  const openConvert = (wonBy = null) => {
+    setConvertData(convertDataFor(wonBy));
     setConvertProjectAddress(pipeline.projectAddress || "");
     setConvertNextDate("");
     setShowConvertModal(true);
   };
+
+
 
   const convertToProject = async () => {
     // The date is the only thing nobody can work out from the entry.
     // A thin field is carried across as-is and fixed on the project --
     // blocking the conversion over it just strands a won job in the
     // pipeline.
-    const missing = [];
-    if (!convertNextDate) missing.push("Next Check-In Date");
-    setConvertProblem("");
-    if (missing.length) {
-      return setConvertProblem(`Fill in: ${missing.join(", ")}.`);
+    if (!convertNextDate) {
+      return setConvertProblem("Fill in: Next Check-In Date.");
     }
-
+    setConvertProblem("");
     setConverting(true);
     try {
+      await createProjectFromEntry({
+        data: convertData,
+        projectAddress: convertProjectAddress,
+        nextDate: convertNextDate
+      });
+    } catch (err) {
+      setConvertProblem(`Couldn't create the project: ${err.message}`);
+      setConverting(false);
+    }
+  };
+
+  // Makes the project and ties the entry to it. Throws on failure so each
+  // caller can say so in its own dialog.
+  const createProjectFromEntry = async ({ data, projectAddress, nextDate }) => {
+    {
       const now = new Date().toISOString();
       const myName = myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown");
       // Serial numbers and install years get filled in on the project once
@@ -675,28 +707,28 @@ export default function PipelineDetail() {
 
       const ref3 = await addDoc(collection(db, "customers"), {
         projectName: pipeline.title,
-        company: convertData.company.trim(),
-        companyCategory: convertData.companyCategory,
-        contact: convertData.contact || "",
-        email: convertData.email || "",
-        phone: convertData.phone || "",
+        company: data.company.trim(),
+        companyCategory: data.companyCategory,
+        contact: data.contact || "",
+        email: data.email || "",
+        phone: data.phone || "",
         owners: [],
         // Won work is equipment on order, not a job already running.
         category: UNDER_CONTRACT,
-        buildingSector: convertData.buildingSector,
+        buildingSector: data.buildingSector,
         projectValue: pipeline.value || null,
-        workType: convertData.workType,
-        projectAddress: convertProjectAddress,
+        workType: data.workType,
+        projectAddress: projectAddress,
         equipment,
         towerManufacturer: first.manufacturer || pipeline.towerManufacturer || null,
         modelNumber: first.model || pipeline.modelNumber || null,
         serialNumber: null,
-        nextCheckIn: convertNextDate,
+        nextCheckIn: nextDate,
         lastContact: now.split("T")[0],
         activityLog: [{ type: "converted", outcome: "From won pipeline entry", notes: `Converted by ${myName}`, timestamp: now }],
-        ownerId: convertData.salespersonId,
+        ownerId: data.salespersonId,
         splits: normalizeSplits(pipeline.splits),
-        collaboratorIds: withSplitMembers([], pipeline.splits, convertData.salespersonId),
+        collaboratorIds: withSplitMembers([], pipeline.splits, data.salespersonId),
         projectPointPersonId: pipeline.projectPointPersonId || null,
         // The lead time and its dates follow the work across.
         leadTime: pipeline.leadTime || null,
@@ -721,7 +753,7 @@ export default function PipelineDetail() {
       ));
 
       await ensureCompanyAndContactBatch([
-        { companyName: convertData.company, category: convertData.companyCategory, contactName: convertData.contact, email: convertData.email, phone: convertData.phone }
+        { companyName: data.company, category: data.companyCategory, contactName: data.contact, email: data.email, phone: data.phone }
       ], { companies, contacts, uid });
 
       // The project now carries the follow-up, so the pipeline entry's own
@@ -733,9 +765,6 @@ export default function PipelineDetail() {
       }));
 
       router.push(`/dashboard/project/${ref3.id}`);
-    } catch (err) {
-      setConvertProblem(`Couldn't create the project: ${err.message}`);
-      setConverting(false);
     }
   };
 
@@ -837,7 +866,7 @@ export default function PipelineDetail() {
           </p>
           {canEdit && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button className="btn btn-primary" onClick={() => setShowWonModal(true)}>Mark Won</button>
+              <button className="btn btn-primary" onClick={() => { setWonNextDate(postBidCheckIn()); setShowWonModal(true); }}>Mark Won</button>
               <button className="btn btn-danger" onClick={() => { setDnbChoice(""); setLostReason(""); setLostProblem(""); setLostModalOutcome("Lost"); }}>Mark Lost</button>
             </div>
           )}
@@ -1386,14 +1415,27 @@ export default function PipelineDetail() {
               </>
             )}
 
+            <label className="field-label" htmlFor="won-next-date" style={{ marginTop: 12 }}>Next check-in on the new project</label>
+            <input
+              id="won-next-date"
+              className="field"
+              type="date"
+              value={wonNextDate}
+              onChange={e => { setWonNextDate(e.target.value); setWonProblem(""); }}
+            />
+            <p className="private-note-hint">
+              Winning it makes it a project at {UNDER_CONTRACT}. Everything else carries
+              across from this entry.
+            </p>
+
             {wonProblem && <p className="settings-status is-error">⚠ {wonProblem}</p>}
             <button
               className="btn btn-primary btn-block"
               style={{ marginTop: 12 }}
-              disabled={!wonContractor}
+              disabled={!wonContractor || !wonNextDate || markingWon}
               onClick={confirmMarkWon}
             >
-              Confirm
+              {markingWon ? "Creating the project…" : "Mark won — make it a project"}
             </button>
           </div>
         </div>
