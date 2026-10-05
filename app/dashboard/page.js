@@ -52,6 +52,7 @@ import { resolvedBidItems, outcomeItems, activityItems, leadTimeItems, doneRemin
 import { leadTimeStatus, todayKey } from "../../lib/leadTimes";
 import { hasShare, splitShares } from "../../lib/splits";
 import { isOnMyPipelineList } from "../../lib/pipelinePeople";
+import { notifyUsers } from "../../lib/notify";
 import { exportDashboardView } from "../../lib/viewExport";
 import ExportButtons from "../components/ExportButtons";
 import SortPicker from "../components/SortPicker";
@@ -667,28 +668,6 @@ export default function Dashboard() {
     }
   };
 
-  const sendNotificationEmail = async (to, subject, html) => {
-    try {
-      const idToken = await auth.currentUser.getIdToken();
-      const res = await fetch("/api/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ to, subject, html })
-      });
-      // A non-network failure (Gmail rejected it, etc.) already alerts
-      // every admin server-side (see /api/send-email) -- this just keeps
-      // it out of a silent void in the browser console too.
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        console.error(`Failed to send "${subject}" to ${to}:`, data.error, data.code ? `(code ${data.code})` : "");
-      }
-    } catch (err) {
-      // best-effort -- don't let a failed email break the actual action,
-      // but a true network failure here (offline, etc.) is at least worth
-      // seeing in devtools.
-      console.error(`Failed to send "${subject}" to ${to}:`, err.message);
-    }
-  };
 
   const loadNotifications = async (currentUid) => {
     const snap = await getDocs(query(collection(db, "notifications"), where("userId", "==", currentUid)));
@@ -702,20 +681,12 @@ export default function Dashboard() {
   // In-app alert, independent of whether the accompanying email actually
   // gets delivered -- the alerts bell always shows what happened even
   // when email doesn't (see: the whole SES/Gmail saga).
-  const notifyUser = async (userId, { type, message, link, email, subject, emailHtml, emailPref }) => {
-    await addDoc(collection(db, "notifications"), {
-      userId,
-      type,
-      message,
-      link: link || null,
-      read: false,
-      createdAt: new Date().toISOString()
-    });
-
-    if (email && emailPref !== false) {
-      sendNotificationEmail(email, subject, emailHtml);
-    }
-  };
+  // One alert, one path: notifyUsers writes it under the bell and asks the
+  // server to email whoever wants that kind. The email body and the
+  // opt-out both live with the alert type now, in lib/alertEmails, instead
+  // of each call site carrying its own subject line and preference field.
+  const notifyUser = (userId, { type, message, link }) =>
+    notifyUsers([userId], { type, message, link });
 
   // Won and Prospecting Only are the only closed outcomes that ever come
   // back -- Lost and Not Pursuing stay in Past Projects with no further
@@ -820,10 +791,6 @@ export default function Dashboard() {
         type: "collab_request",
         message: `${requesterName} wants to collaborate on ${projectLabel}`,
         link: `/dashboard/project/${c.id}`,
-        email: owner.email,
-        subject: `${requesterName} wants to collaborate on ${projectLabel}`,
-        emailHtml: `<p>${requesterName} has requested to collaborate on <strong>${projectLabel}</strong>. Log in to your CRM dashboard to approve or deny.</p>`,
-        emailPref: owner.notifyCollabRequest
       });
     }
   };
@@ -843,10 +810,6 @@ export default function Dashboard() {
         type: "collab_approved",
         message: `Your request to collaborate on ${projectLabel} was approved`,
         link: `/dashboard/project/${customerId}`,
-        email: requester.email,
-        subject: `You can now collaborate on ${projectLabel}`,
-        emailHtml: `<p>Your request to collaborate on <strong>${projectLabel}</strong> was approved. It now shows up in your My Projects.</p>`,
-        emailPref: requester.notifyCollabApproved
       });
     }
 

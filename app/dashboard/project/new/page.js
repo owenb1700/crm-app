@@ -379,14 +379,11 @@ export default function NewProject() {
       // Tell the salesperson it's theirs -- otherwise it just appears in
       // their list one day with no explanation.
       if (enteredForSomeoneElse) {
-        await addDoc(collection(db, "notifications"), {
-          userId: ownerId,
+        await notifyUsers([ownerId], {
           type: "assigned",
           message: `${myName()} added the project "${projectName}" for you`,
-          link: `/dashboard/project/${ref.id}`,
-          read: false,
-          createdAt: new Date().toISOString()
-        }).catch(() => {});
+          link: `/dashboard/project/${ref.id}`
+        });
       }
 
       if (firmTags) {

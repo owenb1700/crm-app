@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
+import { ALERT_EMAILS } from "../../lib/alertEmails";
 import { DAY_NAMES, DEFAULT_DIGEST_SCHEDULE, schedulesFor } from "../../lib/digest";
 import TrashModal from "./TrashModal";
 import TrustedDevices from "./TrustedDevices";
@@ -12,8 +13,12 @@ import TrustedDevices from "./TrustedDevices";
 export default function UserSettingsModal({ uid, profile, onClose, onSaved }) {
   const [showTrash, setShowTrash] = useState(false);
   const [schedules, setSchedules] = useState(() => schedulesFor(profile).map(s => ({ ...s })));
-  const [notifyCollabRequest, setNotifyCollabRequest] = useState(profile?.notifyCollabRequest !== false);
-  const [notifyCollabApproved, setNotifyCollabApproved] = useState(profile?.notifyCollabApproved !== false);
+  // One switch per kind of alert that can be emailed, read from the list
+  // that owns them. Nothing stored means on, so an account that predates a
+  // switch keeps getting the email until somebody says otherwise.
+  const [emailPrefs, setEmailPrefs] = useState(() =>
+    Object.fromEntries(ALERT_EMAILS.map(a => [a.pref, profile?.[a.pref] !== false]))
+  );
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -32,8 +37,7 @@ export default function UserSettingsModal({ uid, profile, onClose, onSaved }) {
         daysAhead: Math.min(60, Math.max(1, Number(s.daysAhead) || 1)),
         includeOverdue: s.includeOverdue !== false
       })),
-      notifyCollabRequest,
-      notifyCollabApproved
+      ...emailPrefs
     };
     try {
       await updateDoc(doc(db, "users", uid), patch);
@@ -175,27 +179,23 @@ export default function UserSettingsModal({ uid, profile, onClose, onSaved }) {
           </section>
 
           <section className="settings-section">
-            <h4 className="settings-section-title">Collaboration emails</h4>
+            <h4 className="settings-section-title">Alert emails</h4>
             <p className="settings-hint">Email me when:</p>
-            <label className="settings-check" htmlFor="notify-collab-request">
-              <input
-                id="notify-collab-request"
-                type="checkbox"
-                checked={notifyCollabRequest}
-                onChange={e => setNotifyCollabRequest(e.target.checked)}
-              />
-              <span>Someone asks to collaborate on one of my projects</span>
-            </label>
-            <label className="settings-check" htmlFor="notify-collab-approved">
-              <input
-                id="notify-collab-approved"
-                type="checkbox"
-                checked={notifyCollabApproved}
-                onChange={e => setNotifyCollabApproved(e.target.checked)}
-              />
-              <span>My request to collaborate is approved</span>
-            </label>
-            <p className="settings-hint" style={{ marginTop: 6 }}>These always show in the alerts bell either way.</p>
+            {ALERT_EMAILS.map(a => (
+              <label key={a.pref} className="settings-check" htmlFor={`pref-${a.pref}`}>
+                <input
+                  id={`pref-${a.pref}`}
+                  type="checkbox"
+                  checked={emailPrefs[a.pref]}
+                  onChange={e => setEmailPrefs(prev => ({ ...prev, [a.pref]: e.target.checked }))}
+                />
+                <span>{a.label}</span>
+              </label>
+            ))}
+            <p className="settings-hint" style={{ marginTop: 6 }}>
+              These always show in the alerts bell either way. The nightly bid-date nudge
+              isn&apos;t here &mdash; it already goes out in your digest.
+            </p>
           </section>
 
           {profile?.role === "admin" && <TrustedDevices />}
