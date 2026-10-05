@@ -20,8 +20,14 @@ export default function PipelineMyAlerts({ pipeline, uid, users = [] }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  // Everyone on the entry, minus me -- I get the alert either way.
+  // Everyone on the entry, minus me -- I get the reminder either way.
   const team = remindableTeam(pipeline, users).filter(u => u.id !== uid);
+
+  // Whoever is signed in is always in the list once it has loaded, so an
+  // empty one means it hasn't arrived yet -- not that the entry is a
+  // one-man job. Saying "nobody else is on this entry" in that moment is
+  // a claim this box can't make yet.
+  const teamKnown = (users || []).length > 0;
 
   const load = async () => {
     try {
@@ -138,16 +144,18 @@ export default function PipelineMyAlerts({ pipeline, uid, users = [] }) {
         <input
           id={`my-alert-all-${pipeline.id}`}
           type="checkbox"
-          disabled={team.length === 0}
-          checked={remindAll && team.length > 0}
+          disabled={!teamKnown || team.length === 0}
+          checked={remindAll && teamKnown && team.length > 0}
           onChange={e => setRemindAll(e.target.checked)}
         />
         <span>
           Remind everyone on this entry
           <span className="private-note-hint" style={{ margin: "0 0 0 6px" }}>
-            {team.length
-              ? `${describeTeam(team, personName)} — everyone this entry is assigned to or shared with, plus the reps on the bidding firms`
-              : "nobody else is on this entry yet"}
+            {!teamKnown
+              ? "checking who else is on this entry…"
+              : team.length
+                ? `${describeTeam(team, personName)} — everyone this entry is assigned to or shared with, plus the reps on the bidding firms`
+                : "nobody else is on this entry yet"}
           </span>
         </span>
       </label>
