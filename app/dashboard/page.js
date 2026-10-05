@@ -1428,7 +1428,7 @@ export default function Dashboard() {
     name: { kind: "text", get: c => c.projectName || c.company, label: "Name" },
     firm: { kind: "text", get: c => c.company, label: "Contractor / owner" },
     value: { kind: "money", get: c => c.projectValue, label: "Value" },
-    status: { kind: "text", get: c => c.category, label: "Status" },
+    status: { kind: "text", get: c => c.category, label: "Stage" },
     created: { kind: "date", get: c => c.createdAt, label: "Date added" }
   };
   // Past Projects shows closed projects and resolved pipeline entries in
@@ -1963,7 +1963,7 @@ export default function Dashboard() {
     workTypeFilter,
     { key: "person", label: "Salesperson", type: "select", options: optionsFrom(customers.map(c => c.ownerId), ownerLabel).map(o => personOption(o.value)) },
     { key: "firm", label: "Contractor / Owner", type: "select", options: optionsFrom(customers.flatMap(c => [c.company, ...(c.owners || []).map(o => o.company)])) },
-    { key: "status", label: "Status", type: "select", options: optionsFrom(customers.map(c => c.category)) },
+    { key: "status", label: "Stage", type: "select", options: optionsFrom(customers.map(c => c.category)) },
     { key: "outcome", label: "Outcome", type: "select", options: optionsFrom(customers.map(c => c.closedOutcome)) },
     { key: "due", label: "Next check-in", type: "date", presets: ["overdue", "today", "next7", "next30"] }
   ];
@@ -1975,7 +1975,7 @@ export default function Dashboard() {
     sectorFilter,
     workTypeFilter,
     { key: "firm", label: "Contractor / Owner", type: "select", options: optionsFrom(myActiveProjects.flatMap(c => [c.company, ...(c.owners || []).map(o => o.company)])) },
-    { key: "status", label: "Status", type: "select", options: optionsFrom(myActiveProjects.map(c => c.category)) },
+    { key: "status", label: "Stage", type: "select", options: optionsFrom(myActiveProjects.map(c => c.category)) },
     { key: "due", label: "Next check-in", type: "date", presets: ["overdue", "today", "next7", "next30"] }
   ];
 

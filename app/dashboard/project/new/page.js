@@ -519,7 +519,7 @@ export default function NewProject() {
           <BuildingSectorSelect id="new-project-sector" value={buildingSector} onChange={setBuildingSector} />
 
           <select className="field" value={category} onChange={e => setCategory(e.target.value)}>
-            <option value="">Select category...</option>
+            <option value="">Select stage...</option>
             {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
 

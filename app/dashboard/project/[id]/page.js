@@ -45,7 +45,7 @@ import { isTrashed } from "../../../../lib/trash";
 import PhotoGallery from "../../../components/PhotoGallery";
 import CreditSplitEditor from "../../../components/CreditSplitEditor";
 import { describeSplit, normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
-import { stateChanges, activityEntry, withActivity } from "../../../../lib/activityLog";
+import { stateChanges, activityEntry, withActivity, readActivityOutcome } from "../../../../lib/activityLog";
 import { notifyUsers, newSplitMembers } from "../../../../lib/notify";
 import Icon from "../../../components/Icon";
 import ConfirmDialog from "../../../components/ConfirmDialog";
@@ -902,9 +902,9 @@ export default function ProjectDetail() {
               <h4 className="edit-block-title">Where It Stands</h4>
               <div className="form-grid-3">
               <div>
-                <label className="field-label" htmlFor="project-detail-category">Category</label>
+                <label className="field-label" htmlFor="project-detail-category">Stage</label>
                 <select id="project-detail-category" className="field" value={normalizeCategory(editData.category)} onChange={e => setEditData({ ...editData, category: e.target.value })}>
-                  <option value="">Select category...</option>
+                  <option value="">Select stage...</option>
                   {CATEGORY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </div>
@@ -1240,7 +1240,7 @@ export default function ProjectDetail() {
           )}
           {(customer.activityLog || []).map((a, i) => (
             <div key={i} className="notes-history-item">
-              <div>{a.type} — {a.outcome}</div>
+              <div>{a.type} — {readActivityOutcome(a)}</div>
               {/* This printed the raw uid, so a pushed-out check-in read
                   "By AJsVfhLVPBO4Y4OT666YOwxjIlE3". The name written down
                   at the time wins, because people leave and their name on
