@@ -1285,6 +1285,10 @@ export default function ProjectDetail() {
 
           {canSeeNotes && uid && (
             <RecordNotes
+              record={customer}
+              users={users}
+              recordTitle={customer.projectName || customer.company}
+              recordLink={`/dashboard/project/${projectId}`}
               collectionName="customers"
               recordId={projectId}
               uid={uid}

@@ -2869,6 +2869,10 @@ export default function Dashboard() {
                     written here isn't a second, separate kind of note. */}
                 {uid && (
                   <RecordNotes
+                    record={selected}
+                    users={users}
+                    recordTitle={selected.projectName || selected.company}
+                    recordLink={`/dashboard/project/${selected.id}`}
                     collectionName="customers"
                     recordId={selected.id}
                     uid={uid}
@@ -3648,6 +3652,8 @@ export default function Dashboard() {
             <p className="modal-subtitle">Notes on this pipeline entry.</p>
             {uid && (
               <PipelineNotes
+                pipeline={notesFor}
+                users={users}
                 pipelineId={notesFor.id}
                 uid={uid}
                 myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown")}

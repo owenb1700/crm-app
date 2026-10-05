@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import ConfirmDialog from "./ConfirmDialog";
+import NoteAlertPicker from "./NoteAlertPicker";
+import { jobPeople, noteAlertMessage } from "../../lib/jobPeople";
+import { notifyUsers } from "../../lib/notify";
 
 // Notes on a pipeline entry, in two piles:
 //
@@ -19,7 +22,12 @@ import ConfirmDialog from "./ConfirmDialog";
 // keeps its notes and the project it becomes links back to it.
 // `span` is how wide the box sits in the detail grid. It was always a
 // full row; beside the bidding list it wants one column.
-export default function PipelineNotes({ pipelineId, uid, myName, legacyNotes, legacyHistory, span = "detail-span-full" }) {
+export default function PipelineNotes({
+  pipelineId, uid, myName, legacyNotes, legacyHistory, span = "detail-span-full",
+  // For the "who should know?" step on a team note. My notes never ask:
+  // there is nobody to tell about a note only you can read.
+  pipeline, users = []
+}) {
   const [tab, setTab] = useState("team");
   const [mine, setMine] = useState([]);
   const [team, setTeam] = useState([]);
@@ -27,6 +35,9 @@ export default function PipelineNotes({ pipelineId, uid, myName, legacyNotes, le
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(null); // { scope, note }
   const [error, setError] = useState("");
+  const [choosing, setChoosing] = useState(false);
+
+  const people = jobPeople(pipeline, { kind: "pipeline", users, exclude: uid });
 
   const mineRef = () => doc(db, "pipeline", pipelineId, "myNotes", uid);
   const teamCol = () => collection(db, "pipeline", pipelineId, "teamNotes");
@@ -51,7 +62,7 @@ export default function PipelineNotes({ pipelineId, uid, myName, legacyNotes, le
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pipelineId, uid]);
 
-  const add = async () => {
+  const add = async (tell = []) => {
     const text = draft.trim();
     if (!text) return;
     setSaving(true);
@@ -67,6 +78,18 @@ export default function PipelineNotes({ pipelineId, uid, myName, legacyNotes, le
         await load();
       }
       setDraft("");
+      setChoosing(false);
+      if (tell.length) {
+        try {
+          await notifyUsers(tell, {
+            type: "note",
+            message: noteAlertMessage(myName, pipeline?.title),
+            link: `/dashboard/pipeline/${pipelineId}`
+          });
+        } catch {
+          setError("Note saved, but the alert didn't go out.");
+        }
+      }
     } catch (err) {
       setError(`Couldn't save that note: ${err.message}`);
     } finally {
@@ -126,9 +149,24 @@ export default function PipelineNotes({ pipelineId, uid, myName, legacyNotes, le
         value={draft}
         onChange={e => setDraft(e.target.value)}
       />
-      <button className="btn btn-primary" disabled={saving || !draft.trim()} onClick={add}>
-        {saving ? "Saving…" : "Add note"}
-      </button>
+      {/* A team note asks who should know; a private one has nobody to
+          tell, so it saves on the first press as it always did. */}
+      {tab === "team" && choosing ? (
+        <NoteAlertPicker
+          people={people}
+          busy={saving}
+          onCancel={() => setChoosing(false)}
+          onAdd={add}
+        />
+      ) : (
+        <button
+          className="btn btn-primary"
+          disabled={saving || !draft.trim()}
+          onClick={() => (tab === "team" ? setChoosing(true) : add())}
+        >
+          {saving ? "Saving…" : "Add note"}
+        </button>
+      )}
 
       {error && <p className="settings-status is-error">{error}</p>}
 

@@ -1147,6 +1147,8 @@ export default function PipelineDetail() {
 
               {uid && (
                 <PipelineNotes
+                  pipeline={pipeline}
+                  users={users}
                   pipelineId={pipelineId}
                   uid={uid}
                   myName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown")}

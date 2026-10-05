@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { addDoc, collection, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import ConfirmDialog from "./ConfirmDialog";
+import NoteAlertPicker from "./NoteAlertPicker";
+import { jobPeople, noteAlertMessage } from "../../lib/jobPeople";
+import { notifyUsers } from "../../lib/notify";
 
 // Notes on a project: one document each, added by whoever owns or
 // collaborates on it, never edited afterwards, and deletable only by the
@@ -13,13 +16,25 @@ import ConfirmDialog from "./ConfirmDialog";
 // Older notes, written before notes were kept as a thread, are shown
 // underneath so nothing is lost.
 export default function RecordNotes({
-  collectionName, recordId, uid, myName, canAdd, legacyNotes, legacyHistory, onDeleteLegacy
+  collectionName, recordId, uid, myName, canAdd, legacyNotes, legacyHistory, onDeleteLegacy,
+  // For the "who should know?" step. Without a record and a user list
+  // there is nobody to offer, and the note saves the way it always did.
+  record, users = [], recordKind = "project", recordTitle, recordLink
 }) {
   const [notes, setNotes] = useState([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(null);
   const [error, setError] = useState("");
+  // Pressing Add note opens the "who should know?" step; the note isn't
+  // written until Add note is pressed again from in there.
+  const [choosing, setChoosing] = useState(false);
+
+  const people = jobPeople(record, { kind: recordKind, users, exclude: uid });
+  // Only a job has people on it. A parts request uses this same thread and
+  // has nobody to tell, so it saves on the first press the way it always
+  // did rather than asking a question with no answers in it.
+  const asksWhoToTell = !!record;
 
   const notesCol = () => collection(db, collectionName, recordId, "notes");
 
@@ -41,7 +56,7 @@ export default function RecordNotes({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collectionName, recordId, uid]);
 
-  const add = async () => {
+  const add = async (tell = []) => {
     const text = draft.trim();
     if (!text) return;
     setBusy(true);
@@ -51,6 +66,20 @@ export default function RecordNotes({
       const ref = await addDoc(notesCol(), entry);
       setNotes(prev => [...prev, { id: ref.id, ...entry }]);
       setDraft("");
+      setChoosing(false);
+      // The note is saved either way. A notification that doesn't go out
+      // is worth saying so about, but not worth losing the note over.
+      if (tell.length) {
+        try {
+          await notifyUsers(tell, {
+            type: "note",
+            message: noteAlertMessage(myName, recordTitle),
+            link: recordLink
+          });
+        } catch {
+          setError("Note saved, but the alert didn't go out.");
+        }
+      }
     } catch (err) {
       setError(`Couldn't save that note: ${err.message}`);
     } finally {
@@ -91,9 +120,22 @@ export default function RecordNotes({
             value={draft}
             onChange={e => setDraft(e.target.value)}
           />
-          <button className="btn btn-primary" disabled={busy || !draft.trim()} onClick={add}>
-            {busy ? "Saving…" : "Add note"}
-          </button>
+          {choosing ? (
+            <NoteAlertPicker
+              people={people}
+              busy={busy}
+              onCancel={() => setChoosing(false)}
+              onAdd={add}
+            />
+          ) : (
+            <button
+              className="btn btn-primary"
+              disabled={busy || !draft.trim()}
+              onClick={() => (asksWhoToTell ? setChoosing(true) : add())}
+            >
+              {busy ? "Saving…" : "Add note"}
+            </button>
+          )}
         </>
       )}
 

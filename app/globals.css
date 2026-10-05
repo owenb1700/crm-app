@@ -2925,6 +2925,19 @@ a {
   color: var(--color-text-muted);
 }
 
+/* The "who should know?" step, unfolded under a note before it is saved. */
+.note-alert-picker {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #f9fafc;
+}
+
+.note-alert-picker .modal-actions {
+  justify-content: flex-start;
+}
+
 .card-actions-stack {
   display: flex;
   flex-direction: column;
