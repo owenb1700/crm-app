@@ -2773,8 +2773,10 @@ a {
   border: 1px solid var(--color-border);
   border-left-width: 5px;
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.15s ease;
-  /* Two things made a hovered card flash grey.
+  /* The hover lift is an overlay, not this element's own shadow -- see
+     .customer-card::after below.
+
+     Two things made a hovered card flash grey.
      The shadow: cards sit 12px apart and --shadow-md reaches about 20, so
      it landed on the card below, and whichever card painted later won.
      --shadow-card-hover is bounded to fit the gap, so nothing overlaps
@@ -2791,12 +2793,35 @@ a {
   z-index: 0;
 }
 
+/* Animating box-shadow repaints the whole card on every frame of the
+   transition, and a card is a big thing to repaint sixty times a second
+   -- partial repaints are what showed as the top half flashing grey.
+   An overlay that only fades its opacity is composited instead: the card
+   itself is never repainted, so there is no frame it can be caught
+   half-painted in. Sits on the border box, and takes no clicks. */
+.customer-card::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  bottom: -1px;
+  left: -5px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card-hover);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.customer-card:hover::after {
+  opacity: 1;
+}
+
 .customer-notes-preview {
   cursor: pointer;
 }
 
 .customer-card:hover {
-  box-shadow: var(--shadow-card-hover);
   z-index: 1;
 }
 
