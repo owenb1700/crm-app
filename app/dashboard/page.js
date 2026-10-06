@@ -50,7 +50,7 @@ import { buildCalendarWeeks, weekendColumnsFor, visibleCalendarDays, columnLabel
 import CalendarNav from "../components/CalendarNav";
 import { resolvedBidItems, outcomeItems, activityItems, leadTimeItems, doneReminderItems, dedupeByDay } from "../../lib/calendarHistory";
 import { leadTimeStatus, todayKey } from "../../lib/leadTimes";
-import { hasShare, splitShares } from "../../lib/splits";
+import { hasShare } from "../../lib/splits";
 import { isOnMyPipelineList } from "../../lib/pipelinePeople";
 import { notifyUsers } from "../../lib/notify";
 import { daysFrom, latestDay, changeSince, describeChange, FREE_READS_PER_DAY } from "../../lib/growthLog";
@@ -61,7 +61,7 @@ import { sortRows, sortMixed } from "../../lib/sorting";
 import Icon from "../components/Icon";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { completedPayload, isOpen, doneOnly } from "../../lib/reminders";
-import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, PRE_BID, normalizeCategory, nextStage, nextStageLabel, stageNeedsInput } from "../../lib/projectCategories";
+import { PRE_BID, normalizeCategory, nextStage, nextStageLabel, stageNeedsInput } from "../../lib/projectCategories";
 import { normalizeStage, nextPipelineStep, nextPipelineStepLabel, pipelineStepNeedsInput, groupByBid,
   movedToPostBid, postBidCheckIn } from "../../lib/pipelineStages";
 
@@ -416,15 +416,20 @@ export default function Dashboard() {
       list = list.map(c => (c.ownerId ? c : { ...c, ownerId: currentUid }));
     }
 
-    list = await reactivateDueClosedProjects(list, currentUid, isAdmin);
+    // The projects are on screen as soon as they're read. What follows --
+    // reopening anything due, the note previews, the pending collaboration
+    // requests -- refines the page rather than deciding whether there is
+    // one, and holding the whole list back for it was most of the wait.
+    setCustomers(list);
 
+    list = await reactivateDueClosedProjects(list, currentUid, isAdmin);
     setCustomers(list);
 
     const owned = list.filter(c => c.ownerId === currentUid);
     const collaborating = list.filter(c => (c.collaboratorIds || []).includes(currentUid));
     const mine = [...owned, ...collaborating];
 
-    const noteEntries = await Promise.all(
+    const notesWork = Promise.all(
       mine.map(async (c) => {
         const noteRef = doc(db, "customers", c.id, "private", "data");
         const noteSnap = await getDoc(noteRef);
@@ -478,15 +483,17 @@ export default function Dashboard() {
         return [c.id, data];
       })
     );
-    setNotesById(Object.fromEntries(noteEntries));
 
     // Pending collaboration requests on entries I own.
-    const requestEntries = await Promise.all(
+    const requestsWork = Promise.all(
       owned.map(async (c) => {
         const reqSnap = await getDocs(collection(db, "customers", c.id, "collabRequests"));
         return [c.id, reqSnap.docs.map(d => ({ id: d.id, ...d.data() }))];
       })
     );
+
+    const [noteEntries, requestEntries] = await Promise.all([notesWork, requestsWork]);
+    setNotesById(Object.fromEntries(noteEntries));
     setRequestsById(Object.fromEntries(requestEntries));
   };
 
@@ -967,26 +974,30 @@ export default function Dashboard() {
         } else {
           setMyProfile(profile);
 
-          await loadCustomers(user.uid, profile.role === "admin");
-          await loadPipeline();
-          await loadDirectory();
-          await loadTowerModels();
-          // Same isolation as the alerts bell below: reminders failing to
-          // load (e.g. the Firestore rule isn't published yet) shows an
-          // error where reminders appear instead of breaking the dashboard.
-          try {
-            await loadReminders(user.uid);
-          } catch (err) {
-            setRemindersError(err.message || "Couldn't load reminders.");
-          }
-          // A broken alerts bell shouldn't take down the whole dashboard,
-          // but the failure still needs to be visible -- an empty list
-          // must never be indistinguishable from "nothing to show."
-          try {
-            await loadNotifications(user.uid);
-          } catch (err) {
-            setNotificationsError(err.message || "Couldn't load alerts.");
-          }
+          // All of these are independent, so they go at once rather than
+          // queueing behind each other. Loaded one after another they took
+          // a little over two seconds before anything appeared, almost all
+          // of it spent waiting -- the slowest single call is under 200ms.
+          //
+          // allSettled, not all: one list failing must not leave the rest
+          // of the dashboard empty. The two that already had their own
+          // isolation keep it, for the same reason -- a broken alerts bell
+          // or reminders list shows its own error where it belongs instead
+          // of taking the page down, and an empty list is never
+          // indistinguishable from "nothing to show".
+          const [customersResult, pipelineResult, directoryResult, towerResult] = await Promise.allSettled([
+            loadCustomers(user.uid, profile.role === "admin"),
+            loadPipeline(),
+            loadDirectory(),
+            loadTowerModels(),
+            loadReminders(user.uid).catch(err => setRemindersError(err.message || "Couldn't load reminders.")),
+            loadNotifications(user.uid).catch(err => setNotificationsError(err.message || "Couldn't load alerts."))
+          ]);
+
+          // The four that have no error state of their own share the
+          // page-level one, as they did when they were awaited in turn.
+          const failed = [customersResult, pipelineResult, directoryResult, towerResult].find(r => r.status === "rejected");
+          if (failed) throw failed.reason;
         }
       } catch (err) {
         setLoadError(err.message || "Something went wrong loading your account.");
