@@ -4,6 +4,7 @@ import { alertAdmins } from "../../../../lib/adminAlert";
 import { recordCronRun } from "../../../../lib/cronLog";
 import { oversizedRecords, describeOversized, oversizedSummary, estimateBytes } from "../../../../lib/recordSize";
 import { recordGrowth } from "../../../../lib/growthLog.server";
+import { mapWithLimit } from "../../../../lib/concurrency";
 
 // Nightly safety copy of everything in the database, written to Storage as
 // JSON (backups/YYYY-MM-DD/<collection>.json). The Trash only covers whole
@@ -30,6 +31,12 @@ const SUBCOLLECTIONS = {
 
 const KEEP_DAYS = 30;
 
+// How many records are worked on at once. Their subcollections are fetched
+// together, so a project (five of them) can have five reads in the air --
+// about fifty at a time overall. Enough to stop the queue being the whole
+// cost, far short of opening a connection per record.
+const AT_A_TIME = 10;
+
 export async function GET(req) {
   const auth = req.headers.get("authorization");
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -53,8 +60,11 @@ export async function GET(req) {
   try {
     for (const name of COLLECTIONS) {
       const snap = await db.collection(name).get();
-      const docs = [];
-      for (const d of snap.docs) {
+      const subs = SUBCOLLECTIONS[name] || [];
+      // The records are independent of each other, so they are read a few
+      // at a time. mapWithLimit keeps them in the order they came out of
+      // the query, so the backup file reads the same either way.
+      const docs = await mapWithLimit(snap.docs, AT_A_TIME, async (d) => {
         const record = { id: d.id, ...d.data() };
         // Measured before the subcollections are folded in below: what
         // matters is the size of the Firestore document itself, not the
@@ -63,14 +73,14 @@ export async function GET(req) {
           tooBig.push(...oversizedRecords([record], { kind: name === "customers" ? "project" : "pipeline entry" }));
           biggestBytes = Math.max(biggestBytes, estimateBytes(record));
         }
-        for (const sub of SUBCOLLECTIONS[name] || []) {
-          const subSnap = await d.ref.collection(sub).get();
-          if (!subSnap.empty) {
-            record[`_${sub}`] = subSnap.docs.map(x => ({ id: x.id, ...x.data() }));
+        const fetched = await Promise.all(subs.map(sub => d.ref.collection(sub).get()));
+        subs.forEach((sub, i) => {
+          if (!fetched[i].empty) {
+            record[`_${sub}`] = fetched[i].docs.map(x => ({ id: x.id, ...x.data() }));
           }
-        }
-        docs.push(record);
-      }
+        });
+        return record;
+      });
       counts[name] = docs.length;
       await bucket.file(`backups/${stamp}/${name}.json`).save(JSON.stringify(docs), {
         contentType: "application/json",
@@ -102,6 +112,9 @@ export async function GET(req) {
     // Said once a night, and only when something is actually close. The
     // backup itself carries on either way -- a warning is not a failure.
     if (tooBig.length) {
+      // Filled as the reads came back rather than in order, so the list is
+      // put back in size order -- biggest first -- before it is described.
+      tooBig.sort((a, b) => b.bytes - a.bytes);
       await alertAdmins({
         area: "Records approaching the size limit",
         message: oversizedSummary(tooBig),
