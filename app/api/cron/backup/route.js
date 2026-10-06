@@ -2,6 +2,7 @@ import { getStorage } from "firebase-admin/storage";
 import { getAdminDb, getAdminApp } from "../../../../lib/firebaseAdmin";
 import { alertAdmins } from "../../../../lib/adminAlert";
 import { recordCronRun } from "../../../../lib/cronLog";
+import { oversizedRecords, describeOversized, oversizedSummary } from "../../../../lib/recordSize";
 
 // Nightly safety copy of everything in the database, written to Storage as
 // JSON (backups/YYYY-MM-DD/<collection>.json). The Trash only covers whole
@@ -43,12 +44,22 @@ export async function GET(req) {
   const stamp = new Date().toISOString().slice(0, 10);
   const counts = {};
 
+  // Records creeping up on the 1 MB document ceiling. Collected while the
+  // backup is reading everything anyway, so it costs no extra reads.
+  const tooBig = [];
+
   try {
     for (const name of COLLECTIONS) {
       const snap = await db.collection(name).get();
       const docs = [];
       for (const d of snap.docs) {
         const record = { id: d.id, ...d.data() };
+        // Measured before the subcollections are folded in below: what
+        // matters is the size of the Firestore document itself, not the
+        // size of the backup blob we are about to write.
+        if (name === "customers" || name === "pipeline") {
+          tooBig.push(...oversizedRecords([record], { kind: name === "customers" ? "project" : "pipeline entry" }));
+        }
         for (const sub of SUBCOLLECTIONS[name] || []) {
           const subSnap = await d.ref.collection(sub).get();
           if (!subSnap.empty) {
@@ -80,8 +91,18 @@ export async function GET(req) {
     });
     await Promise.all(stale.map(f => f.delete().catch(() => {})));
 
-    await recordCronRun("backup", { date: stamp, counts, removedOldFiles: stale.length });
-    return Response.json({ ok: true, date: stamp, counts, removedOldFiles: stale.length });
+    // Said once a night, and only when something is actually close. The
+    // backup itself carries on either way -- a warning is not a failure.
+    if (tooBig.length) {
+      await alertAdmins({
+        area: "Records approaching the size limit",
+        message: oversizedSummary(tooBig),
+        detail: `${describeOversized(tooBig)}\n\nThe fix is to move that record's activity log into its own subcollection, the way notes already are. Nothing is broken yet -- this is notice, not an outage.`
+      });
+    }
+
+    await recordCronRun("backup", { date: stamp, counts, removedOldFiles: stale.length, nearSizeLimit: tooBig.length });
+    return Response.json({ ok: true, date: stamp, counts, removedOldFiles: stale.length, nearSizeLimit: tooBig.length });
   } catch (err) {
     const code = await alertAdmins({
       area: "Backup",
