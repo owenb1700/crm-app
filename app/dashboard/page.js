@@ -28,7 +28,7 @@ import { isPipelineBidAlertFor, isWonFollowUpFor, isProjectCheckInFor, isPipelin
 import { bidderDirectoryEntries } from "../../lib/bidders";
 import JobPicker from "../components/JobPicker";
 import { RECORDS_CHANGED_EVENT } from "../components/TrashModal";
-import { withoutTrashed, reminderJobIsActive } from "../../lib/trash";
+import { withoutTrashed, isTrashed, reminderJobIsActive } from "../../lib/trash";
 import UserSettingsModal from "../components/UserSettingsModal";
 import FilterBar, { matchesDateFilter, optionsFrom, isFilterActive } from "../components/FilterBar";
 import { canViewAnalytics, withDollar } from "../../lib/analytics";
@@ -884,7 +884,7 @@ export default function Dashboard() {
       collaboratorIds: arrayRemove(collaboratorId)
     });
     showToast("Collaboration access removed");
-    loadCustomers(uid, role === "admin");
+    await refreshRecord({ id: customerId }, "customers");
   };
 
 
@@ -899,7 +899,7 @@ export default function Dashboard() {
     await updateDoc(doc(db, "users", uid), { firstName, lastName });
     setMyProfile(prev => ({ ...(prev || {}), email: auth.currentUser?.email, role, firstName, lastName }));
     setNeedsName(false);
-    await loadCustomers(uid, role === "admin");
+    await loadUsers();
   };
 
   const logout = async () => {
@@ -1064,7 +1064,48 @@ export default function Dashboard() {
   // An overdue check-in had nowhere to go from the panel: only reminders
   // carried buttons, so a late project or pipeline entry just sat there
   // being late. Push it out a week, or take it off the list entirely.
-  const collectionOf = (c) => (c._kind === "pipeline" || c._kind === "bid" ? "pipeline" : "customers");
+  // A row built for the calendar says where it came from; everything else
+  // is told apart by its kind.
+  const collectionOf = (c) => c._source || (c._kind === "pipeline" || c._kind === "bid" ? "pipeline" : "customers");
+
+  // Re-reads the one record that was just written and puts it back in the
+  // list, in place of re-reading every record to show one change.
+  //
+  // Every write below used to be followed by loadCustomers() and
+  // loadPipeline(), which read both collections in full, plus a note
+  // document for each project of yours and a collaboration query for each
+  // one you own -- around twenty document reads to move one date, and
+  // growing with the data rather than with the change. This reads one.
+  //
+  // It still goes to the server rather than patching what's on screen
+  // from what we think we wrote: if a save did more than it said, or
+  // somebody else's change landed first, this shows what is actually
+  // stored. The point is to read less, not to trust more.
+  // `name` is the collection that was just written to, passed in rather
+  // than worked out from the record. The lists on screen are decorated
+  // differently depending on which page built them -- a card on the
+  // Pipeline page carries no _kind at all -- and a guess that lands on
+  // the wrong collection refreshes nothing and says nothing, leaving the
+  // card showing what it showed before the change. It is always the same
+  // expression the write directly above it used.
+  const refreshRecord = async (c, name) => {
+    const id = c._recordId || c.id;
+    const setList = name === "pipeline" ? setPipelineEntries : setCustomers;
+    const snap = await getDoc(doc(db, name, id));
+
+    // Gone, or just moved to the Trash: take it off the list, the same way
+    // a full reload would have.
+    if (!snap.exists() || isTrashed({ id: snap.id, ...snap.data() })) {
+      setList(list => list.filter(x => x.id !== id));
+      return null;
+    }
+
+    const record = { id: snap.id, ...snap.data() };
+    setList(list => (list.some(x => x.id === id)
+      ? list.map(x => (x.id === id ? record : x))
+      : [...list, record]));
+    return record;
+  };
 
   const pushOutAWeek = async (c) => {
     const next = new Date();
@@ -1075,8 +1116,7 @@ export default function Dashboard() {
       activityLog: [...(c.activityLog || []), checkInMoved(c, to, "Pushed out a week")]
     });
     showToast("Pushed out to " + to);
-    loadCustomers(uid, role === "admin");
-    loadPipeline();
+    await refreshRecord(c, collectionOf(c));
   };
 
   // Whatever a row is moved to, it moves to a real date rather than being
@@ -1092,8 +1132,7 @@ export default function Dashboard() {
     setPickingDateFor(null);
     setPickedDate("");
     showToast("Back on " + to);
-    loadCustomers(uid, role === "admin");
-    loadPipeline();
+    await refreshRecord(c, collectionOf(c));
   };
 
   // A check-in done late is still done. Without this the only way off the
@@ -1115,8 +1154,7 @@ export default function Dashboard() {
       }]
     });
     showToast(due && due !== today ? `Checked in — was due ${due}` : "Checked in");
-    loadCustomers(uid, role === "admin");
-    loadPipeline();
+    await refreshRecord(c, collectionOf(c));
   };
 
   // Follow Up used to assume two weeks without asking. Two weeks is right
@@ -1177,7 +1215,7 @@ export default function Dashboard() {
       }]
     });
     showToast(`Moved to ${to}`);
-    await loadPipeline();
+    await refreshRecord(p, "pipeline");
   };
 
   const confirmStageMove = async () => {
@@ -1226,7 +1264,7 @@ export default function Dashboard() {
       }]
     });
     showToast(`Moved to ${to}`);
-    await loadCustomers(uid, role === "admin");
+    await refreshRecord(c, "customers");
   };
   const [followUpDate, setFollowUpDate] = useState("");
 
@@ -1241,8 +1279,7 @@ export default function Dashboard() {
     setFollowUpFor(null);
     setFollowUpDate("");
     showToast("Back on " + to);
-    loadCustomers(uid, role === "admin");
-    loadPipeline();
+    await refreshRecord(c, collectionOf(c));
   };
 
   const followUpAWeek = (c) => {
@@ -1255,8 +1292,7 @@ export default function Dashboard() {
     const id = c._recordId || c.id;
     await updateDoc(doc(db, collectionOf(c), id), { leadTimeAlerts: false });
     showToast("Ship-date alerts off for this job");
-    loadCustomers(uid, role === "admin");
-    loadPipeline();
+    await refreshRecord(c, collectionOf(c));
   };
 
   const handleFollowUp = async (c) => {
@@ -1270,7 +1306,7 @@ export default function Dashboard() {
     });
 
     showToast("Follow-up scheduled for 2 weeks");
-    loadCustomers(uid, role === "admin");
+    await refreshRecord(c, "customers");
   };
 
   // Same snooze/re-follow-up pattern as closed projects, but for Won
@@ -1287,7 +1323,7 @@ export default function Dashboard() {
     });
 
     showToast("Snoozed for 3 months");
-    loadPipeline();
+    await refreshRecord(p, "pipeline");
   };
 
   const pipelineFollowUpAnotherYear = async (p) => {
@@ -1301,7 +1337,7 @@ export default function Dashboard() {
     });
 
     showToast("Follow-up scheduled for 1 year");
-    loadPipeline();
+    await refreshRecord(p, "pipeline");
   };
 
   const openCompletedPopup = (c) => {
@@ -1317,6 +1353,9 @@ export default function Dashboard() {
 
   const confirmCompleted = async () => {
     setOutcomeProblem("");
+    // Held on to, because the popup is closed before the record is read
+    // back and completedTarget is null by then.
+    const completed = completedTarget;
     if (completedOutcome === CLOSED_OUTCOME) {
       await updateDoc(doc(db, "customers", completedTarget.id), {
         ...closeProjectPayload(completedTarget.activityLog),
@@ -1326,7 +1365,7 @@ export default function Dashboard() {
       setCompletedTarget(null);
       setCompletedOutcome("Won");
       showToast("Project closed — moved to Past Projects with a 1-year check-in");
-      loadCustomers(uid, role === "admin");
+      await refreshRecord(completed, "customers");
       return;
     }
     if (completedOutcome === "Won" && !wonNextDate) {
@@ -1403,7 +1442,7 @@ export default function Dashboard() {
     showToast(completedOutcome === "Won"
       ? `Marked won — stays on My Projects, next due ${payload.nextCheckIn}`
       : "Marked completed — moved to Past Projects");
-    loadCustomers(uid, role === "admin");
+    await refreshRecord(completed, "customers");
   };
 
   const openModal = async (c) => {
@@ -1748,8 +1787,8 @@ export default function Dashboard() {
       ...activityItems(customers, mineProject, "outcome"),
       ...activityItems(pipelineEntries, minePipeline, "outcome"),
       // Ship dates only for records someone asked to be told about.
-      ...leadTimeItems(customers, mineProject, r => leadTimeStatus(r, todayKey())),
-      ...leadTimeItems(pipelineEntries, minePipeline, r => leadTimeStatus(r, todayKey())),
+      ...leadTimeItems(customers, mineProject, r => leadTimeStatus(r, todayKey()), "customers"),
+      ...leadTimeItems(pipelineEntries, minePipeline, r => leadTimeStatus(r, todayKey()), "pipeline"),
       // Reminders you finished, on the day they were due.
       ...doneReminderItems(finishedReminders)
     ]);
@@ -2182,7 +2221,7 @@ export default function Dashboard() {
                 <ClosedCheckInActions
                   project={c}
                   byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
-                  onDone={(msg) => { showToast(msg); loadCustomers(uid, role === "admin"); }}
+                  onDone={(msg) => { showToast(msg); refreshRecord(c, "customers"); }}
                 />
               </div>
             )}
@@ -2776,7 +2815,7 @@ export default function Dashboard() {
                       <ClosedCheckInActions
                         project={c}
                         byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
-                        onDone={(msg) => { showToast(msg); loadCustomers(uid, role === "admin"); }}
+                        onDone={(msg) => { showToast(msg); refreshRecord(c, "customers"); }}
                       />
                     </div>
                   </div>
@@ -3603,7 +3642,7 @@ export default function Dashboard() {
                   <ClosedCheckInActions
                     project={c}
                     byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
-                    onDone={(msg) => { setCalendarPopup(null); showToast(msg); loadCustomers(uid, role === "admin"); }}
+                    onDone={(msg) => { setCalendarPopup(null); showToast(msg); refreshRecord(c, "customers"); }}
                   />
                 )}
                 {c._kind === "pipeline" && c.outcome === "Won" && (
