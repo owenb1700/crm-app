@@ -53,7 +53,7 @@ export async function POST(req) {
       if (!wantsAlertEmail(user, type)) return;
       await sendRawEmail(user.email, subject, html);
       sent += 1;
-    } catch (err) {
+    } catch {
       failed.push(userId);
     }
   }));

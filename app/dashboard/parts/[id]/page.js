@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { collection, deleteDoc, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../../../lib/firebase";
 import { ensureCompanyAndContactBatch } from "../../../../lib/directory";
 import { blankPart, partPayload, partError, partChanges, logEntry, describeContractors, firmTypeLine, stageStamps } from "../../../../lib/parts";

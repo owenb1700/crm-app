@@ -21,7 +21,7 @@ import AddressAutocomplete from "../../../../components/AddressAutocomplete";
 import MobileNav from "../../../../components/MobileNav";
 import { isTrashed, withoutTrashed } from "../../../../../lib/trash";
 import { companyKeyOf, sameCompany, samePerson, findSimilarPeople, findSimilarCompanies, groupSimilarPeople } from "../../../../../lib/companyMatch";
-import { companyConflicts, personConflicts, describeConflicts, reviewSignature, emailsOf, phonesOf, companyValues, FIELD_LABELS } from "../../../../../lib/directoryConflicts";
+import { companyConflicts, personConflicts, describeConflicts, reviewSignature, emailsOf, phonesOf, FIELD_LABELS } from "../../../../../lib/directoryConflicts";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
 import SalespersonSelect from "../../../../components/SalespersonSelect";
 import FirmTagPicker from "../../../../components/FirmTagPicker";

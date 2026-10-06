@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../lib/firebase";
-import { doc, getDoc, getDocs, collection, addDoc } from "firebase/firestore";
+import { doc, getDoc, getDocs, collection } from "firebase/firestore";
 import { firmHasTag, firmTagOptions, COMPANY_CATEGORIES, CATEGORY_TITLES } from "../../../lib/directory";
 import DashboardHeader from "../../components/DashboardHeader";
 import AddressAutocomplete from "../../components/AddressAutocomplete";
