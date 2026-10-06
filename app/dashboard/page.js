@@ -53,6 +53,7 @@ import { leadTimeStatus, todayKey } from "../../lib/leadTimes";
 import { hasShare, splitShares } from "../../lib/splits";
 import { isOnMyPipelineList } from "../../lib/pipelinePeople";
 import { notifyUsers } from "../../lib/notify";
+import { daysFrom, latestDay, changeSince, describeChange, FREE_READS_PER_DAY } from "../../lib/growthLog";
 import { exportDashboardView } from "../../lib/viewExport";
 import ExportButtons from "../components/ExportButtons";
 import SortPicker from "../components/SortPicker";
@@ -256,6 +257,34 @@ export default function Dashboard() {
   const [parts, setParts] = useState([]);
   const [towerModels, setTowerModels] = useState([]);
   const [rebuildingDirectory, setRebuildingDirectory] = useState(false);
+
+  // The running record of how much data there is. Written nightly by the
+  // backup; read here so growth is something to look at rather than
+  // guess at.
+  const [growthDays, setGrowthDays] = useState(null);
+  const [growthError, setGrowthError] = useState(null);
+  // Whether we've asked, which is not the same as having got an answer:
+  // an empty array is truthy, so guarding on the result meant one failed
+  // read left the panel stuck on its error until the page was reloaded.
+  const askedForGrowth = useRef(false);
+  useEffect(() => {
+    if (view !== "admin" || role !== "admin" || askedForGrowth.current) return;
+    askedForGrowth.current = true;
+    (async () => {
+      try {
+        setGrowthError(null);
+        const snap = await getDocs(collection(db, "growth"));
+        setGrowthDays(daysFrom(snap.docs.map(d => d.data())));
+      } catch (err) {
+        // Not the same as "nothing recorded yet", and it mustn't look like
+        // it -- a rules problem that reads as an empty panel is a problem
+        // nobody goes looking for.
+        setGrowthError(err.message || "Couldn't read the growth history.");
+        setGrowthDays([]);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, role]);
 
   // COLLABORATION
   const [requestsById, setRequestsById] = useState({}); // customerId -> pending requests on entries I own
@@ -3271,6 +3300,54 @@ export default function Dashboard() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="admin-card">
+            <h3 className="modal-title">Data Growth</h3>
+            <p className="modal-subtitle" style={{ marginBottom: 12 }}>
+              Counted by the nightly backup. Every list in the app loads its whole collection,
+              so the reads per load is what one person costs each time they open the app.
+            </p>
+            {growthDays === null && <p className="private-note-hint">Loading…</p>}
+            {growthError && (
+              <p className="settings-status is-error">
+                ⚠ {growthError}{" "}
+                <button
+                  className="link-muted"
+                  style={{ background: "none", border: "none", cursor: "pointer" }}
+                  onClick={() => { askedForGrowth.current = false; setGrowthDays(null); setGrowthError(null); }}
+                >
+                  Try again
+                </button>
+              </p>
+            )}
+            {!growthError && growthDays?.length === 0 && (
+              <p className="private-note-hint">
+                Nothing recorded yet — the first reading lands after tonight&apos;s backup.
+              </p>
+            )}
+            {growthDays?.length > 0 && (() => {
+              const today = latestDay(growthDays);
+              const reads = today.readsPerDashboardLoad || 0;
+              return (
+                <>
+                  <dl className="detail-list">
+                    <dt>Records today</dt><dd>{(today.totalRecords || 0).toLocaleString()}</dd>
+                    <dt>Reads per dashboard load</dt><dd>{reads.toLocaleString()}</dd>
+                    <dt>Free allowance</dt><dd>{FREE_READS_PER_DAY.toLocaleString()} reads a day</dd>
+                    <dt>Biggest record</dt><dd>{Math.round((today.biggestBytes || 0) / 1024).toLocaleString()} KB of 1,024</dd>
+                    <dt>Last 7 days</dt><dd>{describeChange(changeSince(growthDays, 7))}</dd>
+                    <dt>Last 30 days</dt><dd>{describeChange(changeSince(growthDays, 30))}</dd>
+                    <dt>Last 90 days</dt><dd>{describeChange(changeSince(growthDays, 90))}</dd>
+                    <dt>Measured since</dt><dd>{growthDays[0].day} ({growthDays.length} day{growthDays.length === 1 ? "" : "s"})</dd>
+                  </dl>
+                  <p className="private-note-hint" style={{ marginTop: 8 }}>
+                    At this size one person opening the app {reads ? Math.floor(FREE_READS_PER_DAY / reads).toLocaleString() : "—"} times
+                    would use the day&apos;s free allowance on its own.
+                  </p>
+                </>
+              );
+            })()}
           </div>
 
           <div className="admin-card">

@@ -2,7 +2,8 @@ import { getStorage } from "firebase-admin/storage";
 import { getAdminDb, getAdminApp } from "../../../../lib/firebaseAdmin";
 import { alertAdmins } from "../../../../lib/adminAlert";
 import { recordCronRun } from "../../../../lib/cronLog";
-import { oversizedRecords, describeOversized, oversizedSummary } from "../../../../lib/recordSize";
+import { oversizedRecords, describeOversized, oversizedSummary, estimateBytes } from "../../../../lib/recordSize";
+import { recordGrowth } from "../../../../lib/growthLog.server";
 
 // Nightly safety copy of everything in the database, written to Storage as
 // JSON (backups/YYYY-MM-DD/<collection>.json). The Trash only covers whole
@@ -47,6 +48,7 @@ export async function GET(req) {
   // Records creeping up on the 1 MB document ceiling. Collected while the
   // backup is reading everything anyway, so it costs no extra reads.
   const tooBig = [];
+  let biggestBytes = 0;
 
   try {
     for (const name of COLLECTIONS) {
@@ -59,6 +61,7 @@ export async function GET(req) {
         // size of the backup blob we are about to write.
         if (name === "customers" || name === "pipeline") {
           tooBig.push(...oversizedRecords([record], { kind: name === "customers" ? "project" : "pipeline entry" }));
+          biggestBytes = Math.max(biggestBytes, estimateBytes(record));
         }
         for (const sub of SUBCOLLECTIONS[name] || []) {
           const subSnap = await d.ref.collection(sub).get();
@@ -90,6 +93,11 @@ export async function GET(req) {
       return /^\d{4}-\d{2}-\d{2}$/.test(day) && day < cutoffStamp;
     });
     await Promise.all(stale.map(f => f.delete().catch(() => {})));
+
+    // The counts are already in hand, so keeping them costs one small
+    // write and no extra reads. cronRuns is culled after 30 days; this is
+    // the copy that outlives it.
+    await recordGrowth(counts, { biggestBytes });
 
     // Said once a night, and only when something is actually close. The
     // backup itself carries on either way -- a warning is not a failure.

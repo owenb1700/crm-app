@@ -64,6 +64,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // How much data there is, over time. Written only by the nightly
+    // backup through the admin SDK, which doesn't come through here.
+    match /growth/{month} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // Parts: small quoted/sold items, shared by the whole team. Anyone
     // active can add one and anyone can edit one (a teammate updating a
     // stage is the normal case); only whoever entered it, or an admin, can
