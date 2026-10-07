@@ -375,11 +375,22 @@ export default function NewPipelineEntry() {
             </div>
             <WorkTypeSelect id="new-pipeline-work-type" value={workType} onChange={setWorkType} />
 
-            <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
-            <LeadTimeFields idPrefix="new-pipeline" values={leadTimeData} setValues={setLeadTimeData} defaultUnit="weeks" subject="This job&rsquo;s components" allowAlerts={false} />
 
+          </div>
+        </div>
+
+        {/* The firm and the person there are one thing you are looking up,
+            so they are kept together rather than queued behind the bid
+            details. Same block, same order as the entry's own edit page. */}
+        <div className="project-section">
+          <h4 className="field-label" style={{ marginTop: 0 }}>Engineering Firm</h4>
+          {/* Three across, and the first field is "Firm" rather than
+              "Engineering Firm": the block already said that, and a heading
+              with the same words directly beneath it is the thing that made
+              the lead time look wrong. */}
+          <div className="form-grid-3">
             <div>
-              <label className="field-label">Engineering Firm</label>
+              <label className="field-label">Firm</label>
               <FirmSelect
                 id="new-pipeline-firm"
                 companies={companies}
@@ -420,7 +431,6 @@ export default function NewPipelineEntry() {
                 onBlur={e => setPhone(normalizePhone(e.target.value))}
               />
             </div>
-
           </div>
         </div>
 
@@ -460,6 +470,24 @@ export default function NewPipelineEntry() {
             companies={companies}
             contacts={contacts}
             users={users}
+          />
+        </div>
+
+        {/* The lead time belongs to the equipment, so it sits with it rather
+            than in the middle of the bid details. It was also dropped
+            straight into the two-column grid above, which made its heading
+            one cell wide and dealt its own fields out across columns that
+            had nothing to do with it. */}
+        <div className="project-section">
+          <h4 className="field-label" style={{ marginTop: 0 }}>Equipment Lead Time (optional)</h4>
+          <LeadTimeFields
+            idPrefix="new-pipeline"
+            values={leadTimeData}
+            setValues={setLeadTimeData}
+            defaultUnit="weeks"
+            subject="This job&rsquo;s components"
+            allowAlerts={false}
+            inSection
           />
         </div>
 

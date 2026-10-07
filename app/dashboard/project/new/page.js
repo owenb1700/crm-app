@@ -475,44 +475,6 @@ export default function NewProject() {
           </div>
 
 
-          <FirmTypeSelect id="new-project-company-type" value={companyCategory} onChange={setCompanyCategory} />
-
-          <div>
-            <label className="field-label">{companyCategory}</label>
-            <FirmSelect id="new-project-company" companies={companies} category={companyCategory} value={company} onChange={setCompany} />
-          </div>
-
-          <div>
-            <label className="field-label">Contact</label>
-            <PersonSelect id="new-project-contact" people={matchingContacts} value={contact} onChange={handleContactChange} />
-          </div>
-
-          <div>
-            <label className="field-label">Email</label>
-            <input className="field" autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} />
-            <Suggested
-              suggestion={firmGuess}
-              applied={autoFirm}
-              onUse={() => { setCompany(firmGuess.value); setAutoFirm(true); }}
-              onUndo={() => { setCompany(""); setAutoFirm(false); }}
-            />
-            {firmMismatch && (
-              <p className="settings-status is-error" style={{ marginTop: 4 }}>
-                That email looks like <strong>{firmMismatch.expected}</strong> ({firmMismatch.source}), not {company}. Check it before saving.
-              </p>
-            )}
-          </div>
-          <div>
-            <label className="field-label">Phone</label>
-            <input
-              className="field"
-              autoComplete="off"
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
-              onBlur={e => setPhone(normalizePhone(e.target.value))}
-            />
-          </div>
-
           <BuildingSectorSelect id="new-project-sector" value={buildingSector} onChange={setBuildingSector} />
 
           <select className="field" value={category} onChange={e => setCategory(e.target.value)}>
@@ -525,9 +487,6 @@ export default function NewProject() {
             <MoneyInput id="new-project-value" value={projectValue} onChange={setProjectValue} />
           </div>
           <WorkTypeSelect id="new-project-work-type" value={workType} onChange={setWorkType} />
-
-          <h4 className="field-label" style={{ marginTop: 16 }}>Equipment Lead Time</h4>
-          <LeadTimeFields idPrefix="new-project" values={leadTimeData} setValues={setLeadTimeData} defaultUnit="weeks" subject="This job&rsquo;s components" allowAlerts={false} />
 
           {canEnterForOthers(myProfile) && (
             <SalespersonSelect
@@ -563,6 +522,53 @@ export default function NewProject() {
           <input className="field" autoComplete="off" placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
 
+        {/* The firm, who you deal with there, and how to reach them: one
+            thing you are looking up, so it is one block rather than five
+            fields spread through the bid details. "Firm & Contact" is what
+            the project's own edit page calls it. */}
+        <div className="project-section">
+          <h4 className="field-label" style={{ marginTop: 0 }}>Firm &amp; Contact</h4>
+          <div className="form-grid-3">
+            <FirmTypeSelect id="new-project-company-type" value={companyCategory} onChange={setCompanyCategory} />
+
+            <div>
+              <label className="field-label">{companyCategory}</label>
+              <FirmSelect id="new-project-company" companies={companies} category={companyCategory} value={company} onChange={setCompany} />
+            </div>
+
+            <div>
+              <label className="field-label">Contact</label>
+              <PersonSelect id="new-project-contact" people={matchingContacts} value={contact} onChange={handleContactChange} />
+            </div>
+
+            <div>
+              <label className="field-label">Email</label>
+              <input className="field" autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} />
+              <Suggested
+                suggestion={firmGuess}
+                applied={autoFirm}
+                onUse={() => { setCompany(firmGuess.value); setAutoFirm(true); }}
+                onUndo={() => { setCompany(""); setAutoFirm(false); }}
+              />
+              {firmMismatch && (
+                <p className="settings-status is-error" style={{ marginTop: 4 }}>
+                  That email looks like <strong>{firmMismatch.expected}</strong> ({firmMismatch.source}), not {company}. Check it before saving.
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="field-label">Phone</label>
+              <input
+                className="field"
+                autoComplete="off"
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                onBlur={e => setPhone(normalizePhone(e.target.value))}
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="project-section">
           <h4 className="field-label" style={{ marginTop: 0 }}>Owners & Building Engineers (optional)</h4>
           {ownerRows.map((row, i) => (
@@ -594,6 +600,23 @@ export default function NewProject() {
             </div>
           ))}
           <button className="btn btn-secondary" onClick={() => setOwnerRows(prev => [...prev, { ...BLANK_OWNER_ROW }])}>+ Add Owner / Building Engineer</button>
+        </div>
+
+        {/* Same as the pipeline form: the lead time is about the equipment,
+            so it sits with it instead of inside the grid of bid details,
+            where its heading was one column wide and its fields were dealt
+            out among unrelated ones. */}
+        <div className="project-section">
+          <h4 className="field-label" style={{ marginTop: 0 }}>Equipment Lead Time (optional)</h4>
+          <LeadTimeFields
+            idPrefix="new-project"
+            values={leadTimeData}
+            setValues={setLeadTimeData}
+            defaultUnit="weeks"
+            subject="This job&rsquo;s components"
+            allowAlerts={false}
+            inSection
+          />
         </div>
 
         <div className="project-section">
