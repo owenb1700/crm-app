@@ -61,7 +61,7 @@ import { sortRows, sortMixed } from "../../lib/sorting";
 import Icon from "../components/Icon";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { completedPayload, isOpen, doneOnly } from "../../lib/reminders";
-import { PRE_BID, normalizeCategory, nextStage, nextStageLabel, stageNeedsInput } from "../../lib/projectCategories";
+import { PRE_BID, BIDS_SENT, normalizeCategory, nextStage, nextStageLabel, stageNeedsInput } from "../../lib/projectCategories";
 import { normalizeStage, nextPipelineStep, nextPipelineStepLabel, pipelineStepNeedsInput, groupByBid,
   movedToPostBid, postBidCheckIn, bidGroupOf, AFTER_BID } from "../../lib/pipelineStages";
 
@@ -1607,8 +1607,17 @@ export default function Dashboard() {
   // late for its check-in is work. The second kind never folds away.
   const pipelineIsLate = (p) => !!p.nextCheckIn && diffDays(p.nextCheckIn) <= 0;
 
+  // A bid is out whether it went out as a pipeline entry or as a project
+  // filed under Post-Bid/Bids Sent -- same waiting, same months of it --
+  // so My Projects folds both, and lets a late one through either way.
+  const isOutToBid = (r) => (r?.stage
+    ? bidGroupOf(r.stage) === AFTER_BID
+    : normalizeCategory(r?.category) === BIDS_SENT);
+  const foldsAway = (row) => !!row?.src && isOutToBid(row.src) && !pipelineIsLate(row.src);
+
   const pipelineRow = (p) => ({
       sortFields: { date: p.bidDate, name: p.title, firm: p.company, value: p.value, status: normalizeStage(p.stage), created: p.createdAt },
+    src: p,
       element: (
         <div
           key={`pipeline-${p.id}`}
@@ -1667,16 +1676,6 @@ export default function Dashboard() {
   // A bid that has gone out often sits for months. Those entries pushed
   // everything still being worked down the page, so they are folded away
   // under it and the work in front of you comes first.
-  const outForBid = useMemo(
-    () => myPipelineEntries.filter(p => bidGroupOf(p.stage) === AFTER_BID && !pipelineIsLate(p)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [myPipelineEntries]
-  );
-  const stillWorking = useMemo(
-    () => myPipelineEntries.filter(p => bidGroupOf(p.stage) !== AFTER_BID || pipelineIsLate(p)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [myPipelineEntries]
-  );
   const [showOutForBid, setShowOutForBid] = useState(false);
 
   // PAST PROJECTS: the company-wide archive of finished work -- closed
@@ -2743,27 +2742,8 @@ export default function Dashboard() {
               date in one continuous list, not split into separate
               sections; pipeline entries get a "Pipeline" label instead so
               they're still tellable apart. */}
-          {showsType("pipeline") && outForBid.length > 0 && (
-            <div className="bid-fold">
-              <button
-                type="button"
-                className="bid-fold-toggle"
-                aria-expanded={showOutForBid}
-                onClick={() => setShowOutForBid(v => !v)}
-              >
-                <span className="bid-fold-caret" aria-hidden="true">{showOutForBid ? "\u25be" : "\u25b8"}</span>
-                {outForBid.length} out to bid
-                <span className="bid-fold-hint">bids sent · waiting on an answer</span>
-              </button>
-              {showOutForBid && (
-                <div className="bid-fold-list">
-                  {sortMixed(outForBid.map(pipelineRow), personalSort).map(item => item.element)}
-                </div>
-              )}
-            </div>
-          )}
-
-          {sortMixed([
+          {(() => {
+            const rows = sortMixed([
             ...(showsType("projects") ? filteredCustomers : []).map(c => {
             const days = diffDays(c.nextCheckIn);
             const isOwner = c.ownerId === uid;
@@ -2773,7 +2753,7 @@ export default function Dashboard() {
             if (days <= 0) barClass = "badge-bar-overdue";
             else if (days <= 2) barClass = "badge-bar-soon";
 
-            return { sortFields: { date: formatDate(c.nextCheckIn), name: c.projectName || c.company, firm: c.company, value: c.projectValue, status: c.category, created: c.createdAt }, element: (
+            return { src: c, sortFields: { date: formatDate(c.nextCheckIn), name: c.projectName || c.company, firm: c.company, value: c.projectValue, status: c.category, created: c.createdAt }, element: (
               <div
                 key={c.id}
                 className={`customer-card ${barClass}`}
@@ -2934,8 +2914,34 @@ export default function Dashboard() {
               })),
             ...(showsType("reminders") ? activeReminders : [])
               .map(r => ({ sortFields: { date: r.date, name: r.subject, firm: "", value: "", status: "", created: r.createdAt }, element: renderReminderCard(r) })),
-            ...(showsType("pipeline") ? stillWorking : []).map(pipelineRow)
-          ], personalSort).map(item => item.element)}
+              ...(showsType("pipeline") ? myPipelineEntries : []).map(pipelineRow)
+            ], personalSort);
+            // One sorted list, then split: bids still out go behind the
+            // fold, everything else stays in front of you, and both
+            // halves keep the order the sort just gave them.
+            const folded = rows.filter(foldsAway);
+            const inFront = rows.filter(r => !foldsAway(r));
+            return (
+              <>
+                {folded.length > 0 && (
+                  <div className="bid-fold">
+                    <button
+                      type="button"
+                      className="bid-fold-toggle"
+                      aria-expanded={showOutForBid}
+                      onClick={() => setShowOutForBid(v => !v)}
+                    >
+                      <span className="bid-fold-caret" aria-hidden="true">{showOutForBid ? "\u25be" : "\u25b8"}</span>
+                      {folded.length} out to bid
+                      <span className="bid-fold-hint">bids sent · waiting on an answer</span>
+                    </button>
+                    {showOutForBid && <div className="bid-fold-list">{folded.map(item => item.element)}</div>}
+                  </div>
+                )}
+                {inFront.map(item => item.element)}
+              </>
+            );
+          })()}
 
           {remindersError && (
             <p className="private-note-hint" style={{ color: "var(--color-danger)" }}>⚠ Couldn't load your reminders: {remindersError}</p>
