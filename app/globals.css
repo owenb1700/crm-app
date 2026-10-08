@@ -5058,3 +5058,57 @@ a {
   flex: 0 1 auto;
   min-width: 0;
 }
+
+/* "Out to bid" on My Projects. A bid that has gone out can sit for
+   months, so those entries fold away under the work still in front of
+   you. Quiet on purpose -- it is a shelf, not an alarm, so it borrows
+   the overdue fold's shape but none of its colour. */
+.bid-fold {
+  margin-top: 14px;
+}
+
+.bid-fold-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  /* A card's surface, so it reads as the shelf the cards sit on rather
+     than as a line of text floating on the page background. */
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.bid-fold-toggle:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.bid-fold-caret {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.bid-fold-hint {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.bid-fold-list {
+  margin-top: 10px;
+}
+
+@media (max-width: 640px) {
+  .bid-fold-hint {
+    display: none;
+  }
+}

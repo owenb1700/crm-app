@@ -63,7 +63,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import { completedPayload, isOpen, doneOnly } from "../../lib/reminders";
 import { PRE_BID, normalizeCategory, nextStage, nextStageLabel, stageNeedsInput } from "../../lib/projectCategories";
 import { normalizeStage, nextPipelineStep, nextPipelineStepLabel, pipelineStepNeedsInput, groupByBid,
-  movedToPostBid, postBidCheckIn } from "../../lib/pipelineStages";
+  movedToPostBid, postBidCheckIn, bidGroupOf, AFTER_BID } from "../../lib/pipelineStages";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -1588,6 +1588,79 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pipelineEntries, uid]);
 
+  // One pipeline card, built once: the list shows the entries still being
+  // worked and the fold under it shows the ones already out to bid, and
+  // both want the same card.
+  const pipelineRow = (p) => ({
+      sortFields: { date: p.bidDate, name: p.title, firm: p.company, value: p.value, status: normalizeStage(p.stage), created: p.createdAt },
+      element: (
+        <div
+          key={`pipeline-${p.id}`}
+          className="customer-card"
+          onClick={() => router.push(`/dashboard/pipeline/${p.id}`)}
+          style={{ cursor: "pointer" }}
+        >
+          <div className="customer-card-left">
+            <div className="customer-name-row">
+              <div className="customer-name">{p.title}</div>
+              <span className="role-badge role-badge-admin">Pipeline · {normalizeStage(p.stage)}</span>
+            </div>
+            {p.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {p.buildingSector}</div>}
+            {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
+            {p.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{p.workType}</div>}
+          </div>
+          <div
+            className="customer-card-middle customer-notes-preview"
+            onClick={(e) => { e.stopPropagation(); openPipelineNotes(p); }}
+          >
+            {p.company && <div className="private-note-hint">{p.company}</div>}
+            {p.bidDate && <div className="customer-dates">Bid: {p.bidDate}</div>}
+            <div className="private-note-hint">Notes</div>
+          </div>
+
+          <div className="customer-card-right" onClick={(e) => e.stopPropagation()}>
+            <div className="card-actions-stack">
+              <div className="card-actions-row">
+                <button
+                  className="btn btn-secondary"
+                  onClick={(e) => { e.stopPropagation(); setRemindersFor(p); }}
+                >
+                  Set Reminder
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/pipeline/${p.id}?edit=1`); }}
+                >
+                  Edit
+                </button>
+              </div>
+              {nextPipelineStep(p.stage) && (
+                <button
+                  className="btn btn-primary"
+                  onClick={(e) => { e.stopPropagation(); advancePipeline(p); }}
+                >
+                  {nextPipelineStepLabel(p.stage)}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+    )
+  });
+
+  // A bid that has gone out often sits for months. Those entries pushed
+  // everything still being worked down the page, so they are folded away
+  // under it and the work in front of you comes first.
+  const outForBid = useMemo(
+    () => myPipelineEntries.filter(p => bidGroupOf(p.stage) === AFTER_BID),
+    [myPipelineEntries]
+  );
+  const stillWorking = useMemo(
+    () => myPipelineEntries.filter(p => bidGroupOf(p.stage) !== AFTER_BID),
+    [myPipelineEntries]
+  );
+  const [showOutForBid, setShowOutForBid] = useState(false);
+
   // PAST PROJECTS: the company-wide archive of finished work -- closed
   // projects and resolved (Won/Lost) pipeline entries, for everyone to
   // browse regardless of who owned them.
@@ -2823,63 +2896,28 @@ export default function Dashboard() {
               })),
             ...(showsType("reminders") ? activeReminders : [])
               .map(r => ({ sortFields: { date: r.date, name: r.subject, firm: "", value: "", status: "", created: r.createdAt }, element: renderReminderCard(r) })),
-            ...(showsType("pipeline") ? myPipelineEntries : []).map(p => ({
-              sortFields: { date: p.bidDate, name: p.title, firm: p.company, value: p.value, status: normalizeStage(p.stage), created: p.createdAt },
-              element: (
-                <div
-                  key={`pipeline-${p.id}`}
-                  className="customer-card"
-                  onClick={() => router.push(`/dashboard/pipeline/${p.id}`)}
-                  style={{ cursor: "pointer" }}
-                >
-                  <div className="customer-card-left">
-                    <div className="customer-name-row">
-                      <div className="customer-name">{p.title}</div>
-                      <span className="role-badge role-badge-admin">Pipeline · {normalizeStage(p.stage)}</span>
-                    </div>
-                    {p.buildingSector && <div className="customer-meta" style={{ marginTop: 4 }}>Sector: {p.buildingSector}</div>}
-                    {p.value && <div className="customer-meta" style={{ marginTop: 4 }}>Value: {withDollar(p.value)}</div>}
-                    {p.workType && <div className="customer-meta" style={{ marginTop: 4 }}>{p.workType}</div>}
-                  </div>
-                  <div
-                    className="customer-card-middle customer-notes-preview"
-                    onClick={(e) => { e.stopPropagation(); openPipelineNotes(p); }}
-                  >
-                    {p.company && <div className="private-note-hint">{p.company}</div>}
-                    {p.bidDate && <div className="customer-dates">Bid: {p.bidDate}</div>}
-                    <div className="private-note-hint">Notes</div>
-                  </div>
-
-                  <div className="customer-card-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="card-actions-stack">
-                      <div className="card-actions-row">
-                        <button
-                          className="btn btn-secondary"
-                          onClick={(e) => { e.stopPropagation(); setRemindersFor(p); }}
-                        >
-                          Set Reminder
-                        </button>
-                        <button
-                          className="btn btn-secondary"
-                          onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/pipeline/${p.id}?edit=1`); }}
-                        >
-                          Edit
-                        </button>
-                      </div>
-                      {nextPipelineStep(p.stage) && (
-                        <button
-                          className="btn btn-primary"
-                          onClick={(e) => { e.stopPropagation(); advancePipeline(p); }}
-                        >
-                          {nextPipelineStepLabel(p.stage)}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )
-            }))
+            ...(showsType("pipeline") ? stillWorking : []).map(pipelineRow)
           ], personalSort).map(item => item.element)}
+
+          {showsType("pipeline") && outForBid.length > 0 && (
+            <div className="bid-fold">
+              <button
+                type="button"
+                className="bid-fold-toggle"
+                aria-expanded={showOutForBid}
+                onClick={() => setShowOutForBid(v => !v)}
+              >
+                <span className="bid-fold-caret" aria-hidden="true">{showOutForBid ? "\u25be" : "\u25b8"}</span>
+                {outForBid.length} out to bid
+                <span className="bid-fold-hint">bids sent · waiting on an answer</span>
+              </button>
+              {showOutForBid && (
+                <div className="bid-fold-list">
+                  {sortMixed(outForBid.map(pipelineRow), personalSort).map(item => item.element)}
+                </div>
+              )}
+            </div>
+          )}
 
           {remindersError && (
             <p className="private-note-hint" style={{ color: "var(--color-danger)" }}>⚠ Couldn't load your reminders: {remindersError}</p>
