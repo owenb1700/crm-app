@@ -3,11 +3,11 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { addDoc, collection, doc, getDoc, getDocs } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../../lib/firebase";
 import { withoutTrashed } from "../../../lib/trash";
 import { COMPANY_CATEGORIES, ensureCompanyAndContactBatch } from "../../../lib/directory";
-import { partFromProject, isPartsProject, blankPart, partPayload, partError, filterParts, partsTotal, logEntry, describeContractors, PART_STAGES, firmTypeLine, stageStamps, contractorOptions, buildingOptions } from "../../../lib/parts";
+import { partFromProject, isPartsProject, blankPart, partPayload, partError, filterParts, partsTotal, logEntry, describeContractors, PART_STAGES, firmTypeLine, stageStamps, contractorOptions, buildingOptions, nextPartStage, nextPartStageLabel, canClosePart, stageMovePayload, CLOSED_STAGE } from "../../../lib/parts";
 import { todayKey, leadTimeStatus, isLeadTimeAlert } from "../../../lib/leadTimes";
 import { LeadTimeSummary } from "../../components/LeadTimeFields";
 import { formatMoney, withDollar } from "../../../lib/analytics";
@@ -51,7 +51,11 @@ function PartsPageContent() {
   const [form, setForm] = useState(blankPart());
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(null);
+  // Deleting happens on the part's own page and nowhere else. One press
+  // on a tile, among a screen of tiles, is the wrong place to bin
+  // something -- even into the Trash. The machinery for it used to live
+  // here with nothing able to reach it, which is how a stray button gets
+  // wired back up by accident.
   // Notes read and written straight from the list, same thread as the
   // request's own page.
   const [notesFor, setNotesFor] = useState(null);
@@ -67,6 +71,31 @@ function PartsPageContent() {
   // Projects still filed under the old "Parts" status, waiting to be moved.
   const [oldPartsProjects, setOldPartsProjects] = useState([]);
   const [moving, setMoving] = useState(false);
+
+  // Moving a part along from its card. Asked about first, the same as a
+  // project or a pipeline entry: these are one press on a tile and a
+  // mis-click should not silently date an order.
+  const [stageMove, setStageMove] = useState(null);
+  const [movingStage, setMovingStage] = useState(false);
+
+  const confirmStageMove = async () => {
+    if (!stageMove) return;
+    const { part, to } = stageMove;
+    setMovingStage(true);
+    try {
+      const payload = stageMovePayload(part, to, { by: uid, byName: nameOf(uid), today: todayKey() });
+      await updateDoc(doc(db, "parts", part.id), payload);
+      // The one record that changed, put back in the list -- the rest of
+      // the page is already right.
+      setParts(list => list.map(x => (x.id === part.id ? { ...x, ...payload } : x)));
+      setStageMove(null);
+    } catch (err) {
+      setError(`Couldn't move this part: ${err.message}`);
+      setStageMove(null);
+    } finally {
+      setMovingStage(false);
+    }
+  };
 
   const load = async () => {
     const [partsSnap, usersSnap, companiesSnap, contactsSnap, projectsSnap] = await Promise.all([
@@ -179,24 +208,6 @@ function PartsPageContent() {
       setError(`Couldn't save this parts entry: ${err.message}`);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const remove = async (p) => {
-    try {
-      const idToken = await auth.currentUser.getIdToken();
-      const res = await fetch("/api/delete-record", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ kind: "part", id: p.id })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't delete this parts entry");
-      setParts(prev => prev.filter(x => x.id !== p.id));
-      setConfirmDelete(null);
-      setNotice("Moved to the Trash — it can be brought back for 30 days");
-    } catch (err) {
-      setError(`Couldn't delete this parts entry: ${err.message}`);
     }
   };
 
@@ -431,9 +442,64 @@ function PartsPageContent() {
                   {(p.log || []).length > 0 && <> · {p.log.length} change{p.log.length === 1 ? "" : "s"} logged</>}
                 </div>
               </div>
+              <div className="customer-card-right" onClick={(e) => e.stopPropagation()}>
+                {/* The same block the project and pipeline cards use: the
+                    two smaller choices side by side, and the step forward
+                    on its own line underneath. */}
+                <div className="card-actions-stack">
+                  <div className="card-actions-row">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/parts/${p.id}?edit=1`); }}
+                    >
+                      Edit
+                    </button>
+                    {/* Plenty of parts never go the whole way -- quoted on
+                        Monday, closed on Friday because they bought
+                        elsewhere. Closing stamps no order or ship date,
+                        because neither happened. */}
+                    {canClosePart(p) && (
+                      <button
+                        className="btn btn-secondary"
+                        onClick={(e) => { e.stopPropagation(); setStageMove({ part: p, to: CLOSED_STAGE }); }}
+                      >
+                        Close
+                      </button>
+                    )}
+                  </div>
+                  {nextPartStage(p.stage) && (
+                    <button
+                      className="btn btn-primary"
+                      onClick={(e) => { e.stopPropagation(); setStageMove({ part: p, to: nextPartStage(p.stage) }); }}
+                    >
+                      {nextPartStageLabel(p.stage)}
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           ))}
         </>
+      )}
+
+      {stageMove && (
+        <ConfirmDialog
+          title={stageMove.to === CLOSED_STAGE ? "Close this part?" : `Move to ${stageMove.to}?`}
+          confirmLabel={stageMove.to === CLOSED_STAGE ? "Close it" : "Move it"}
+          busy={movingStage}
+          onConfirm={confirmStageMove}
+          onCancel={() => setStageMove(null)}
+        >
+          <p className="modal-subtitle">
+            <strong>{stageMove.part.item}</strong>
+            {stageMove.part.company ? ` · ${stageMove.part.company}` : ""}
+          </p>
+          <p className="modal-subtitle">
+            {stageMove.to === CLOSED_STAGE
+              ? `It goes from ${stageMove.part.stage || "Quoted"} straight to Closed. No order, ship or delivery date is recorded — closing doesn't say it got that far.`
+              : `It moves from ${stageMove.part.stage || "Quoted"} to ${stageMove.to}, and today's date is recorded against it.`}
+          </p>
+        </ConfirmDialog>
       )}
 
       {firmQueue && (
@@ -457,20 +523,7 @@ function PartsPageContent() {
         />
       )}
 
-      {confirmDelete && (
-        <ConfirmDialog
-          title="Delete this parts entry?"
-          confirmLabel="Delete"
-          danger
-          onConfirm={() => remove(confirmDelete)}
-          onCancel={() => setConfirmDelete(null)}
-        >
-          <p className="modal-subtitle">
-            &quot;{confirmDelete.item}&quot; goes to the Trash, where you or an admin can bring it back for 30 days.
-          </p>
-        </ConfirmDialog>
-      )}
-    </div>
+   </div>
   );
 }
 

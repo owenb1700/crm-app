@@ -1,12 +1,12 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../../../lib/firebase";
 import { ensureCompanyAndContactBatch } from "../../../../lib/directory";
-import { blankPart, partPayload, partError, partChanges, logEntry, describeContractors, firmTypeLine, stageStamps } from "../../../../lib/parts";
+import { blankPart, partPayload, partError, partChanges, logEntry, describeContractors, firmTypeLine, stageStamps, nextPartStage, nextPartStageLabel, canClosePart, stageMovePayload, CLOSED_STAGE } from "../../../../lib/parts";
 import { todayKey } from "../../../../lib/leadTimes";
 import { LeadTimeSummary } from "../../../components/LeadTimeFields";
 import { withDollar } from "../../../../lib/analytics";
@@ -51,6 +51,14 @@ function PartPageContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // The Edit button on a parts card sends people here with ?edit=1, the
+  // same way the project cards do, so the form is already open when the
+  // page arrives instead of making them press Edit a second time.
+  const searchParams = useSearchParams();
+  const wantsEdit = searchParams.get("edit") === "1";
+  const [openedFromLink, setOpenedFromLink] = useState(false);
+  const [stageMove, setStageMove] = useState(null);
+  const [movingStage, setMovingStage] = useState(false);
   const [firmQueue, setFirmQueue] = useState(null);
 
   const load = async () => {
@@ -117,11 +125,40 @@ function PartPageContent() {
   const nameOf = (id) => (id ? personName(users.find(u => u.id === id)) : "");
   const myName = () => (myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown"));
 
+  // The same move the card offers, written through the same helper so the
+  // two can't drift apart.
+  const confirmStageMove = async () => {
+    if (!stageMove || !part) return;
+    setMovingStage(true);
+    try {
+      await updateDoc(doc(db, "parts", partId), stageMovePayload(part, stageMove, { by: uid, byName: myName(), today: todayKey() }));
+      setStageMove(null);
+      await load();
+    } catch (err) {
+      setError(`Couldn't move this part: ${err.message}`);
+      setStageMove(null);
+    } finally {
+      setMovingStage(false);
+    }
+  };
+
   const startEdit = () => {
     setEditForm({ ...blankPart(), ...part });
     setIsEditing(true);
     setError("");
   };
+
+  // Once only: opening the form again every time the record reloads would
+  // throw away whatever had been typed into it.
+  useEffect(() => {
+    if (!wantsEdit || openedFromLink || !part) return;
+    setOpenedFromLink(true);
+    startEdit();
+    // The query string has done its job; drop it so a refresh or a shared
+    // link doesn't reopen the form later.
+    router.replace(`/dashboard/parts/${partId}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsEdit, openedFromLink, part]);
 
   const save = async (choice = null) => {
     // Called straight from a button, React would hand us the click event;
@@ -244,7 +281,17 @@ function PartPageContent() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
             <h4 className="field-label" style={{ margin: 0 }}>Details</h4>
             {!isEditing && (
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                {/* The same two moves the card offers, so whichever screen
+                    someone is on, the part goes along the same way. */}
+                {nextPartStage(part.stage) && (
+                  <button className="btn btn-primary btn-small" onClick={() => setStageMove(nextPartStage(part.stage))}>
+                    {nextPartStageLabel(part.stage)}
+                  </button>
+                )}
+                {canClosePart(part) && (
+                  <button className="btn btn-secondary btn-small" onClick={() => setStageMove(CLOSED_STAGE)}>Close</button>
+                )}
                 <button className="btn btn-secondary btn-small" onClick={startEdit}>Edit</button>
                 {canDelete && <button className="btn btn-secondary btn-small" onClick={() => setConfirmDelete(true)}>Delete</button>}
               </div>
@@ -333,6 +380,23 @@ function PartPageContent() {
           onDone={(tags) => { setFirmQueue(null); save(tags); }}
           onCancel={() => setFirmQueue(null)}
         />
+      )}
+
+      {stageMove && (
+        <ConfirmDialog
+          title={stageMove === CLOSED_STAGE ? "Close this part?" : `Move to ${stageMove}?`}
+          confirmLabel={stageMove === CLOSED_STAGE ? "Close it" : "Move it"}
+          busy={movingStage}
+          onConfirm={confirmStageMove}
+          onCancel={() => setStageMove(null)}
+        >
+          <p className="modal-subtitle"><strong>{part.item}</strong>{part.company ? ` · ${part.company}` : ""}</p>
+          <p className="modal-subtitle">
+            {stageMove === CLOSED_STAGE
+              ? `It goes from ${part.stage || "Quoted"} straight to Closed. No order, ship or delivery date is recorded — closing doesn't say it got that far.`
+              : `It moves from ${part.stage || "Quoted"} to ${stageMove}, and today's date is recorded against it.`}
+          </p>
+        </ConfirmDialog>
       )}
 
       {confirmDelete && (
