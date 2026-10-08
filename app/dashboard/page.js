@@ -2725,6 +2725,26 @@ export default function Dashboard() {
               date in one continuous list, not split into separate
               sections; pipeline entries get a "Pipeline" label instead so
               they're still tellable apart. */}
+          {showsType("pipeline") && outForBid.length > 0 && (
+            <div className="bid-fold">
+              <button
+                type="button"
+                className="bid-fold-toggle"
+                aria-expanded={showOutForBid}
+                onClick={() => setShowOutForBid(v => !v)}
+              >
+                <span className="bid-fold-caret" aria-hidden="true">{showOutForBid ? "\u25be" : "\u25b8"}</span>
+                {outForBid.length} out to bid
+                <span className="bid-fold-hint">bids sent · waiting on an answer</span>
+              </button>
+              {showOutForBid && (
+                <div className="bid-fold-list">
+                  {sortMixed(outForBid.map(pipelineRow), personalSort).map(item => item.element)}
+                </div>
+              )}
+            </div>
+          )}
+
           {sortMixed([
             ...(showsType("projects") ? filteredCustomers : []).map(c => {
             const days = diffDays(c.nextCheckIn);
@@ -2898,26 +2918,6 @@ export default function Dashboard() {
               .map(r => ({ sortFields: { date: r.date, name: r.subject, firm: "", value: "", status: "", created: r.createdAt }, element: renderReminderCard(r) })),
             ...(showsType("pipeline") ? stillWorking : []).map(pipelineRow)
           ], personalSort).map(item => item.element)}
-
-          {showsType("pipeline") && outForBid.length > 0 && (
-            <div className="bid-fold">
-              <button
-                type="button"
-                className="bid-fold-toggle"
-                aria-expanded={showOutForBid}
-                onClick={() => setShowOutForBid(v => !v)}
-              >
-                <span className="bid-fold-caret" aria-hidden="true">{showOutForBid ? "\u25be" : "\u25b8"}</span>
-                {outForBid.length} out to bid
-                <span className="bid-fold-hint">bids sent · waiting on an answer</span>
-              </button>
-              {showOutForBid && (
-                <div className="bid-fold-list">
-                  {sortMixed(outForBid.map(pipelineRow), personalSort).map(item => item.element)}
-                </div>
-              )}
-            </div>
-          )}
 
           {remindersError && (
             <p className="private-note-hint" style={{ color: "var(--color-danger)" }}>⚠ Couldn't load your reminders: {remindersError}</p>

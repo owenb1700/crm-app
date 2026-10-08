@@ -5064,7 +5064,7 @@ a {
    you. Quiet on purpose -- it is a shelf, not an alarm, so it borrows
    the overdue fold's shape but none of its colour. */
 .bid-fold {
-  margin-top: 14px;
+  margin-bottom: 14px;
 }
 
 .bid-fold-toggle {
