@@ -1591,12 +1591,28 @@ export default function Dashboard() {
   // One pipeline card, built once: the list shows the entries still being
   // worked and the fold under it shows the ones already out to bid, and
   // both want the same card.
+  // A pipeline entry's own next date, read the way a project's is: red
+  // once it is past, amber inside two days. An entry with no date set --
+  // most of them before a bid goes out -- gets no bar rather than a green
+  // one implying a date that doesn't exist.
+  const pipelineBarClass = (p) => {
+    if (!p.nextCheckIn) return "";
+    const days = diffDays(p.nextCheckIn);
+    if (days <= 0) return "badge-bar-overdue";
+    if (days <= 2) return "badge-bar-soon";
+    return "badge-bar-ok";
+  };
+
+  // Out to bid and quietly waiting is one thing; out to bid and already
+  // late for its check-in is work. The second kind never folds away.
+  const pipelineIsLate = (p) => !!p.nextCheckIn && diffDays(p.nextCheckIn) <= 0;
+
   const pipelineRow = (p) => ({
       sortFields: { date: p.bidDate, name: p.title, firm: p.company, value: p.value, status: normalizeStage(p.stage), created: p.createdAt },
       element: (
         <div
           key={`pipeline-${p.id}`}
-          className="customer-card"
+          className={`customer-card ${pipelineBarClass(p)}`.trim()}
           onClick={() => router.push(`/dashboard/pipeline/${p.id}`)}
           style={{ cursor: "pointer" }}
         >
@@ -1652,11 +1668,13 @@ export default function Dashboard() {
   // everything still being worked down the page, so they are folded away
   // under it and the work in front of you comes first.
   const outForBid = useMemo(
-    () => myPipelineEntries.filter(p => bidGroupOf(p.stage) === AFTER_BID),
+    () => myPipelineEntries.filter(p => bidGroupOf(p.stage) === AFTER_BID && !pipelineIsLate(p)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [myPipelineEntries]
   );
   const stillWorking = useMemo(
-    () => myPipelineEntries.filter(p => bidGroupOf(p.stage) !== AFTER_BID),
+    () => myPipelineEntries.filter(p => bidGroupOf(p.stage) !== AFTER_BID || pipelineIsLate(p)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [myPipelineEntries]
   );
   const [showOutForBid, setShowOutForBid] = useState(false);
