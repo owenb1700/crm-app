@@ -108,6 +108,15 @@ a {
   border-top: 1px solid var(--color-border);
 }
 
+/* The first block in a form opens it, so it carries no divider above --
+   otherwise a form inside a card starts with a stray line under its own
+   heading. */
+.edit-block-lead {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
 .edit-block-title {
   display: block;
   margin: 0 0 2px;
@@ -5110,5 +5119,35 @@ a {
 @media (max-width: 640px) {
   .bid-fold-hint {
     display: none;
+  }
+}
+
+/* The head of an inline "new entry" box: its title on the left, Cancel
+   and Save on the right, so the way to finish is visible the moment the
+   box opens rather than below the fold at the end of a long form. */
+.new-entry-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.new-entry-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+@media (max-width: 560px) {
+  .new-entry-actions {
+    width: 100%;
+  }
+
+  .new-entry-actions .btn {
+    flex: 1;
   }
 }

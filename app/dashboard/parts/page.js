@@ -20,7 +20,7 @@ import ExportButtons from "../../components/ExportButtons";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import PartForm from "../../components/PartForm";
 import NotesModal from "../../components/NotesModal";
-import useUnsavedGuard from "../../components/useUnsavedGuard";
+import useLeaveGuard from "../../components/useLeaveGuard";
 import SortPicker from "../../components/SortPicker";
 import { sortRows } from "../../../lib/sorting";
 import FirmDetailsPrompt from "../../components/FirmDetailsPrompt";
@@ -62,8 +62,19 @@ function PartsPageContent() {
   // The firm we're waiting on a contractor type for, if any.
   const [firmQueue, setFirmQueue] = useState(null);
   const [sort, setSort] = useState({ key: "needed", direction: "asc" });
-  // Anything typed into the add box is worth warning about.
-  useUnsavedGuard(adding && Object.values(form).some(v => (Array.isArray(v) ? v.length : String(v || "").trim()) && v !== "Quoted" && v !== "Contractor"));
+  // Anything typed into the add box is worth warning about. The two
+  // values skipped are what a blank form starts with, not answers.
+  const addBoxDirty = adding && Object.values(form).some(
+    v => (Array.isArray(v) ? v.length : String(v || "").trim()) && v !== "Quoted" && v !== "Contractor"
+  );
+
+  // Leaving with a part-filled box: the browser can only be stopped on a
+  // close or a refresh, and the back button is caught by the hook. What
+  // is left is clicking the nav, or a part in the list -- plain
+  // router.push calls with no link to intercept, so the click itself is
+  // caught before it gets there and replayed if they decide to go.
+  const [pendingExit, setPendingExit] = useState(null);
+  const leaveGuard = useLeaveGuard(addBoxDirty, () => discardAddBox());
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -96,6 +107,30 @@ function PartsPageContent() {
       setMovingStage(false);
     }
   };
+
+  const discardAddBox = () => {
+    setAdding(false);
+    setForm(blankPart());
+    setError("");
+  };
+
+  useEffect(() => {
+    if (!addBoxDirty) return undefined;
+    const onCapture = (e) => {
+      // Only the ways off this page: a nav tab, the Back button, or a
+      // part in the list. Filters, sorting and the add box's own
+      // controls are not exits and must not be interrupted.
+      const exit = e.target?.closest?.(".tab-btn, .tab-dropdown-item, .mobile-nav-menu button, [data-exit], .customer-card");
+      if (!exit || exit.closest(".admin-card")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      // Stored as a value, not a call: setState runs a bare function
+      // argument as an updater.
+      setPendingExit(() => () => exit.click());
+    };
+    document.addEventListener("click", onCapture, true);
+    return () => document.removeEventListener("click", onCapture, true);
+  }, [addBoxDirty]);
 
   const load = async () => {
     const [partsSnap, usersSnap, companiesSnap, contactsSnap, projectsSnap] = await Promise.all([
@@ -300,7 +335,7 @@ function PartsPageContent() {
           <h1 className="dashboard-title">Parts</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
+          <button className="btn btn-secondary" data-exit="1" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
           <DashboardHeader uid={uid} />
         </div>
       </div>
@@ -385,12 +420,18 @@ function PartsPageContent() {
 
           {adding && (
             <div className="admin-card" style={{ marginBottom: 20 }}>
-              <h3 className="modal-title" style={{ marginTop: 0 }}>New parts entry</h3>
-              <PartForm values={form} setValues={setForm} idPrefix="new-part" companies={companies} contacts={contacts} />
-              <div className="modal-actions">
-                <button className="btn btn-secondary" onClick={() => { setAdding(false); setForm(blankPart()); setError(""); }}>Cancel</button>
-                <button className="btn btn-primary" disabled={saving} onClick={() => save()}>{saving ? "Saving…" : "Add parts entry"}</button>
+              {/* Saving sits at the top, where it is visible the moment
+                  the box opens. At the foot of a form this long it was
+                  below the fold, and a filled-in entry nobody pressed
+                  Add on is the same as no entry at all. */}
+              <div className="new-entry-head">
+                <h3 className="modal-title" style={{ margin: 0 }}>New parts entry</h3>
+                <div className="new-entry-actions">
+                  <button className="btn btn-secondary" onClick={discardAddBox}>Cancel</button>
+                  <button className="btn btn-primary" disabled={saving} onClick={() => save()}>{saving ? "Saving…" : "Add parts entry"}</button>
+                </div>
               </div>
+              <PartForm values={form} setValues={setForm} idPrefix="new-part" companies={companies} contacts={contacts} />
             </div>
           )}
 
@@ -480,6 +521,25 @@ function PartsPageContent() {
             </div>
           ))}
         </>
+      )}
+
+      {(leaveGuard.asking || pendingExit) && (
+        <ConfirmDialog
+          title="Leave without adding this part?"
+          confirmLabel="Discard it"
+          danger
+          onConfirm={() => {
+            const go = pendingExit;
+            discardAddBox();
+            setPendingExit(null);
+            if (go) setTimeout(go, 0); else leaveGuard.leave();
+          }}
+          onCancel={() => { if (pendingExit) setPendingExit(null); else leaveGuard.stay(); }}
+        >
+          <p className="modal-subtitle">
+            The new parts entry hasn&apos;t been saved. Going now throws away what you&apos;ve typed.
+          </p>
+        </ConfirmDialog>
       )}
 
       {stageMove && (
