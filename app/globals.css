@@ -97,6 +97,20 @@ a {
   margin: 10px 0 4px;
 }
 
+/* A plain-language line under a field's own label -- what the field
+   actually means, in lower case and not bold, so it reads as an aside
+   rather than part of the label itself. Sits right under the label and
+   above the input, with no extra gap of its own. */
+.field-label-note {
+  display: block;
+  margin: -2px 0 4px;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--color-text-muted);
+}
+
 /* Editing a record reads as a handful of labelled blocks rather than one
    long column of fields. Somebody coming back to move a bid date should
    find it without scrolling past the engineering firm's phone number, and

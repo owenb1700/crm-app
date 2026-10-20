@@ -1050,6 +1050,31 @@ export default function PipelineDetail() {
             </div>
 
             <div className="edit-block">
+              <h4 className="edit-block-title">Assigned Team</h4>
+              <div className="form-grid-3">
+                <div>
+                  <label className="field-label" htmlFor="pipeline-detail-salesperson">Who will be putting the quote together?</label>
+                  <select id="pipeline-detail-salesperson" className="field" value={editData.salespersonId} onChange={e => setEditData({ ...editData, salespersonId: e.target.value })}>
+                    <option value="">Unassigned</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label" htmlFor="pipeline-detail-point-person">Project Point Person</label>
+                  <span className="field-label-note">Who is managing this entry? Sending out the bids, etc.</span>
+                  <select id="pipeline-detail-point-person" className="field" value={editData.projectPointPersonId} onChange={e => setEditData({ ...editData, projectPointPersonId: e.target.value })}>
+                    <option value="">Unassigned</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="edit-block">
               <h4 className="edit-block-title">Engineering Firm</h4>
               <div className="form-grid-3">
                 <CompanyContactFields
@@ -1071,30 +1096,6 @@ export default function PipelineDetail() {
                   onEmailChange={v => setEditData(prev => ({ ...prev, email: v }))}
                   onPhoneChange={v => setEditData(prev => ({ ...prev, phone: v }))}
                 />
-              </div>
-            </div>
-
-            <div className="edit-block">
-              <h4 className="edit-block-title">Assigned Team</h4>
-              <div className="form-grid-3">
-                <div>
-                  <label className="field-label" htmlFor="pipeline-detail-salesperson">Salesperson</label>
-                  <select id="pipeline-detail-salesperson" className="field" value={editData.salespersonId} onChange={e => setEditData({ ...editData, salespersonId: e.target.value })}>
-                    <option value="">Unassigned</option>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="field-label" htmlFor="pipeline-detail-point-person">Project Point Person</label>
-                  <select id="pipeline-detail-point-person" className="field" value={editData.projectPointPersonId} onChange={e => setEditData({ ...editData, projectPointPersonId: e.target.value })}>
-                    <option value="">Unassigned</option>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
             </div>
 

@@ -382,6 +382,38 @@ export default function NewPipelineEntry() {
         {/* The firm and the person there are one thing you are looking up,
             so they are kept together rather than queued behind the bid
             details. Same block, same order as the entry's own edit page. */}
+        {/* Who is on the job, asked before the firm and the bid details --
+            this is usually settled first, and it is what the two clarifying
+            lines below are there to get right while entering a new bid
+            rather than correcting later. */}
+        <div className="project-section">
+          <h4 className="field-label" style={{ marginTop: 0 }}>Assigned Team (optional)</h4>
+          <div className="form-grid-2">
+            <div>
+              <label className="field-label">Who will be putting the quote together?</label>
+              <select className="field" value={salespersonId} onChange={e => setSalespersonId(e.target.value)}>
+                <option value="">Unassigned</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Project Point Person</label>
+              <span className="field-label-note">Who is managing this entry? Sending out the bids, etc.</span>
+              <select className="field" value={projectPointPersonId} onChange={e => setProjectPointPersonId(e.target.value)}>
+                <option value="">Unassigned</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split (optional)</h4>
+          <CreditSplitEditor idPrefix="new-pipeline-split" users={users} value={splits} onChange={setSplits} ownerId={salespersonId || uid} />
+        </div>
+
         <div className="project-section">
           <h4 className="field-label" style={{ marginTop: 0 }}>Engineering Firm</h4>
           {/* Three across, and the first field is "Firm" rather than
@@ -432,33 +464,6 @@ export default function NewPipelineEntry() {
               />
             </div>
           </div>
-        </div>
-
-        <div className="project-section">
-          <h4 className="field-label" style={{ marginTop: 0 }}>Assigned Team (optional)</h4>
-          <div className="form-grid-2">
-            <div>
-              <label className="field-label">Salesperson</label>
-              <select className="field" value={salespersonId} onChange={e => setSalespersonId(e.target.value)}>
-                <option value="">Unassigned</option>
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="field-label">Project Point Person</label>
-              <select className="field" value={projectPointPersonId} onChange={e => setProjectPointPersonId(e.target.value)}>
-                <option value="">Unassigned</option>
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <h4 className="field-label" style={{ marginTop: 16 }}>Credit Split (optional)</h4>
-          <CreditSplitEditor idPrefix="new-pipeline-split" users={users} value={splits} onChange={setSplits} ownerId={salespersonId || uid} />
         </div>
 
         <div className="project-section">
