@@ -1054,6 +1054,7 @@ export default function PipelineDetail() {
               <div className="form-grid-3">
                 <div>
                   <label className="field-label" htmlFor="pipeline-detail-salesperson">Who will be putting the quote together?</label>
+                  <span className="field-label-note" aria-hidden="true" style={{ visibility: "hidden" }}>Who is managing this entry? Sending out the bids, etc.</span>
                   <select id="pipeline-detail-salesperson" className="field" value={editData.salespersonId} onChange={e => setEditData({ ...editData, salespersonId: e.target.value })}>
                     <option value="">Unassigned</option>
                     {users.map(u => (

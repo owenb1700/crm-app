@@ -391,6 +391,8 @@ export default function NewPipelineEntry() {
           <div className="form-grid-2">
             <div>
               <label className="field-label">Who will be putting the quote together?</label>
+              {/* Matches the height of the clarifying line under Project Point Person, so the two selects line up instead of one sitting higher than the other. */}
+              <span className="field-label-note" aria-hidden="true" style={{ visibility: "hidden" }}>Who is managing this entry? Sending out the bids, etc.</span>
               <select className="field" value={salespersonId} onChange={e => setSalespersonId(e.target.value)}>
                 <option value="">Unassigned</option>
                 {users.map(u => (
