@@ -7,10 +7,9 @@ import { auth, db } from "../lib/firebase";
 import { getDeviceId } from "../lib/deviceId";
 import { useRouter } from "next/navigation";
 
+// Shop-floor shots (robot arm, CNC, machinery hall) dropped 2026-10-21 --
+// not work this firm does. Left as building and city shots, which is.
 const CAROUSEL_IMAGES = [
-  { src: "/carousel/robot-arm.jpg", alt: "Industrial robotic arm on a manufacturing line" },
-  { src: "/carousel/cnc-machining.jpg", alt: "CNC machining center" },
-  { src: "/carousel/machinery-hall.jpg", alt: "Industrial machinery hall" },
   { src: "/carousel/blueprint.jpg", alt: "Engineering blueprint drawing" },
   { src: "/carousel/willis-tower.jpg", alt: "Willis Tower, Chicago" },
   { src: "/carousel/chicago-skyline.jpg", alt: "Chicago skyline from the lakefront" },
