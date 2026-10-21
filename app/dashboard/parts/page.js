@@ -23,9 +23,6 @@ import NotesModal from "../../components/NotesModal";
 import useLeaveGuard from "../../components/useLeaveGuard";
 import SortPicker from "../../components/SortPicker";
 import { sortRows } from "../../../lib/sorting";
-import FirmDetailsPrompt from "../../components/FirmDetailsPrompt";
-import { saveFirmTags } from "../../../lib/firmTypes";
-import { firmsNeedingDetails } from "../../../lib/newFirms";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -60,7 +57,6 @@ function PartsPageContent() {
   // request's own page.
   const [notesFor, setNotesFor] = useState(null);
   // The firm we're waiting on a contractor type for, if any.
-  const [firmQueue, setFirmQueue] = useState(null);
   const [sort, setSort] = useState({ key: "needed", direction: "asc" });
   // Anything typed into the add box is worth warning about. The two
   // values skipped are what a blank form starts with, not answers.
@@ -192,17 +188,13 @@ function PartsPageContent() {
 
   const nameOf = (id) => (id ? personName(users.find(u => u.id === id)) : "");
 
-  const save = async (choice = null) => {
-    // Only the prompt's answer counts -- a click event is not one.
-    const contractorType = choice && !choice.nativeEvent && typeof choice === "object" ? choice : null;
+  // A firm or person typed anywhere on this form is created the moment
+  // it's saved -- no separate confirmation, same as a new contact
+  // already worked. A firm's type can still be filled in from its own
+  // Directory page afterward; it no longer gates adding the part.
+  const save = async () => {
     const message = partError(form);
     if (message) return setError(message);
-    const payloadPreview = partPayload(form);
-    const needDetails = contractorType ? [] : firmsNeedingDetails([
-      { name: payloadPreview.company, category: payloadPreview.companyCategory },
-      ...payloadPreview.contractors.map(c => ({ name: c.company, category: "Contractor" }))
-    ], companies);
-    if (needDetails.length) return setFirmQueue(needDetails);
     setSaving(true);
     setError("");
     try {
@@ -229,12 +221,6 @@ function PartsPageContent() {
         ],
         { companies, contacts, uid }
       );
-      if (contractorType) {
-        await Promise.all(Object.entries(contractorType).map(([name, tags]) => {
-          const category = name === payload.company ? payload.companyCategory : "Contractor";
-          return saveFirmTags(name, category, tags);
-        }));
-      }
       setForm(blankPart());
       setAdding(false);
       setNotice("Parts entry added");
@@ -560,15 +546,6 @@ function PartsPageContent() {
               : `It moves from ${stageMove.part.stage || "Quoted"} to ${stageMove.to}, and today's date is recorded against it.`}
           </p>
         </ConfirmDialog>
-      )}
-
-      {firmQueue && (
-        <FirmDetailsPrompt
-          queue={firmQueue}
-          busy={saving}
-          onDone={(tags) => { setFirmQueue(null); save(tags); }}
-          onCancel={() => setFirmQueue(null)}
-        />
       )}
 
       {notesFor && uid && (

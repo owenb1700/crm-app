@@ -6,9 +6,6 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "../../../../lib/firebase";
 import { addDoc, collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { notifyUsers, firmOwnersFor, firmsOnEntry, newSplitMembers } from "../../../../lib/notify";
-import { firmsNeedingDetails } from "../../../../lib/newFirms";
-import { saveFirmTags } from "../../../../lib/firmTypes";
-import FirmDetailsPrompt from "../../../components/FirmDetailsPrompt";
 import { ensureCompanyAndContactBatch, primaryEmail, primaryPhone, firmTypeOf, salespersonAfterFirmChange } from "../../../../lib/directory";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
@@ -50,7 +47,6 @@ export default function NewPipelineEntry() {
   // What stopped the save, said next to the button that was pressed
   // rather than in a box that blocks the page until it is dismissed.
   const [formError, setFormError] = useState("");
-  const [firmQueue, setFirmQueue] = useState(null);
 
   const [users, setUsers] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -173,15 +169,13 @@ export default function NewPipelineEntry() {
     router.push("/dashboard#pipeline");
   };
 
-  // The engineering firm and every bidder named on this form.
-  const firmEntries = () => [
-    { name: company, category: "Engineering Firm" },
-    ...biddersForStorage(biddingCompanies).map(b => ({ name: b.company, category: firmTypeOf(b.category) }))
-  ];
-
-  const addPipelineEntry = async (choice = null) => {
-    // Only the prompt's answer counts -- a click event is not one.
-    const firmTags = choice && !choice.nativeEvent && typeof choice === "object" ? choice : null;
+  // A firm or a person typed anywhere on this form is created the moment
+  // it's saved -- no separate confirmation, the same way a new contact
+  // already worked. What used to sit here first asked for the firm's
+  // type (service/construction/etc.) before the save could go through;
+  // that's still there to fill in, just from the firm's own Directory
+  // page afterward, not as a gate in front of entering the job.
+  const addPipelineEntry = async () => {
     setFormError("");
     if (!title) {
       return setFormError("Please enter a project/opportunity name");
@@ -201,9 +195,6 @@ export default function NewPipelineEntry() {
     if (missingSalesperson) {
       return setFormError(`Select a salesperson for bidder "${missingSalesperson.company || "without a firm name"}"`);
     }
-
-    const needDetails = firmTags ? [] : firmsNeedingDetails(firmEntries(), companies);
-    if (needDetails.length) return setFirmQueue(needDetails);
 
     setSaving(true);
     try {
@@ -276,13 +267,6 @@ export default function NewPipelineEntry() {
       await Promise.all(
         equipment.filter(isTowerRow).map(row => ensureTowerModel({ towerModels, manufacturer: row.manufacturer, model: row.model, uid }))
       );
-
-      if (firmTags) {
-        await Promise.all(Object.entries(firmTags).map(([name, tags]) => {
-          const entry = firmEntries().find(f => f.name === name);
-          return saveFirmTags(name, entry?.category, tags);
-        }));
-      }
 
       // Land on the entry that was just made, the way Add Project does.
       // A toast on a list you have to find the row in tells you it worked;
@@ -516,15 +500,6 @@ export default function NewPipelineEntry() {
           <input className="field" autoComplete="off" placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
       </div>
-
-      {firmQueue && (
-        <FirmDetailsPrompt
-          queue={firmQueue}
-          busy={saving}
-          onDone={(tags) => { setFirmQueue(null); addPipelineEntry(tags); }}
-          onCancel={() => setFirmQueue(null)}
-        />
-      )}
 
       {leaveGuard.asking && (
         <ConfirmDialog

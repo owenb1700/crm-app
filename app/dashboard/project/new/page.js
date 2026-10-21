@@ -25,9 +25,6 @@ import CreditSplitEditor from "../../../components/CreditSplitEditor";
 import SalespersonSelect from "../../../components/SalespersonSelect";
 import { canEnterForOthers } from "../../../../lib/permissions";
 import { notifyUsers, newSplitMembers } from "../../../../lib/notify";
-import { firmsNeedingDetails } from "../../../../lib/newFirms";
-import { saveFirmTags } from "../../../../lib/firmTypes";
-import FirmDetailsPrompt from "../../../components/FirmDetailsPrompt";
 import { normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import useLeaveGuard from "../../../components/useLeaveGuard";
@@ -69,7 +66,6 @@ export default function NewProject() {
   const [myProfile, setMyProfile] = useState(null);
   // Blank means "mine". Only shown to people who may enter for others.
   const [salespersonId, setSalespersonId] = useState("");
-  const [firmQueue, setFirmQueue] = useState(null);
 
   const myName = () => {
     const me = users.find(u => u.id === uid) || myProfile;
@@ -277,18 +273,15 @@ export default function NewProject() {
     router.push("/dashboard#personal");
   };
 
-  // Firms named on this form that the Directory knows nothing about yet.
-  const firmEntries = () => [
-    { name: company, category: companyCategory },
-    ...cleanOwnerRows(ownerRows).map(r => ({ name: r.company, category: OWNER_CATEGORY }))
-  ];
-
   // Jobs already on file, for suggesting who makes a kind of equipment.
   const equipmentHistory = { projects, pipeline: pipelineEntries, parts: partsRows };
 
-  const addProject = async (choice = null) => {
-    // Only the prompt's answer counts -- a click event is not one.
-    const firmTags = choice && !choice.nativeEvent && typeof choice === "object" ? choice : null;
+  // A firm or person typed anywhere on this form is created the moment
+  // it's saved -- no separate confirmation, same as a new contact
+  // already worked. A firm's type (service/construction/etc.) can still
+  // be filled in from its own Directory page afterward; it no longer
+  // gates entering the job.
+  const addProject = async () => {
     setFormError("");
     const missing = [];
     if (!projectName) missing.push("Project Name");
@@ -301,9 +294,6 @@ export default function NewProject() {
       return setFormError(`Please fill in the following required field${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
     }
 
-    // A new firm gets described before it's filed away.
-    const needDetails = firmTags ? [] : firmsNeedingDetails(firmEntries(), companies);
-    if (needDetails.length) return setFirmQueue(needDetails);
     const splitProblem = splitError(splits);
     if (splitProblem) {
       return setFormError(splitProblem);
@@ -384,13 +374,6 @@ export default function NewProject() {
           message: `${myName()} added the project "${projectName}" for you`,
           link: `/dashboard/project/${ref.id}`
         });
-      }
-
-      if (firmTags) {
-        await Promise.all(Object.entries(firmTags).map(([name, tags]) => {
-          const entry = firmEntries().find(f => f.name === name);
-          return saveFirmTags(name, entry?.category, tags);
-        }));
       }
 
       router.push(`/dashboard/project/${ref.id}`);
@@ -691,15 +674,6 @@ export default function NewProject() {
           <button className="btn btn-secondary" onClick={addEquipmentRow}>+ Add Equipment</button>
         </div>
       </div>
-
-      {firmQueue && (
-        <FirmDetailsPrompt
-          queue={firmQueue}
-          busy={saving}
-          onDone={(tags) => { setFirmQueue(null); addProject(tags); }}
-          onCancel={() => setFirmQueue(null)}
-        />
-      )}
 
       {leaveGuard.asking && (
         <ConfirmDialog

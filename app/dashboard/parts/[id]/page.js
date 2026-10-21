@@ -18,9 +18,6 @@ import RecordNotes from "../../../components/RecordNotes";
 import PartMyAlerts from "../../../components/PartMyAlerts";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import useUnsavedGuard from "../../../components/useUnsavedGuard";
-import FirmDetailsPrompt from "../../../components/FirmDetailsPrompt";
-import { saveFirmTags } from "../../../../lib/firmTypes";
-import { firmsNeedingDetails } from "../../../../lib/newFirms";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -59,7 +56,6 @@ function PartPageContent() {
   const [openedFromLink, setOpenedFromLink] = useState(false);
   const [stageMove, setStageMove] = useState(null);
   const [movingStage, setMovingStage] = useState(false);
-  const [firmQueue, setFirmQueue] = useState(null);
 
   const load = async () => {
     const snap = await getDoc(doc(db, "parts", partId));
@@ -160,18 +156,13 @@ function PartPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantsEdit, openedFromLink, part]);
 
-  const save = async (choice = null) => {
-    // Called straight from a button, React would hand us the click event;
-    // only a real answer from the prompt counts.
-    const firmTags = choice && !choice.nativeEvent && typeof choice === "object" ? choice : null;
+  // A firm or person typed anywhere on this form is created the moment
+  // it's saved -- no separate confirmation, same as a new contact
+  // already worked. A firm's type can still be filled in from its own
+  // Directory page afterward; it no longer gates saving the edit.
+  const save = async () => {
     const message = partError(editForm);
     if (message) return setError(message);
-    const payloadPreview = partPayload(editForm);
-    const needDetails = firmTags ? [] : firmsNeedingDetails([
-      { name: payloadPreview.company, category: payloadPreview.companyCategory },
-      ...payloadPreview.contractors.map(c => ({ name: c.company, category: "Contractor" }))
-    ], companies);
-    if (needDetails.length) return setFirmQueue(needDetails);
     setSaving(true);
     setError("");
     try {
@@ -194,18 +185,7 @@ function PartPageContent() {
         ],
         { companies, contacts, uid }
       );
-      if (firmTags) {
-        await Promise.all(Object.entries(firmTags).map(([name, tags]) => {
-          const category = name === payload.company ? payload.companyCategory : "Contractor";
-          return saveFirmTags(name, category, tags);
-        }));
-        // Read the firms back, so what was just answered is known here
-        // rather than being asked again on the next save.
-        const companiesSnap = await getDocs(collection(db, "companies"));
-        setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      }
       setIsEditing(false);
-      setFirmQueue(null);
       await load();
     } catch (err) {
       setError(`Couldn't save this parts request: ${err.message}`);
@@ -372,15 +352,6 @@ function PartPageContent() {
           )}
         </div>
       </div>
-
-      {firmQueue && (
-        <FirmDetailsPrompt
-          queue={firmQueue}
-          busy={saving}
-          onDone={(tags) => { setFirmQueue(null); save(tags); }}
-          onCancel={() => setFirmQueue(null)}
-        />
-      )}
 
       {stageMove && (
         <ConfirmDialog
