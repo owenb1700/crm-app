@@ -249,7 +249,10 @@ export default function NewPipelineEntry() {
       });
 
       const captureEntries = [
-        { companyName: company, category: "Engineering Firm", contactName: contact, email, phone },
+        // The entry's own salesperson is who is putting the quote
+        // together for this engineering firm -- saving it teaches the
+        // firm's Directory record, same as a bidder's salesperson does.
+        { companyName: company, category: "Engineering Firm", salespersonId, contactName: contact, email, phone },
         ...bidderDirectoryEntries(cleanBidders, firmTypeOf)
       ];
       await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });

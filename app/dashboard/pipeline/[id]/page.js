@@ -374,7 +374,10 @@ export default function PipelineDetail() {
     await updateDoc(doc(db, "pipeline", pipelineId), payload);
 
     const captureEntries = [
-      { companyName: editData.company, category: "Engineering Firm", contactName: editData.contact, email: editData.email, phone: editData.phone },
+      // The entry's own salesperson is who is putting the quote together
+      // for this engineering firm -- saving it teaches the firm's
+      // Directory record, same as a bidder's salesperson does.
+      { companyName: editData.company, category: "Engineering Firm", salespersonId: editData.salespersonId, contactName: editData.contact, email: editData.email, phone: editData.phone },
       ...bidderDirectoryEntries(payload.biddingCompanies, firmTypeOf)
     ];
     await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });
