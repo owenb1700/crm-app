@@ -401,7 +401,7 @@ export default function NewPipelineEntry() {
             </div>
             <div>
               <label className="field-label">Project Point Person</label>
-              <span className="field-label-note">Who is managing this entry? Sending out the bids, etc.</span>
+              <span className="field-label-note">Who is managing the entry, sending out the quote, etc.?</span>
               <select className="field" value={projectPointPersonId} onChange={e => setProjectPointPersonId(e.target.value)}>
                 <option value="">Unassigned</option>
                 {users.map(u => (
