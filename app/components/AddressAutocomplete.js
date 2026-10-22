@@ -130,30 +130,40 @@ export default function AddressAutocomplete({ id, name, value, onChange, placeho
         disabled={isNotApplicable(value)}
       />
 
-      {isNotApplicable(value) ? (
+      {!isNotApplicable(value) && (state === "confirmed" || warning) && (
         <p className="private-note-hint" style={{ marginTop: 4 }}>
-          No address on this one.{" "}
-          <button type="button" className="link-muted matching-select-link" onClick={() => { onChange(""); setConfirmedState(false); }}>
-            Enter an address instead
-          </button>
-        </p>
-      ) : (
-        <p className="private-note-hint" style={{ marginTop: 4 }}>
-          {state === "confirmed" && "✓ Found on Google Maps."}
-          {state !== "confirmed" && (
-            <>
-              {warning}{" "}
-              <button
-                type="button"
-                className="link-muted matching-select-link"
-                onClick={() => { onChange(NOT_APPLICABLE); setConfirmedState(false); setTidier(null); }}
-              >
-                Not applicable
-              </button>
-            </>
-          )}
+          {state === "confirmed" ? "✓ Found on Google Maps." : warning}
         </p>
       )}
+
+      {/* A checkbox rather than a link that only appeared once there was
+          something typed: a box sitting there either ticked or not reads
+          as an option at a glance, where the earlier link's wording
+          changed depending on state and was easy to read past. Ticking
+          it stores the same "N/A" the rest of the app already treats as
+          no address (see isNotApplicable) -- nothing downstream changed,
+          only how this is offered. Paired with its input by nesting
+          rather than an id, since not every caller passes one. */}
+      <label className="export-notes-toggle" style={{ marginTop: 4, marginBottom: 0 }}>
+        <input
+          type="checkbox"
+          checked={isNotApplicable(value)}
+          onChange={e => {
+            if (e.target.checked) {
+              onChange(NOT_APPLICABLE);
+              setConfirmedState(false);
+              setTidier(null);
+            } else {
+              onChange("");
+              setConfirmedState(false);
+            }
+          }}
+        />
+        <span>
+          <strong>Not applicable</strong>
+          <span className="export-row-desc">This job doesn&apos;t have a street address.</span>
+        </span>
+      </label>
 
       {tidier && (
         <p className="matching-select-suggestion">
