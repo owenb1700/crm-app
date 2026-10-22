@@ -1033,8 +1033,16 @@ export default function PipelineDetail() {
                 </div>
                 <div>
                   <label className="field-label" htmlFor="pipeline-detail-stage">Stage</label>
+                  {/* Post-Bid is excluded here unless the entry is already
+                      there: picking it from this list was a second way
+                      past Bids Sent / Not Bidding, with neither asked.
+                      This dropdown is for correcting an earlier stage,
+                      not for reaching Post-Bid -- that's always through
+                      the Outcome section below. */}
                   <select id="pipeline-detail-stage" className="field" value={normalizeStage(editData.stage)} onChange={e => setEditData({ ...editData, stage: e.target.value })}>
-                    {PIPELINE_STAGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    {PIPELINE_STAGE_OPTIONS
+                      .filter(opt => opt !== POST_BID || normalizeStage(pipeline.stage) === POST_BID)
+                      .map(opt => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
                 </div>
                 <div>
