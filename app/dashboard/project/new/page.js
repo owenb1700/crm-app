@@ -623,7 +623,7 @@ export default function NewProject() {
                 style={{ marginBottom: 0 }}
                 list={`new-project-equipment-manufacturers-${i}`}
                 autoComplete="off"
-                placeholder="Tower Manufacturer"
+                placeholder="Manufacturer"
                 value={row.manufacturer}
                 onChange={e => updateEquipmentRow(i, "manufacturer", e.target.value)}
               />
