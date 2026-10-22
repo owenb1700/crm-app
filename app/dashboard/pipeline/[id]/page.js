@@ -1342,7 +1342,7 @@ export default function PipelineDetail() {
             <p className="private-note-hint">Two weeks out by default.</p>
 
             {bidsSentProblem && <p className="settings-status is-error">⚠ {bidsSentProblem}</p>}
-            <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={confirmBidsSent}>
+            <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} disabled={!bidsSentDate} onClick={confirmBidsSent}>
               Confirm
             </button>
           </div>
@@ -1446,7 +1446,11 @@ export default function PipelineDetail() {
         </div>
       )}
 
-      {lostModalOutcome && (
+      {lostModalOutcome && (() => {
+        const lostModalInvalid = lostModalOutcome === "Did Not Bid"
+          ? !!didNotBidProblem(dnbChoice, lostReason)
+          : !lostReason.trim();
+        return (
         <div className="modal-overlay">
           <div className="modal-card">
             <button className="modal-close" onClick={() => setLostModalOutcome(null)}>✕</button>
@@ -1497,14 +1501,23 @@ export default function PipelineDetail() {
 
             {lostProblem && <p className="settings-status is-error">⚠ {lostProblem}</p>}
             <div className="modal-actions">
-              <button className="btn btn-danger" onClick={confirmMarkLost}>
+              {/* Dull (the ordinary pale btn-danger) until an answer is
+                  picked, then the same solid red used for an irreversible
+                  confirm -- so the button itself shows when it's ready to
+                  press, not just an error after pressing it too soon. */}
+              <button
+                className={`btn ${lostModalInvalid ? "btn-danger" : "btn-danger-solid"}`}
+                disabled={lostModalInvalid}
+                onClick={confirmMarkLost}
+              >
                 {lostModalOutcome === "Did Not Bid" ? "Mark Did Not Bid" : "Mark Lost"}
               </button>
               <button className="btn btn-secondary" onClick={() => setLostModalOutcome(null)}>Cancel</button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {showConvertModal && (
         <div className="modal-overlay">
@@ -1552,7 +1565,7 @@ export default function PipelineDetail() {
 
             {convertProblem && <p className="settings-status is-error">⚠ {convertProblem}</p>}
             <div className="modal-actions">
-              <button className="btn btn-primary" disabled={converting} onClick={convertToProject}>{converting ? "Creating…" : "Create Project"}</button>
+              <button className="btn btn-primary" disabled={converting || !convertNextDate} onClick={convertToProject}>{converting ? "Creating…" : "Create Project"}</button>
               <button className="btn btn-secondary" onClick={() => setShowConvertModal(false)}>Cancel</button>
             </div>
           </div>

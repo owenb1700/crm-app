@@ -410,7 +410,12 @@ function DirectoryPageContent() {
             <AddressAutocomplete id="add-company-address" name="add-company-address" placeholder="Company Address" value={newAddress} onChange={setNewAddress} />
 
             {addState?.problem && <p className="settings-status is-error">⚠ {addState.problem}</p>}
-            <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} disabled={!!addState?.saving} onClick={() => addCompany(false)}>
+            <button
+              className="btn btn-primary btn-block"
+              style={{ marginTop: 12 }}
+              disabled={!!addState?.saving || !newName.trim() || !newTags.length}
+              onClick={() => addCompany(false)}
+            >
               {addState?.saving ? "Adding…" : "Add"}
             </button>
           </div>

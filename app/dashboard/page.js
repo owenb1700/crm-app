@@ -1351,6 +1351,13 @@ export default function Dashboard() {
     setProspectingNextDate(d.toISOString().split("T")[0]);
   };
 
+  // What's missing before Confirm can do anything, by outcome -- Closed
+  // needs nothing extra, the others each need their one date or note.
+  const completedOutcomeInvalid =
+    (completedOutcome === "Won" && !wonNextDate) ||
+    (completedOutcome === "Lost" && !lostNotes.trim()) ||
+    (completedOutcome === "Prospecting Only" && !prospectingNextDate);
+
   const confirmCompleted = async () => {
     setOutcomeProblem("");
     // Held on to, because the popup is closed before the record is read
@@ -2052,6 +2059,11 @@ export default function Dashboard() {
     resetNewUserForm();
     setShowAddUser(false);
   };
+
+  // Mirrors the first two checks inside createUser exactly, so the
+  // button's dull state and the error it would show on a forced click
+  // never disagree about what counts as a usable email.
+  const newUserEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newUserEmail.trim());
 
   const createUser = async () => {
     setNewUserProblem("");
@@ -3556,7 +3568,7 @@ export default function Dashboard() {
             {newUserProblem && <p className="settings-status is-error">⚠ {newUserProblem}</p>}
             <div className="modal-actions add-user-actions">
               <button className="btn btn-secondary" disabled={creatingUser} onClick={cancelAddUser}>Cancel</button>
-              <button className="btn btn-primary" disabled={creatingUser} onClick={createUser}>
+              <button className="btn btn-primary" disabled={creatingUser || !newUserEmailValid} onClick={createUser}>
                 {creatingUser ? "Adding…" : "Add User"}
               </button>
             </div>
@@ -3632,7 +3644,7 @@ export default function Dashboard() {
 
             {outcomeProblem && <p className="settings-status is-error">⚠ {outcomeProblem}</p>}
             <div className="modal-actions">
-              <button className="btn btn-primary" onClick={confirmCompleted}>Confirm</button>
+              <button className="btn btn-primary" disabled={completedOutcomeInvalid} onClick={confirmCompleted}>Confirm</button>
               <button className="btn btn-secondary" onClick={() => setCompletedTarget(null)}>Cancel</button>
             </div>
           </div>
@@ -3777,7 +3789,7 @@ export default function Dashboard() {
 
             {reminderProblem && <p className="settings-status is-error">⚠ {reminderProblem}</p>}
             <div className="modal-actions">
-              <button className="btn btn-primary" disabled={savingReminder} onClick={saveReminder}>
+              <button className="btn btn-primary" disabled={savingReminder || !reminderForm.subject.trim()} onClick={saveReminder}>
                 {savingReminder ? "Saving..." : reminderForm.id ? "Save Changes" : "Add Reminder"}
               </button>
               {reminderForm.id && (

@@ -402,6 +402,9 @@ export default function ProjectDetail() {
 
   // Won moves it to Under Contract and says so. Lost closes it, with the
   // reason and -- when it's known -- who it went to.
+  // Won asks nothing extra; Lost mirrors answerBid's own first check.
+  const bidAnswerInvalid = bidOutcome !== "Won" && (!!lostProblem(lostWhy) || !!lostCheckInProblem(lostNextDate));
+
   const answerBid = async () => {
     setBidAnswerProblem("");
     const won = bidOutcome === "Won";
@@ -508,6 +511,10 @@ export default function ProjectDetail() {
       setMovingStage(false);
     }
   };
+
+  // Mirrors confirmClose's own first line, so the button's dull state
+  // and the error a forced click would show never disagree.
+  const closeModalInvalid = !!closeProblem(closeWhy) || (wasWon && !!checkInPlanProblem(closePlan));
 
   const confirmClose = async () => {
     const problem = closeProblem(closeWhy) || (wasWon && checkInPlanProblem(closePlan));
@@ -1383,7 +1390,7 @@ export default function ProjectDetail() {
 
             {closeProblemText && <p className="settings-status is-error">⚠ {closeProblemText}</p>}
             <div className="modal-actions">
-              <button className="btn btn-danger-solid" onClick={confirmClose}>Close the project</button>
+              <button className="btn btn-danger-solid" disabled={closeModalInvalid} onClick={confirmClose}>Close the project</button>
               <button className="btn btn-secondary" onClick={() => { setCloseAsk(false); setClosePending(null); }}>Cancel</button>
             </div>
           </div>
@@ -1508,7 +1515,7 @@ export default function ProjectDetail() {
 
             {bidAnswerProblem && <p className="settings-status is-error">⚠ {bidAnswerProblem}</p>}
             <div className="modal-actions">
-              <button className="btn btn-primary" onClick={answerBid}>
+              <button className="btn btn-primary" disabled={bidAnswerInvalid} onClick={answerBid}>
                 {bidOutcome === "Won" ? `Mark won — ${UNDER_CONTRACT}` : "Mark lost — close it"}
               </button>
               <button className="btn btn-secondary" onClick={() => setBidAnswer(null)}>Cancel</button>

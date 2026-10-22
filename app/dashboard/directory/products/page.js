@@ -369,7 +369,14 @@ export default function ProductsPage() {
             </datalist>
 
             {addProblem && <p className="settings-status is-error">⚠ {addProblem}</p>}
-            <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={addProduct}>Add</button>
+            <button
+              className="btn btn-primary btn-block"
+              style={{ marginTop: 12 }}
+              disabled={!newName.trim() || !newType || !newManufacturer.trim()}
+              onClick={addProduct}
+            >
+              Add
+            </button>
           </div>
         </div>
       )}

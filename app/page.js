@@ -311,7 +311,7 @@ export default function Login() {
               <p className={`settings-status ${resetBad ? "is-error" : "is-ok"}`}>{resetNote}</p>
             )}
             <div className="modal-actions">
-              <button className="btn btn-primary" onClick={sendReset}>Send Reset Email</button>
+              <button className="btn btn-primary" disabled={!resetEmail.trim()} onClick={sendReset}>Send Reset Email</button>
             </div>
           </div>
         </div>
