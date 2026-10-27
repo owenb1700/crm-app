@@ -664,12 +664,12 @@ export default function Dashboard() {
       customers.forEach(c => {
         captureEntries.push({
           companyName: c.company, category: firmTypeOf(c.companyCategory),
-          contactName: c.contact, email: c.email, phone: c.phone
+          contactName: c.contact, email: c.email, phone: c.phone, sector: c.buildingSector
         });
         (c.owners || []).forEach(o => {
           captureEntries.push({
             companyName: o.company, category: OWNER_CATEGORY,
-            contactName: o.contact, email: o.email, phone: o.phone
+            contactName: o.contact, email: o.email, phone: o.phone, sector: c.buildingSector
           });
         });
       });
@@ -677,9 +677,9 @@ export default function Dashboard() {
       pipelineEntries.forEach(p => {
         captureEntries.push({
           companyName: p.company, category: "Engineering Firm",
-          contactName: p.contact, email: p.email, phone: p.phone
+          contactName: p.contact, email: p.email, phone: p.phone, sector: p.buildingSector
         });
-        captureEntries.push(...bidderDirectoryEntries(p.biddingCompanies, firmTypeOf));
+        captureEntries.push(...bidderDirectoryEntries(p.biddingCompanies, firmTypeOf).map(e => ({ ...e, sector: p.buildingSector })));
       });
 
       await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });

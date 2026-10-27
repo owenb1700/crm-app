@@ -642,7 +642,7 @@ export default function ProjectDetail() {
     await ensureCompanyAndContactBatch([
       { companyName: editData.company, category: editData.companyCategory, contactName: editData.contact, email: editData.email, phone: editData.phone },
       ...owners.map(r => ({ companyName: r.company, category: OWNER_CATEGORY, contactName: r.contact, email: r.email, phone: r.phone }))
-    ], { companies, contacts, uid });
+    ], { companies, contacts, uid, sector: editData.buildingSector });
 
     await Promise.all(
       equipment

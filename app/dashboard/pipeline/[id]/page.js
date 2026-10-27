@@ -380,7 +380,7 @@ export default function PipelineDetail() {
       { companyName: editData.company, category: "Engineering Firm", salespersonId: editData.salespersonId, contactName: editData.contact, email: editData.email, phone: editData.phone },
       ...bidderDirectoryEntries(payload.biddingCompanies, firmTypeOf)
     ];
-    await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });
+    await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid, sector: editData.buildingSector });
 
     // Only firms that weren't on the entry before, so saving an edit
     // doesn't re-alert everyone about the same firms.
@@ -757,7 +757,7 @@ export default function PipelineDetail() {
 
       await ensureCompanyAndContactBatch([
         { companyName: data.company, category: data.companyCategory, contactName: data.contact, email: data.email, phone: data.phone }
-      ], { companies, contacts, uid });
+      ], { companies, contacts, uid, sector: data.buildingSector });
 
       // The project now carries the follow-up, so the pipeline entry's own
       // 1-year Won check-in is cleared to avoid a duplicate reminder.

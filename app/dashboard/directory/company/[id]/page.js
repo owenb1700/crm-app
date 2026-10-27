@@ -621,6 +621,9 @@ export default function CompanyDetail() {
               return u ? (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email) : "—";
             })()}</p>
             <p><strong>{firmTagLabel(company.category)}:</strong> {firmTagsOf(company).join(", ") || "—"}</p>
+            {company.category === "Contractor" && (company.sectors || []).length > 0 && (
+              <p><strong>Sectors worked:</strong> {company.sectors.join(", ")} <span className="private-note-hint">(learned from jobs they've been on)</span></p>
+            )}
             <p><strong>Phone:</strong> {formatPhone(company.phone) || "—"}</p>
             <p><strong>Address:</strong> {company.address || "—"}</p>
             <p><strong>Website:</strong> {company.website || "—"}</p>

@@ -246,7 +246,7 @@ export default function NewPipelineEntry() {
         { companyName: company, category: "Engineering Firm", salespersonId, contactName: contact, email, phone },
         ...bidderDirectoryEntries(cleanBidders, firmTypeOf)
       ];
-      await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid });
+      await ensureCompanyAndContactBatch(captureEntries, { companies, contacts, uid, sector: buildingSector });
 
       // Tell the reps whose firms are on this entry, and anyone given a
       // share of it. A share already makes them a collaborator (see
