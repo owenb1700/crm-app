@@ -1309,7 +1309,7 @@ export default function ProjectDetail() {
           )}
         </div>
 
-        {uid && <ProjectMyReminders projectId={projectId} uid={uid} />}
+        {uid && <ProjectMyReminders project={customer} projectId={projectId} uid={uid} users={users} />}
         </div>
 
         {uid && (

@@ -357,15 +357,24 @@ service cloud.firestore {
     match /reminders/{reminderId} {
       allow read, delete: if isActive() && resource.data.userId == request.auth.uid;
       // Normally you only create your own. The exception is "remind
-      // everyone on this entry": anyone working a pipeline entry can set a
-      // reminder for a teammate on that entry, and it records who set it.
-      // The recipient can delete it like any of their own.
+      // everyone on this entry/project": anyone working a pipeline entry
+      // can set a reminder for a teammate on it; on a project, only the
+      // owner or an approved collaborator can, matching who else gets to
+      // touch the project's shared things (notes, drawings, photos).
+      // Either way it records who set it, and the recipient can delete it
+      // like any of their own.
       allow create: if isActive() && (
         request.resource.data.userId == request.auth.uid ||
         (
           request.resource.data.get('setBy', null) == request.auth.uid &&
           request.resource.data.get('pipelineId', null) is string &&
           exists(/databases/$(database)/documents/pipeline/$(request.resource.data.pipelineId))
+        ) ||
+        (
+          request.resource.data.get('setBy', null) == request.auth.uid &&
+          request.resource.data.get('projectId', null) is string &&
+          exists(/databases/$(database)/documents/customers/$(request.resource.data.projectId)) &&
+          (isOwner(request.resource.data.projectId) || isCollaborator(request.resource.data.projectId) || isAdmin())
         )
       );
       allow update: if isActive() &&
