@@ -31,10 +31,11 @@ export default function RecordNotes({
   const [choosing, setChoosing] = useState(false);
 
   const people = jobPeople(record, { kind: recordKind, users, exclude: uid });
-  // Only a job has people on it. A parts request uses this same thread and
-  // has nobody to tell, so it saves on the first press the way it always
-  // did rather than asking a question with no answers in it.
-  const asksWhoToTell = !!record;
+  // Only a job has people on it, and only when there's actually someone
+  // else on it. A parts request uses this same thread and has nobody to
+  // tell, and a job that's just you is no different -- both save on the
+  // first press rather than asking a question with no answers in it.
+  const asksWhoToTell = !!record && people.length > 0;
 
   const notesCol = () => collection(db, collectionName, recordId, "notes");
 

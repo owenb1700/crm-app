@@ -38,6 +38,10 @@ export default function PipelineNotes({
   const [choosing, setChoosing] = useState(false);
 
   const people = jobPeople(pipeline, { kind: "pipeline", users, exclude: uid });
+  // A team note asks who should know, but only when there's actually
+  // someone else to tell -- an entry nobody else is on yet saves on the
+  // first press, same as a note nobody but you could read.
+  const asksWhoToTell = people.length > 0;
 
   const mineRef = () => doc(db, "pipeline", pipelineId, "myNotes", uid);
   const teamCol = () => collection(db, "pipeline", pipelineId, "teamNotes");
@@ -149,8 +153,6 @@ export default function PipelineNotes({
         value={draft}
         onChange={e => setDraft(e.target.value)}
       />
-      {/* A team note asks who should know; a private one has nobody to
-          tell, so it saves on the first press as it always did. */}
       {tab === "team" && choosing ? (
         <NoteAlertPicker
           people={people}
@@ -162,7 +164,7 @@ export default function PipelineNotes({
         <button
           className="btn btn-primary"
           disabled={saving || !draft.trim()}
-          onClick={() => (tab === "team" ? setChoosing(true) : add())}
+          onClick={() => (tab === "team" && asksWhoToTell ? setChoosing(true) : add())}
         >
           {saving ? "Saving…" : "Add note"}
         </button>
