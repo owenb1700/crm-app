@@ -690,6 +690,7 @@ export default function ProjectDetail() {
         url,
         size: file.size,
         uploadedAt: new Date().toISOString(),
+        uploadedBy: uid,
         uploadedByName: myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown")
       };
 
@@ -781,13 +782,13 @@ export default function ProjectDetail() {
               {formatBytes(f.size)} · uploaded by {f.uploadedByName} · {f.uploadedAt?.slice(0, 10)}
             </div>
           </div>
-          {(isOwner || role === "admin") && (
+          {(isOwner || isCollaborator || role === "admin") && (
             <button className="btn btn-danger" onClick={() => deleteDrawing(f)}>Delete</button>
           )}
         </div>
       ))}
 
-      {(isOwner || role === "admin") && (
+      {(isOwner || isCollaborator || role === "admin") && (
         <div style={{ marginTop: 12 }}>
           <input
             type="file"
