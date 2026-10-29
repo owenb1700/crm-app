@@ -181,6 +181,18 @@ export default function ProjectDetail() {
     setContractorRows(prev => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
   };
 
+  // The first time another contractor shows up, the original one was
+  // never typed as a "bidder" anywhere -- it's just the project's main
+  // company field. So the list starts with that one already in it, rather
+  // than asking for it a second time -- but only when the main field is
+  // actually a contractor; an owner or building engineer isn't a bidder.
+  const addContractorRow = () => {
+    const original = { company: editData.company, contact: editData.contact, email: editData.email, phone: editData.phone };
+    setContractorRows(prev => (prev.length === 0
+      ? [...(editData.companyCategory === "Contractor" ? [original] : []), { ...BLANK_OWNER_ROW }]
+      : [...prev, { ...BLANK_OWNER_ROW }]));
+  };
+
   // "?from=team" / "?from=pastProjects" is added by the list that opened
   // this project, so Back returns to the tab you were actually on.
   const [openedFrom] = useState(() => {
@@ -1149,7 +1161,8 @@ export default function ProjectDetail() {
 
             <h4 className="edit-block-title" style={{ marginTop: 22 }}>Other Contractors Bidding</h4>
             <p className="private-note-hint" style={{ marginTop: -6, marginBottom: 10 }}>
-              If it turns out more than one contractor is bidding this job, add them here.
+              If it turns out more than one contractor is bidding this job, add them here -- the one above gets added
+              in too, since it's also a bidder now.
             </p>
             {contractorRows.map((row, i) => (
               <div key={i} className="bidding-company-row">
@@ -1171,7 +1184,7 @@ export default function ProjectDetail() {
                 <button className="btn btn-danger" onClick={() => setContractorRows(prev => prev.filter((_, idx) => idx !== i))}>Remove</button>
               </div>
             ))}
-            <button className="btn btn-secondary" onClick={() => setContractorRows(prev => [...prev, { ...BLANK_OWNER_ROW }])}>+ Add Contractor</button>
+            <button className="btn btn-secondary" onClick={addContractorRow}>+ Add Contractor</button>
 
             <h4 className="edit-block-title" style={{ marginTop: 22 }}>Equipment &amp; Site Details</h4>
             {equipmentRows.map((row, i) => (

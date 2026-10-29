@@ -154,6 +154,17 @@ export default function NewProject() {
     setContractorRows(prev => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
   };
 
+  // The first time another contractor shows up, the original one was
+  // never typed as a "bidder" anywhere -- it's just the project's main
+  // company field. So the list starts with that one already in it, rather
+  // than asking for it a second time -- but only when the main field is
+  // actually a contractor; an owner or building engineer isn't a bidder.
+  const addContractorRow = () => {
+    setContractorRows(prev => (prev.length === 0
+      ? [...(companyCategory === "Contractor" ? [{ company, contact, email, phone }] : []), { ...BLANK_OWNER_ROW }]
+      : [...prev, { ...BLANK_OWNER_ROW }]));
+  };
+
   const handleContractorContactChange = (index, value) => {
     const match = findPerson(contactsForCompany(contractorRows[index].company), value);
     setContractorRows(prev => prev.map((row, i) => (i === index
@@ -606,7 +617,8 @@ export default function NewProject() {
         <div className="project-section">
           <h4 className="field-label" style={{ marginTop: 0 }}>Other Contractors Bidding (optional)</h4>
           <p className="private-note-hint" style={{ marginTop: -6, marginBottom: 10 }}>
-            If it turns out more than one contractor is bidding this job, add them here.
+            If it turns out more than one contractor is bidding this job, add them here -- the one above gets added
+            in too, since it's also a bidder now.
           </p>
           {contractorRows.map((row, i) => (
             <div key={i} className="bidding-company-row">
@@ -636,7 +648,7 @@ export default function NewProject() {
               <button className="btn btn-danger" onClick={() => setContractorRows(prev => prev.filter((_, idx) => idx !== i))}>Remove</button>
             </div>
           ))}
-          <button className="btn btn-secondary" onClick={() => setContractorRows(prev => [...prev, { ...BLANK_OWNER_ROW }])}>+ Add Contractor</button>
+          <button className="btn btn-secondary" onClick={addContractorRow}>+ Add Contractor</button>
         </div>
 
         {/* Same as the pipeline form: the lead time is about the equipment,
