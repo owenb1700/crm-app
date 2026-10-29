@@ -10,6 +10,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  addDoc,
   collection,
   getDocs,
   query,
@@ -17,6 +18,9 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { ensureCompanyAndContactBatch, OWNER_CATEGORY, BLANK_OWNER_ROW, cleanOwnerRows, firmTypeOf } from "../../../../lib/directory";
+import { biddersForStorage } from "../../../../lib/bidders";
+import { BIDDING } from "../../../../lib/pipelineStages";
+import { findSameCompany } from "../../../../lib/companyMatch";
 import FirmTypeSelect from "../../../components/FirmTypeSelect";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
@@ -162,11 +166,19 @@ export default function ProjectDetail() {
   const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
   const [splitRows, setSplitRows] = useState([]);
   const [ownerRows, setOwnerRows] = useState([]);
+  const [contractorRows, setContractorRows] = useState([]);
   const [activeTab, setActiveTab] = useState("details"); // "details" | "bid"
   const [legacyBid, setLegacyBid] = useState(null);
+  const [convertPipelineAsk, setConvertPipelineAsk] = useState(false);
+  const [convertingToPipeline, setConvertingToPipeline] = useState(false);
+  const [convertPipelineProblem, setConvertPipelineProblem] = useState("");
 
   const updateOwnerRow = (index, field, value) => {
     setOwnerRows(prev => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
+
+  const updateContractorRow = (index, field, value) => {
+    setContractorRows(prev => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
   };
 
   // "?from=team" / "?from=pastProjects" is added by the list that opened
@@ -379,6 +391,7 @@ export default function ProjectDetail() {
     });
     setEquipmentRows(equipmentRowsFrom(customer));
     setOwnerRows(customer.owners || []);
+    setContractorRows(customer.otherContractors || []);
     setSplitRows(normalizeSplits(customer.splits));
     setIsEditing(true);
   };
@@ -590,6 +603,8 @@ export default function ProjectDetail() {
     payload.dateInstalled = first.yearInstalled || null;
     const owners = cleanOwnerRows(ownerRows);
     payload.owners = owners;
+    const otherContractors = cleanOwnerRows(contractorRows);
+    payload.otherContractors = otherContractors;
 
     // Closing a project schedules a 1-year "how are things going" check-in
     // automatically, so it resurfaces on the Home calendar even though it's
@@ -641,7 +656,8 @@ export default function ProjectDetail() {
 
     await ensureCompanyAndContactBatch([
       { companyName: editData.company, category: editData.companyCategory, contactName: editData.contact, email: editData.email, phone: editData.phone },
-      ...owners.map(r => ({ companyName: r.company, category: OWNER_CATEGORY, contactName: r.contact, email: r.email, phone: r.phone }))
+      ...owners.map(r => ({ companyName: r.company, category: OWNER_CATEGORY, contactName: r.contact, email: r.email, phone: r.phone })),
+      ...otherContractors.map(r => ({ companyName: r.company, category: "Contractor", contactName: r.contact, email: r.email, phone: r.phone }))
     ], { companies, contacts, uid, sector: editData.buildingSector });
 
     await Promise.all(
@@ -651,7 +667,99 @@ export default function ProjectDetail() {
     );
 
     setIsEditing(false);
+
+    // Another contractor just got added to a job that already has one --
+    // that's bidding activity, and bidding activity belongs on the team's
+    // shared Pipeline board, not buried on a project only its owner and
+    // collaborators can see. Ask once, right after the add, rather than
+    // silently letting two salespeople quote the same job without
+    // knowing it.
+    if (!customer.convertedToPipelineId && otherContractors.length > (customer.otherContractors || []).length) {
+      setConvertPipelineAsk(true);
+    }
+
     await loadProject(uid, role);
+  };
+
+  // Moves a project with more than one contractor onto the Pipeline board,
+  // where the whole team can see it's being bid rather than just this
+  // project's owner and collaborators. The project itself isn't deleted --
+  // it keeps its history and just links to where the live work moved.
+  const convertProjectToPipeline = async () => {
+    setConvertingToPipeline(true);
+    setConvertPipelineProblem("");
+    try {
+      const myName = myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown");
+      const stamp = new Date().toISOString();
+
+      const withSalesperson = (row) => ({
+        ...row,
+        salespersonId: findSameCompany(companies, row.company)?.salespersonId || null
+      });
+      const rawBidders = [
+        { category: firmTypeOf(customer.companyCategory), company: customer.company, contact: customer.contact, email: customer.email, phone: customer.phone },
+        ...(customer.owners || []).map(r => ({ category: OWNER_CATEGORY, ...r })),
+        ...(customer.otherContractors || []).map(r => ({ category: "Contractor", ...r }))
+      ].filter(r => (r.company || "").trim()).map(withSalesperson);
+      const biddingCompanies = biddersForStorage(rawBidders);
+
+      const ref = await addDoc(collection(db, "pipeline"), {
+        title: customer.projectName || customer.company,
+        stage: BIDDING,
+        buildingSector: customer.buildingSector || "",
+        workType: customer.workType || "",
+        leadTime: customer.leadTime || null,
+        leadTimeAlerts: customer.leadTimeAlerts === true,
+        orderedOn: customer.orderedOn || null,
+        shippedOn: customer.shippedOn || null,
+        deliveredOn: customer.deliveredOn || null,
+        bidDate: null,
+        value: customer.projectValue || null,
+        company: null,
+        contact: null,
+        email: null,
+        phone: null,
+        projectAddress: customer.projectAddress || null,
+        biddingCompanies,
+        equipment: customer.equipment || [],
+        towerManufacturer: customer.towerManufacturer || null,
+        modelNumber: customer.modelNumber || null,
+        salespersonId: customer.ownerId || null,
+        projectPointPersonId: null,
+        splits: normalizeSplits(customer.splits),
+        trackedByIds: withSplitMembers([], customer.splits),
+        outcome: null,
+        wonByContractor: null,
+        nextCheckIn: null,
+        ownerId: customer.ownerId,
+        convertedToProjectId: null,
+        sourceProjectId: projectId,
+        activityLog: [{ type: "converted", outcome: "From a project, once more than one contractor was bidding it", notes: `Converted by ${myName}`, timestamp: stamp }],
+        createdAt: stamp
+      });
+
+      await setDoc(doc(db, "pipeline", ref.id, "private", "data"), {
+        notes: notesData?.notes || "",
+        notesHistory: notesData?.notesHistory || [],
+        files: []
+      });
+
+      const photosSnap = await getDocs(collection(db, "customers", projectId, "photos"));
+      await Promise.all(photosSnap.docs.map(d =>
+        addDoc(collection(db, "pipeline", ref.id, "photos"), { ...d.data(), fromProject: true })
+      ));
+
+      await updateDoc(doc(db, "customers", projectId), {
+        convertedToPipelineId: ref.id,
+        convertedToPipelineAt: stamp
+      });
+
+      router.push(`/dashboard/pipeline/${ref.id}`);
+    } catch (err) {
+      setConvertPipelineProblem(err.message || "Couldn't convert this to a pipeline entry.");
+    } finally {
+      setConvertingToPipeline(false);
+    }
   };
 
   // Only the person who wrote a note can remove it, and it's gone for
@@ -1039,6 +1147,32 @@ export default function ProjectDetail() {
             ))}
             <button className="btn btn-secondary" onClick={() => setOwnerRows(prev => [...prev, { ...BLANK_OWNER_ROW }])}>+ Add Owner / Building Engineer</button>
 
+            <h4 className="edit-block-title" style={{ marginTop: 22 }}>Other Contractors Bidding</h4>
+            <p className="private-note-hint" style={{ marginTop: -6, marginBottom: 10 }}>
+              If it turns out more than one contractor is bidding this job, add them here.
+            </p>
+            {contractorRows.map((row, i) => (
+              <div key={i} className="bidding-company-row">
+                <CompanyContactFields
+                  idPrefix={`project-detail-contractor-${i}`}
+                  companies={companies}
+                  contacts={contacts}
+                  companyLabel="Contractor"
+                  companyCategory="Contractor"
+                  companyValue={row.company}
+                  contactValue={row.contact}
+                  emailValue={row.email}
+                  phoneValue={row.phone}
+                  onCompanyChange={v => updateContractorRow(i, "company", v)}
+                  onContactChange={v => updateContractorRow(i, "contact", v)}
+                  onEmailChange={v => updateContractorRow(i, "email", v)}
+                  onPhoneChange={v => updateContractorRow(i, "phone", v)}
+                />
+                <button className="btn btn-danger" onClick={() => setContractorRows(prev => prev.filter((_, idx) => idx !== i))}>Remove</button>
+              </div>
+            ))}
+            <button className="btn btn-secondary" onClick={() => setContractorRows(prev => [...prev, { ...BLANK_OWNER_ROW }])}>+ Add Contractor</button>
+
             <h4 className="edit-block-title" style={{ marginTop: 22 }}>Equipment &amp; Site Details</h4>
             {equipmentRows.map((row, i) => (
               <div
@@ -1225,6 +1359,33 @@ export default function ProjectDetail() {
               })}
             </div>
 
+            <div className="project-section">
+              <h4 className="field-label">Other Contractors Bidding</h4>
+              {customer.convertedToPipelineId ? (
+                <p className="private-note-hint">
+                  Moved to the Pipeline board so the whole team can see it's being bid.{" "}
+                  <a className="link-muted" href={`/dashboard/pipeline/${customer.convertedToPipelineId}`}>View pipeline entry</a>
+                </p>
+              ) : (customer.otherContractors || []).length === 0 ? (
+                <p className="private-note-hint">None added yet.</p>
+              ) : (
+                (customer.otherContractors || []).map((row, i) => {
+                  const firm = companies.find(c => c.name.toLowerCase() === (row.company || "").toLowerCase());
+                  return (
+                    <div
+                      key={i}
+                      className="notes-history-item"
+                      style={{ cursor: firm ? "pointer" : "default" }}
+                      onClick={() => { if (firm) router.push(`/dashboard/directory/company/${firm.id}`); }}
+                    >
+                      <div><strong>{row.company || "—"}</strong>{row.contact ? ` — ${row.contact}` : ""}</div>
+                      <div className="notes-history-date">{[row.email, formatPhone(row.phone)].filter(Boolean).join(" | ")}</div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
             <div className="project-section detail-span-2">
               <h4 className="field-label">Equipment & Site Details</h4>
               {!hasDisplayEquipment ? (
@@ -1326,6 +1487,40 @@ export default function ProjectDetail() {
 
         </>)}
       </div>
+
+      {convertPipelineAsk && (
+        <div className="modal-overlay" onClick={() => { if (!convertingToPipeline) setConvertPipelineAsk(false); }}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+            {!convertingToPipeline && (
+              <button className="modal-close" onClick={() => setConvertPipelineAsk(false)} aria-label="Close">✕</button>
+            )}
+            <h3 className="modal-title">More than one contractor is bidding this now</h3>
+            <p className="modal-subtitle">
+              This project only shows to its owner and collaborators. The Pipeline board is where the whole
+              team can see a job is actively being bid -- so another salesperson approached by one of these
+              bidders knows somebody&apos;s already on it, instead of quoting the same job twice without
+              realizing it.
+            </p>
+            {convertPipelineProblem && <p className="settings-status is-error">⚠ {convertPipelineProblem}</p>}
+            {!isOwner && (
+              <p className="private-note-hint">Only {ownerLabel(customer.ownerId)} can convert this one -- it becomes their pipeline entry.</p>
+            )}
+            <div className="modal-actions" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+              {isOwner && (
+                <button className="btn btn-primary" disabled={convertingToPipeline} onClick={convertProjectToPipeline}>
+                  {convertingToPipeline ? "Converting…" : "Convert to Pipeline Entry"}
+                </button>
+              )}
+              <button className="btn btn-secondary" disabled={convertingToPipeline} onClick={() => setConvertPipelineAsk(false)}>
+                Leave as Project
+              </button>
+            </div>
+            <p className="private-note-hint" style={{ marginTop: 10 }}>
+              Leaving it as a project risks more than one person unknowingly putting a quote out for the same job.
+            </p>
+          </div>
+        </div>
+      )}
 
       {closeAsk && (
         <div className="modal-overlay" onClick={() => { setCloseAsk(false); setClosePending(null); }}>

@@ -91,6 +91,10 @@ export default function NewProject() {
   const [notes, setNotes] = useState("");
   const [equipmentRows, setEquipmentRows] = useState([{ ...BLANK_EQUIPMENT_ROW }]);
   const [ownerRows, setOwnerRows] = useState([]);
+  // Other firms also bidding this job -- the project's own company field
+  // only ever held one. Same row shape as an owner row, just filed as
+  // Contractor instead.
+  const [contractorRows, setContractorRows] = useState([]);
 
   // Everything the site already knows, offered rather than applied. See
   // lib/learned.js -- nothing here overwrites a field somebody has typed.
@@ -142,6 +146,17 @@ export default function NewProject() {
   const handleOwnerContactChange = (index, value) => {
     const match = findPerson(contactsForCompany(ownerRows[index].company), value);
     setOwnerRows(prev => prev.map((row, i) => (i === index
+      ? { ...row, contact: value, ...(match && { email: primaryEmail(match), phone: primaryPhone(match) }) }
+      : row)));
+  };
+
+  const updateContractorRow = (index, field, value) => {
+    setContractorRows(prev => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
+
+  const handleContractorContactChange = (index, value) => {
+    const match = findPerson(contactsForCompany(contractorRows[index].company), value);
+    setContractorRows(prev => prev.map((row, i) => (i === index
       ? { ...row, contact: value, ...(match && { email: primaryEmail(match), phone: primaryPhone(match) }) }
       : row)));
   };
@@ -304,6 +319,7 @@ export default function NewProject() {
       const equipment = equipmentRows.filter(r => r.type || r.manufacturer || r.model || r.serial || r.yearInstalled);
       const first = equipment[0] || {};
       const owners = cleanOwnerRows(ownerRows);
+      const otherContractors = cleanOwnerRows(contractorRows);
       // Filed for someone else only when that's allowed and someone else
       // was actually picked.
       const ownerId = (canEnterForOthers(myProfile) && salespersonId) ? salespersonId : uid;
@@ -317,6 +333,7 @@ export default function NewProject() {
         email,
         phone,
         owners,
+        otherContractors,
         category: category || null,
         buildingSector,
         projectValue: projectValue || null,
@@ -352,7 +369,8 @@ export default function NewProject() {
 
       await ensureCompanyAndContactBatch([
         { companyName: company, category: companyCategory, contactName: contact, email, phone },
-        ...owners.map(r => ({ companyName: r.company, category: OWNER_CATEGORY, contactName: r.contact, email: r.email, phone: r.phone }))
+        ...owners.map(r => ({ companyName: r.company, category: OWNER_CATEGORY, contactName: r.contact, email: r.email, phone: r.phone })),
+        ...otherContractors.map(r => ({ companyName: r.company, category: "Contractor", contactName: r.contact, email: r.email, phone: r.phone }))
       ], { companies, contacts, uid, sector: buildingSector });
 
       await Promise.all(
@@ -583,6 +601,42 @@ export default function NewProject() {
             </div>
           ))}
           <button className="btn btn-secondary" onClick={() => setOwnerRows(prev => [...prev, { ...BLANK_OWNER_ROW }])}>+ Add Owner / Building Engineer</button>
+        </div>
+
+        <div className="project-section">
+          <h4 className="field-label" style={{ marginTop: 0 }}>Other Contractors Bidding (optional)</h4>
+          <p className="private-note-hint" style={{ marginTop: -6, marginBottom: 10 }}>
+            If it turns out more than one contractor is bidding this job, add them here.
+          </p>
+          {contractorRows.map((row, i) => (
+            <div key={i} className="bidding-company-row">
+              <div>
+                <label className="field-label">Contractor</label>
+                <FirmSelect
+                  id={`new-project-contractor-${i}`}
+                  companies={companies}
+                  category="Contractor"
+                  value={row.company}
+                  onChange={v => updateContractorRow(i, "company", v)}
+                  placeholder="Select or search firm..."
+                />
+              </div>
+              <div>
+                <label className="field-label">Contact</label>
+                <PersonSelect id={`new-project-contractor-contact-${i}`} people={contactsForCompany(row.company)} value={row.contact} onChange={v => handleContractorContactChange(i, v)} />
+              </div>
+              <div>
+                <label className="field-label">Email</label>
+                <input className="field" autoComplete="off" value={row.email} onChange={e => updateContractorRow(i, "email", e.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">Phone</label>
+                <input className="field" autoComplete="off" value={row.phone} onChange={e => updateContractorRow(i, "phone", e.target.value)} />
+              </div>
+              <button className="btn btn-danger" onClick={() => setContractorRows(prev => prev.filter((_, idx) => idx !== i))}>Remove</button>
+            </div>
+          ))}
+          <button className="btn btn-secondary" onClick={() => setContractorRows(prev => [...prev, { ...BLANK_OWNER_ROW }])}>+ Add Contractor</button>
         </div>
 
         {/* Same as the pipeline form: the lead time is about the equipment,

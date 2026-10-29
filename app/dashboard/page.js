@@ -1570,7 +1570,7 @@ export default function Dashboard() {
   const filteredCustomers = useMemo(() => {
     let list = customers.filter(c =>
       (c.ownerId === uid || (c.collaboratorIds || []).includes(uid) || hasShare(c, uid)) &&
-      c.category !== "Project Closed"
+      c.category !== "Project Closed" && !c.convertedToPipelineId
     );
 
     const f = personalFilters;
@@ -1908,7 +1908,7 @@ export default function Dashboard() {
   // entries, which the whole team can see.
   const reminderJobOptions = useMemo(() => {
     const projects = customers
-      .filter(c => c.category !== "Project Closed")
+      .filter(c => c.category !== "Project Closed" && !c.convertedToPipelineId)
       .filter(c => role === "admin" || c.ownerId === uid || (c.collaboratorIds || []).includes(uid))
       .map(c => ({
         key: `project:${c.id}`, kind: "project", id: c.id,
@@ -2140,7 +2140,8 @@ export default function Dashboard() {
   ];
 
   const myActiveProjects = customers.filter(c =>
-    (c.ownerId === uid || (c.collaboratorIds || []).includes(uid) || hasShare(c, uid)) && c.category !== "Project Closed"
+    (c.ownerId === uid || (c.collaboratorIds || []).includes(uid) || hasShare(c, uid)) &&
+    c.category !== "Project Closed" && !c.convertedToPipelineId
   );
   const personalFilterDefs = [
     sectorFilter,
