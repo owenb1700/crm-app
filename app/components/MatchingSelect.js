@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 //   under the field, and similar names are listed above the "+ Add new" row.
 // `options` are strings or { value, tag } (tag = a small label, e.g. the
 // firm's Directory category). `isSame` / `isSimilar` compare two names.
-export default function MatchingSelect({ id, options, value, onChange, placeholder, newLabel = "entry", isSame, isSimilar }) {
+export default function MatchingSelect({ id, options, value, onChange, placeholder, newLabel = "entry", isSame, isSimilar, invalid }) {
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState("");
   const boxRef = useRef(null);
@@ -59,7 +59,7 @@ export default function MatchingSelect({ id, options, value, onChange, placehold
     <div className="matching-select" ref={boxRef}>
       <input
         id={id}
-        className="field"
+        className={invalid ? "field field-needs-value" : "field"}
         autoComplete="off"
         placeholder={placeholder}
         value={text}

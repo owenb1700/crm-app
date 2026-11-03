@@ -54,6 +54,10 @@ export default function NewProject() {
   const [loadError, setLoadError] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Once a save has been tried, a required box left empty stays lit red
+  // until it actually has something in it -- not just named in the error
+  // text above the form.
+  const [attemptedSave, setAttemptedSave] = useState(false);
   // What stopped the save, said next to the button that was pressed
   // rather than in a box that blocks the page until it is dismissed.
   const [formError, setFormError] = useState("");
@@ -309,6 +313,7 @@ export default function NewProject() {
   // gates entering the job.
   const addProject = async () => {
     setFormError("");
+    setAttemptedSave(true);
     const missing = [];
     if (!projectName) missing.push("Project Name");
     if (!buildingSector) missing.push("Building Sector");
@@ -451,7 +456,7 @@ export default function NewProject() {
 
       <div className="project-page">
         <div className="project-section">
-          <input className="field" autoComplete="off" placeholder="Project Name" value={projectName} onChange={e => setProjectName(e.target.value)} />
+          <input className={attemptedSave && !projectName ? "field field-needs-value" : "field"} autoComplete="off" placeholder="Project Name" value={projectName} onChange={e => setProjectName(e.target.value)} />
 
           {/* Straight under the name. Two jobs for the same contractor read
               identically until you can see which building they are at -- and
@@ -459,7 +464,7 @@ export default function NewProject() {
               since it is the address that finds it. */}
           <div>
             <label className="field-label">Project Address</label>
-            <AddressAutocomplete placeholder="Project Address (required)" value={projectAddress} onChange={setProjectAddress} />
+            <AddressAutocomplete placeholder="Project Address (required)" value={projectAddress} onChange={setProjectAddress} className={attemptedSave && !projectAddress ? "field field-needs-value" : "field"} />
 
             {(building.engineers.length > 0 || building.equipment.length > 0) && (
               <SuggestedBlock
@@ -487,7 +492,7 @@ export default function NewProject() {
           </div>
 
 
-          <BuildingSectorSelect id="new-project-sector" value={buildingSector} onChange={setBuildingSector} />
+          <BuildingSectorSelect id="new-project-sector" value={buildingSector} onChange={setBuildingSector} invalid={attemptedSave && !buildingSector} />
 
           <select className="field" value={category} onChange={e => setCategory(e.target.value)}>
             <option value="">Select stage...</option>
@@ -498,7 +503,7 @@ export default function NewProject() {
             <label className="field-label" htmlFor="new-project-value">Project Value</label>
             <MoneyInput id="new-project-value" value={projectValue} onChange={setProjectValue} />
           </div>
-          <WorkTypeSelect id="new-project-work-type" value={workType} onChange={setWorkType} />
+          <WorkTypeSelect id="new-project-work-type" value={workType} onChange={setWorkType} invalid={attemptedSave && !workType} />
 
           {canEnterForOthers(myProfile) && (
             <SalespersonSelect
@@ -528,7 +533,7 @@ export default function NewProject() {
 
           <div>
             <label className="field-label">Next Date</label>
-            <input className="field" type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
+            <input className={attemptedSave && !nextDate ? "field field-needs-value" : "field"} type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} />
           </div>
 
           <input className="field" autoComplete="off" placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} />
@@ -550,7 +555,7 @@ export default function NewProject() {
 
             <div>
               <label className="field-label">Contact</label>
-              <PersonSelect id="new-project-contact" people={matchingContacts} value={contact} onChange={handleContactChange} />
+              <PersonSelect id="new-project-contact" people={matchingContacts} value={contact} onChange={handleContactChange} invalid={attemptedSave && !contact} />
             </div>
 
             <div>

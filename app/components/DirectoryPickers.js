@@ -6,7 +6,7 @@ import { sameCompany, similarCompanyNames, samePerson, similarPersonNames } from
 // Firm picker: searches every firm in the Directory (so one saved under a
 // different type is still found instead of re-entered), listing firms of
 // `category` first and tagging the rest with their type.
-export function FirmSelect({ id, companies, category, value, onChange, placeholder, newLabel }) {
+export function FirmSelect({ id, companies, category, value, onChange, placeholder, newLabel, invalid }) {
   const options = [...(companies || [])]
     .sort((a, b) => (a.category === category ? 0 : 1) - (b.category === category ? 0 : 1) || a.name.localeCompare(b.name))
     .map(c => ({ value: c.name, tag: category && c.category !== category ? c.category : undefined }));
@@ -20,12 +20,13 @@ export function FirmSelect({ id, companies, category, value, onChange, placehold
       newLabel={newLabel || (category || "company").toLowerCase()}
       isSame={sameCompany}
       isSimilar={similarCompanyNames}
+      invalid={invalid}
     />
   );
 }
 
 // Person picker for one firm's people.
-export function PersonSelect({ id, people, value, onChange, placeholder = "Select or search contact..." }) {
+export function PersonSelect({ id, people, value, onChange, placeholder = "Select or search contact...", invalid }) {
   return (
     <MatchingSelect
       id={id}
@@ -36,6 +37,7 @@ export function PersonSelect({ id, people, value, onChange, placeholder = "Selec
       newLabel="contact"
       isSame={samePerson}
       isSimilar={similarPersonNames}
+      invalid={invalid}
     />
   );
 }

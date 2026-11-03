@@ -44,6 +44,9 @@ export default function NewPipelineEntry() {
   const [loadError, setLoadError] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Once a save has been tried, a required box left empty stays lit red
+  // until it actually has something in it.
+  const [attemptedSave, setAttemptedSave] = useState(false);
   // What stopped the save, said next to the button that was pressed
   // rather than in a box that blocks the page until it is dismissed.
   const [formError, setFormError] = useState("");
@@ -177,6 +180,7 @@ export default function NewPipelineEntry() {
   // page afterward, not as a gate in front of entering the job.
   const addPipelineEntry = async () => {
     setFormError("");
+    setAttemptedSave(true);
     if (!title) {
       return setFormError("Please enter a project/opportunity name");
     }
@@ -318,7 +322,7 @@ export default function NewPipelineEntry() {
 
       <div className="project-page">
         <div className="project-section">
-          <input className="field" autoComplete="off" placeholder="Project / Opportunity Name" value={title} onChange={e => setTitle(e.target.value)} />
+          <input className={attemptedSave && !title ? "field field-needs-value" : "field"} autoComplete="off" placeholder="Project / Opportunity Name" value={title} onChange={e => setTitle(e.target.value)} />
 
           {/* Straight under the name. Two jobs for the same contractor read
               identically until you can see which building they are at -- and
@@ -344,7 +348,7 @@ export default function NewPipelineEntry() {
           )}
 
           <div className="form-grid-2">
-            <BuildingSectorSelect id="new-pipeline-sector" value={buildingSector} onChange={setBuildingSector} />
+            <BuildingSectorSelect id="new-pipeline-sector" value={buildingSector} onChange={setBuildingSector} invalid={attemptedSave && !buildingSector} />
             <div>
               <label className="field-label">Stage</label>
               <select className="field" value={stage} onChange={e => setStage(e.target.value)}>
@@ -360,7 +364,7 @@ export default function NewPipelineEntry() {
               <label className="field-label">Estimated Value</label>
               <MoneyInput id="new-pipeline-value" value={value} onChange={setValue} />
             </div>
-            <WorkTypeSelect id="new-pipeline-work-type" value={workType} onChange={setWorkType} />
+            <WorkTypeSelect id="new-pipeline-work-type" value={workType} onChange={setWorkType} invalid={attemptedSave && !workType} />
 
 
           </div>

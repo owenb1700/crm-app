@@ -95,6 +95,9 @@ export default function PipelineDetail() {
   const [privateData, setPrivateData] = useState(null);
 
   const [isEditing, setIsEditing] = useState(false);
+  // Once a save has been tried, a required box left empty stays lit red
+  // until it actually has something in it.
+  const [attemptedSave, setAttemptedSave] = useState(false);
   // Closing the tab mid-edit shouldn't lose what's typed.
   useUnsavedGuard(isEditing);
   const [editData, setEditData] = useState({});
@@ -286,6 +289,7 @@ export default function PipelineDetail() {
   const canDelete = isOwner || role === "admin";
 
   const startEdit = () => {
+    setAttemptedSave(false);
     setEditData({
       title: pipeline.title || "",
       stage: pipeline.stage || "Pre-Bid",
@@ -322,6 +326,7 @@ export default function PipelineDetail() {
 
   const saveEdit = async () => {
     setEditProblem("");
+    setAttemptedSave(true);
     if (!editData.title) {
       return setEditProblem("A project/opportunity name is required.");
     }
@@ -1016,7 +1021,7 @@ export default function PipelineDetail() {
                 a two-wide grid made every select twice as wide as it
                 needed to be and pushed the rest off the screen. */}
             <label className="field-label" style={{ marginTop: 0 }} htmlFor="pipeline-detail-title">Project / Opportunity Name</label>
-            <input id="pipeline-detail-title" className="field" name="pd-title" autoComplete="off" value={editData.title} onChange={e => setEditData({ ...editData, title: e.target.value })} />
+            <input id="pipeline-detail-title" className={attemptedSave && !editData.title ? "field field-needs-value" : "field"} name="pd-title" autoComplete="off" value={editData.title} onChange={e => setEditData({ ...editData, title: e.target.value })} />
 
             {/* Straight under the name. Two jobs for the same contractor
                 read identically until you can see which building they are
@@ -1055,8 +1060,8 @@ export default function PipelineDetail() {
             <div className="edit-block">
               <h4 className="edit-block-title">The Job</h4>
               <div className="form-grid-3">
-                <BuildingSectorSelect id="pipeline-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
-                <WorkTypeSelect id="pipeline-detail-work-type" value={editData.workType} onChange={v => setEditData({ ...editData, workType: v })} />
+                <BuildingSectorSelect id="pipeline-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} invalid={attemptedSave && !editData.buildingSector} />
+                <WorkTypeSelect id="pipeline-detail-work-type" value={editData.workType} onChange={v => setEditData({ ...editData, workType: v })} invalid={attemptedSave && !editData.workType} />
               </div>
             </div>
 

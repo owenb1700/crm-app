@@ -21,7 +21,8 @@ export default function CompanyContactFields({
   onContactChange,
   onEmailChange,
   onPhoneChange,
-  showEmailPhone = true
+  showEmailPhone = true,
+  contactInvalid
 }) {
   // Every firm is searchable (firms of companyCategory listed first), and
   // near-duplicate names are caught -- see MatchingSelect.
@@ -48,7 +49,7 @@ export default function CompanyContactFields({
 
       <div>
         <label className="field-label">Contact</label>
-        <PersonSelect id={`${idPrefix}-contact`} people={matchingContacts} value={contactValue} onChange={handleContactChange} />
+        <PersonSelect id={`${idPrefix}-contact`} people={matchingContacts} value={contactValue} onChange={handleContactChange} invalid={contactInvalid} />
       </div>
 
       {showEmailPhone && (

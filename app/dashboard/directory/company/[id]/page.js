@@ -105,6 +105,9 @@ export default function CompanyDetail() {
   const [pipelineJobs, setPipelineJobs] = useState([]);
 
   const [isEditing, setIsEditing] = useState(false);
+  // Once a save has been tried, a required box left empty stays lit red
+  // until it actually has something in it.
+  const [attemptedSave, setAttemptedSave] = useState(false);
   const [editData, setEditData] = useState({});
 
   const [showAddPerson, setShowAddPerson] = useState(false);
@@ -238,6 +241,7 @@ export default function CompanyDetail() {
   }, [companyId]);
 
   const startEdit = () => {
+    setAttemptedSave(false);
     setEditData({
       name: company.name || "",
       category: company.category || "Contractor",
@@ -257,6 +261,7 @@ export default function CompanyDetail() {
   // refused (merge them instead) and a similar one asks first.
   const saveEdit = async (force = false) => {
     setEditProblem("");
+    setAttemptedSave(true);
     const name = (editData.name || "").trim();
     if (!name) return setEditProblem("Company name is required.");
     const renamed = name !== company.name;
@@ -570,7 +575,7 @@ export default function CompanyDetail() {
         {isEditing ? (
           <div className="project-section">
             <h4 className="field-label">Name</h4>
-            <input className="field" autoComplete="off" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} />
+            <input className={attemptedSave && !editData.name.trim() ? "field field-needs-value" : "field"} autoComplete="off" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} />
 
             <h4 className="field-label">Category</h4>
             <select className="field" value={editData.category} onChange={e => setEditData({ ...editData, category: e.target.value })}>

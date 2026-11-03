@@ -29,6 +29,9 @@ export default function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [allProducts, setAllProducts] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
+  // Once a save has been tried, a required box left empty stays lit red
+  // until it actually has something in it.
+  const [attemptedSave, setAttemptedSave] = useState(false);
   const [ask, setAsk] = useState(null);
   const [editProblem, setEditProblem] = useState("");
   const [editData, setEditData] = useState({});
@@ -95,6 +98,7 @@ export default function ProductDetail() {
   }, [productId]);
 
   const startEdit = () => {
+    setAttemptedSave(false);
     setEditData({
       name: product.name || "",
       type: product.type || "",
@@ -111,6 +115,7 @@ export default function ProductDetail() {
 
   const saveEdit = async () => {
     setEditProblem("");
+    setAttemptedSave(true);
     const missing = [];
     if (!editData.name.trim()) missing.push("Name");
     if (!editData.type) missing.push("Type");
@@ -217,16 +222,16 @@ export default function ProductDetail() {
         {isEditing ? (
           <div className="project-section">
             <h4 className="field-label">Name</h4>
-            <input className="field" autoComplete="off" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} />
+            <input className={attemptedSave && !editData.name.trim() ? "field field-needs-value" : "field"} autoComplete="off" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} />
 
             <h4 className="field-label">Type</h4>
-            <select className="field" value={editData.type} onChange={e => setEditData({ ...editData, type: e.target.value })}>
+            <select className={attemptedSave && !editData.type ? "field field-needs-value" : "field"} value={editData.type} onChange={e => setEditData({ ...editData, type: e.target.value })}>
               <option value="">Select type...</option>
               {PRODUCT_TYPES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
             </select>
 
             <h4 className="field-label">Manufacturer</h4>
-            <input className="field" list="detail-product-manufacturers" autoComplete="off" value={editData.manufacturer} onChange={e => setEditData({ ...editData, manufacturer: e.target.value })} />
+            <input className={attemptedSave && !editData.manufacturer.trim() ? "field field-needs-value" : "field"} list="detail-product-manufacturers" autoComplete="off" value={editData.manufacturer} onChange={e => setEditData({ ...editData, manufacturer: e.target.value })} />
             <datalist id="detail-product-manufacturers">
               {PRODUCT_MANUFACTURERS.map(opt => <option key={opt} value={opt} />)}
             </datalist>

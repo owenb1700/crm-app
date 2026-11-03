@@ -48,6 +48,9 @@ function PartsPageContent() {
   const [form, setForm] = useState(blankPart());
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Once a save has been tried, a required box left empty stays lit red
+  // until it actually has something in it.
+  const [attemptedSave, setAttemptedSave] = useState(false);
   // Deleting happens on the part's own page and nowhere else. One press
   // on a tile, among a screen of tiles, is the wrong place to bin
   // something -- even into the Trash. The machinery for it used to live
@@ -108,6 +111,7 @@ function PartsPageContent() {
     setAdding(false);
     setForm(blankPart());
     setError("");
+    setAttemptedSave(false);
   };
 
   useEffect(() => {
@@ -193,6 +197,7 @@ function PartsPageContent() {
   // already worked. A firm's type can still be filled in from its own
   // Directory page afterward; it no longer gates adding the part.
   const save = async () => {
+    setAttemptedSave(true);
     const message = partError(form);
     if (message) return setError(message);
     setSaving(true);
@@ -223,6 +228,7 @@ function PartsPageContent() {
       );
       setForm(blankPart());
       setAdding(false);
+      setAttemptedSave(false);
       setNotice("Parts entry added");
       await load();
     } catch (err) {
@@ -381,7 +387,7 @@ function PartsPageContent() {
                 onExport={exportParts}
                 disabled={!shown.length}
               />
-              <button className="btn btn-primary" onClick={() => { setAdding(a => !a); setError(""); }}>
+              <button className="btn btn-primary" onClick={() => { setAdding(a => !a); setError(""); setAttemptedSave(false); }}>
                 {adding ? "Cancel" : "Add Parts Entry"}
               </button>
             </span>
@@ -417,7 +423,7 @@ function PartsPageContent() {
                   <button className="btn btn-primary" disabled={saving} onClick={() => save()}>{saving ? "Saving…" : "Add parts entry"}</button>
                 </div>
               </div>
-              <PartForm values={form} setValues={setForm} idPrefix="new-part" companies={companies} contacts={contacts} />
+              <PartForm values={form} setValues={setForm} idPrefix="new-part" companies={companies} contacts={contacts} attemptedSave={attemptedSave} />
             </div>
           )}
 

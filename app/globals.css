@@ -2701,8 +2701,24 @@ a {
   }
 }
 
-.field.field-needs-value {
-  border-color: #f0b4ae;
+/* A box that's missing something required -- lit up so it's easy to
+   spot and fix, not just named in an error message above the form. Stays
+   red through focus, and clears itself the moment a value is typed,
+   since the className driving this is recomputed live, not frozen at
+   the moment Save was pressed. */
+.field.field-needs-value,
+select.field-needs-value,
+input.field-needs-value,
+textarea.field-needs-value {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+.field.field-needs-value:focus,
+select.field-needs-value:focus,
+input.field-needs-value:focus,
+textarea.field-needs-value:focus {
+  border-color: #dc2626;
 }
 
 .bidding-company-row .field {

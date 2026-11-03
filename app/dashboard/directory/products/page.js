@@ -37,6 +37,9 @@ export default function ProductsPage() {
   const [addProblem, setAddProblem] = useState("");
   const [newType, setNewType] = useState("");
   const [newManufacturer, setNewManufacturer] = useState("");
+  // Once a save has been tried, a required box left empty stays lit red
+  // until it actually has something in it.
+  const [attemptedSave, setAttemptedSave] = useState(false);
   const [newModel, setNewModel] = useState("");
 
   const loadAll = async () => {
@@ -95,6 +98,7 @@ export default function ProductsPage() {
 
   const addProduct = async () => {
     setAddProblem("");
+    setAttemptedSave(true);
     const missing = [];
     if (!newName.trim()) missing.push("Name");
     if (!newType) missing.push("Type");
@@ -265,7 +269,7 @@ export default function ProductsPage() {
         />
         <SortPicker id="products-sort" options={PRODUCT_SORTS} sort={sort} onChange={setSort} />
         <ExportButtons label="this page" buttonText="Export page" onExport={exportProducts} disabled={!results.length} />
-        <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>+ Add Product Option</button>
+        <button className="btn btn-primary" onClick={() => { setAttemptedSave(false); setShowAddModal(true); }}>+ Add Product Option</button>
       </div>
 
       <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
@@ -348,16 +352,16 @@ export default function ProductsPage() {
             <h3 className="modal-title">Add Product Option</h3>
 
             <label className="field-label">Name</label>
-            <input className="field" autoComplete="off" value={newName} onChange={e => setNewName(e.target.value)} />
+            <input className={attemptedSave && !newName.trim() ? "field field-needs-value" : "field"} autoComplete="off" value={newName} onChange={e => setNewName(e.target.value)} />
 
             <label className="field-label">Type</label>
-            <select className="field" value={newType} onChange={e => setNewType(e.target.value)}>
+            <select className={attemptedSave && !newType ? "field field-needs-value" : "field"} value={newType} onChange={e => setNewType(e.target.value)}>
               <option value="">Select type...</option>
               {PRODUCT_TYPES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
             </select>
 
             <label className="field-label">Manufacturer</label>
-            <input className="field" list="add-product-manufacturers" autoComplete="off" value={newManufacturer} onChange={e => setNewManufacturer(e.target.value)} />
+            <input className={attemptedSave && !newManufacturer.trim() ? "field field-needs-value" : "field"} list="add-product-manufacturers" autoComplete="off" value={newManufacturer} onChange={e => setNewManufacturer(e.target.value)} />
             <datalist id="add-product-manufacturers">
               {PRODUCT_MANUFACTURERS.map(opt => <option key={opt} value={opt} />)}
             </datalist>

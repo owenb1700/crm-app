@@ -19,7 +19,7 @@ import { normalizePhone } from "../../lib/tidyEntry";
 //
 // The blocks are dividers rather than cards, because this form sits
 // inside a card already in both places it is used.
-export default function PartForm({ values, setValues, idPrefix, companies = [], contacts = [] }) {
+export default function PartForm({ values, setValues, idPrefix, companies = [], contacts = [], attemptedSave }) {
   // Picking a person at the firm fills in their email and phone, the same
   // way the project and pipeline forms do.
   const applyContact = (setter, value) => {
@@ -45,7 +45,7 @@ export default function PartForm({ values, setValues, idPrefix, companies = [], 
             <label className="field-label" htmlFor={`${idPrefix}-item`}>Part</label>
             <input
               id={`${idPrefix}-item`}
-              className="field"
+              className={attemptedSave && !values.item.trim() ? "field field-needs-value" : "field"}
               autoComplete="off"
               placeholder="e.g. Replacement fan motor"
               value={values.item}
@@ -86,6 +86,7 @@ export default function PartForm({ values, setValues, idPrefix, companies = [], 
           placeholder="Where is this going?"
           value={values.projectAddress}
           onChange={v => setValues(prev => ({ ...prev, projectAddress: v, addressUnknown: v.trim() ? false : prev.addressUnknown }))}
+          className={attemptedSave && !addressKnown && values.addressUnknown !== true ? "field field-needs-value" : "field"}
         />
         <label className="export-notes-toggle" htmlFor={`${idPrefix}-address-unknown`} style={{ marginBottom: 0 }}>
           <input
@@ -142,6 +143,7 @@ export default function PartForm({ values, setValues, idPrefix, companies = [], 
               category={values.companyCategory}
               value={values.company}
               onChange={v => setValues(prev => ({ ...prev, company: v }))}
+              invalid={attemptedSave && !(values.company || "").trim()}
             />
           </div>
           <div>

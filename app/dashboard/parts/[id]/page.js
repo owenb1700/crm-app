@@ -42,6 +42,9 @@ function PartPageContent() {
   const [loaded, setLoaded] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
+  // Once a save has been tried, a required box left empty stays lit red
+  // until it actually has something in it.
+  const [attemptedSave, setAttemptedSave] = useState(false);
   // Closing the tab mid-edit shouldn't lose what's typed.
   useUnsavedGuard(isEditing);
   const [editForm, setEditForm] = useState(blankPart());
@@ -139,6 +142,7 @@ function PartPageContent() {
   };
 
   const startEdit = () => {
+    setAttemptedSave(false);
     setEditForm({ ...blankPart(), ...part });
     setIsEditing(true);
     setError("");
@@ -161,6 +165,7 @@ function PartPageContent() {
   // already worked. A firm's type can still be filled in from its own
   // Directory page afterward; it no longer gates saving the edit.
   const save = async () => {
+    setAttemptedSave(true);
     const message = partError(editForm);
     if (message) return setError(message);
     setSaving(true);
@@ -282,7 +287,7 @@ function PartPageContent() {
 
           {isEditing ? (
             <>
-              <PartForm values={editForm} setValues={setEditForm} idPrefix={`part-${partId}`} companies={companies} contacts={contacts} />
+              <PartForm values={editForm} setValues={setEditForm} idPrefix={`part-${partId}`} companies={companies} contacts={contacts} attemptedSave={attemptedSave} />
               <div className="modal-actions">
                 <button className="btn btn-secondary" onClick={() => setIsEditing(false)}>Cancel</button>
                 <button className="btn btn-primary" disabled={saving} onClick={() => save()}>{saving ? "Saving…" : "Save"}</button>

@@ -160,6 +160,9 @@ export default function ProjectDetail() {
   const [fileProblem, setFileProblem] = useState("");
 
   const [isEditing, setIsEditing] = useState(false);
+  // Once a save has been tried, a required box left empty stays lit red
+  // until it actually has something in it.
+  const [attemptedSave, setAttemptedSave] = useState(false);
   // Closing the tab mid-edit shouldn't lose what's typed.
   useUnsavedGuard(isEditing);
   const [editData, setEditData] = useState({});
@@ -378,6 +381,7 @@ export default function ProjectDetail() {
   const canEditNotes = isOwner || isCollaborator;
 
   const startEdit = () => {
+    setAttemptedSave(false);
     setEditData({
       projectName: customer.projectName || "",
       company: customer.company || "",
@@ -575,6 +579,7 @@ export default function ProjectDetail() {
 
   const saveEdit = async () => {
     setEditProblem("");
+    setAttemptedSave(true);
     const missing = [];
     if (!editData.projectName) missing.push("Project Name");
     if (!editData.buildingSector) missing.push("Building Sector");
@@ -1031,13 +1036,13 @@ export default function ProjectDetail() {
         {isEditing ? (
           <div className="project-section">
             <label className="field-label" htmlFor="project-detail-name" style={{ marginTop: 0 }}>Project Name</label>
-            <input id="project-detail-name" className="field" name="detail-projectName" autoComplete="off" value={editData.projectName} onChange={e => setEditData({ ...editData, projectName: e.target.value })} />
+            <input id="project-detail-name" className={attemptedSave && !editData.projectName ? "field field-needs-value" : "field"} name="detail-projectName" autoComplete="off" value={editData.projectName} onChange={e => setEditData({ ...editData, projectName: e.target.value })} />
 
             {/* Straight under the name. Two jobs for the same contractor
                 read identically until you can see which building they are
                 at, and this sat three sections down next to the dates. */}
             <label className="field-label">Project Address (required)</label>
-            <AddressAutocomplete name="detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} />
+            <AddressAutocomplete name="detail-projectAddress" value={editData.projectAddress} onChange={v => setEditData({ ...editData, projectAddress: v })} className={attemptedSave && !editData.projectAddress ? "field field-needs-value" : "field"} />
 
             {/* What gets changed sits first. A job's stage and the dates
                 you move are the reason anyone opens this form twice; the
@@ -1100,6 +1105,7 @@ export default function ProjectDetail() {
                 onContactChange={v => setEditData(prev => ({ ...prev, contact: v }))}
                 onEmailChange={v => setEditData(prev => ({ ...prev, email: v }))}
                 onPhoneChange={v => setEditData(prev => ({ ...prev, phone: v }))}
+                contactInvalid={attemptedSave && !editData.contact}
               />
               </div>
             </div>
@@ -1107,12 +1113,12 @@ export default function ProjectDetail() {
             <div className="edit-block">
               <h4 className="edit-block-title">The Job</h4>
               <div className="form-grid-3">
-                <BuildingSectorSelect id="project-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} />
+                <BuildingSectorSelect id="project-detail-sector" value={editData.buildingSector} onChange={v => setEditData({ ...editData, buildingSector: v })} invalid={attemptedSave && !editData.buildingSector} />
                 <div>
                   <label className="field-label" htmlFor="project-detail-value">Project Value</label>
                   <MoneyInput id="project-detail-value" name="detail-projectValue" value={editData.projectValue} onChange={v => setEditData(prev => ({ ...prev, projectValue: v }))} />
                 </div>
-                <WorkTypeSelect id="project-detail-work-type" value={editData.workType} onChange={v => setEditData(prev => ({ ...prev, workType: v }))} />
+                <WorkTypeSelect id="project-detail-work-type" value={editData.workType} onChange={v => setEditData(prev => ({ ...prev, workType: v }))} invalid={attemptedSave && !editData.workType} />
               </div>
             </div>
 
