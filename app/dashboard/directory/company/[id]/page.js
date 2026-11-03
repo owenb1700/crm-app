@@ -598,6 +598,7 @@ export default function CompanyDetail() {
               value={editData.salespersonId}
               onChange={v => setEditData({ ...editData, salespersonId: v })}
               optional
+              optional
             />
             <p className="private-note-hint" style={{ marginTop: -4 }}>Filled in automatically when this firm is chosen on a pipeline entry; it can still be changed there.</p>
 
