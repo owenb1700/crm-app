@@ -24,6 +24,7 @@ import { isTrackingPipeline, pipelineListAction } from "../../../../lib/pipeline
 import { movedToPostBid, postBidCheckIn, POST_BID,
   PIPELINE_STAGES as PIPELINE_STAGE_OPTIONS, normalizeStage, nextPipelineStage, nextPipelineStageLabel
 } from "../../../../lib/pipelineStages";
+import { weekdayKey, lostCheckIn } from "../../../../lib/closedProjects";
 import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import { LeadTimeFields, LeadTimeSummary, LeadTimeInput } from "../../../components/LeadTimeFields";
@@ -120,6 +121,10 @@ export default function PipelineDetail() {
 
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [showWonModal, setShowWonModal] = useState(false);
+  // A quick way to push the next check-in out without opening Edit --
+  // only matters once a bid is actually out and waiting.
+  const [followUpAsk, setFollowUpAsk] = useState(false);
+  const [followUpDate, setFollowUpDate] = useState("");
   // Bids Sent: the step between sending a number and hearing anything.
   const [showBidsSentModal, setShowBidsSentModal] = useState(false);
   const [bidsSentDate, setBidsSentDate] = useState("");
@@ -631,6 +636,29 @@ export default function PipelineDetail() {
     await loadPipelineEntry(uid, role);
   };
 
+  const followUpTo = async (dateKey) => {
+    if (!dateKey) return;
+    const date = lostCheckIn(dateKey);
+    await updateDoc(doc(db, "pipeline", pipelineId), {
+      nextCheckIn: date,
+      activityLog: withActivity(pipeline.activityLog, activityEntry({
+        type: "changed",
+        changes: [`Follow-up moved to ${date}`],
+        by: uid,
+        byName: myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown")
+      }))
+    });
+    setFollowUpAsk(false);
+    setFollowUpDate("");
+    await loadPipelineEntry(uid, role);
+  };
+
+  const followUpTwoWeeks = () => {
+    const next = new Date();
+    next.setDate(next.getDate() + 14);
+    followUpTo(weekdayKey(next));
+  };
+
   const reopenPipeline = async () => {
     await updateDoc(doc(db, "pipeline", pipelineId), withStateLog({
       outcome: null,
@@ -876,6 +904,7 @@ export default function PipelineDetail() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button className="btn btn-primary" onClick={() => { setWonNextDate(postBidCheckIn()); setShowWonModal(true); }}>Mark Won</button>
               <button className="btn btn-danger" onClick={() => { setDnbChoice(""); setLostReason(""); setLostProblem(""); setLostModalOutcome("Lost"); }}>Mark Lost</button>
+              <button className="btn btn-secondary" onClick={() => { setFollowUpDate(""); setFollowUpAsk(true); }}>Follow Up</button>
             </div>
           )}
         </>
@@ -1373,6 +1402,41 @@ export default function PipelineDetail() {
           <p><strong>{pipeline.title}</strong> moves from {stageMove.from} to {stageMove.to}.</p>
           <p className="private-note-hint">It&apos;s written into the entry&apos;s history, and you can move it back.</p>
         </ConfirmDialog>
+      )}
+
+      {followUpAsk && (
+        <div className="modal-overlay" onClick={() => setFollowUpAsk(false)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+            <button className="modal-close" onClick={() => setFollowUpAsk(false)} aria-label="Close">✕</button>
+            <h3 className="modal-title">Follow up on this</h3>
+            <p className="modal-subtitle">
+              {pipeline.title} — due {pipeline.nextCheckIn ? String(pipeline.nextCheckIn).slice(0, 10) : "no date yet"}.
+            </p>
+
+            <button className="btn btn-primary btn-block" onClick={followUpTwoWeeks}>
+              Follow Up in 2 Weeks
+            </button>
+
+            <label className="field-label" style={{ marginTop: 14 }} htmlFor="pipeline-follow-up-date">Or pick your own date</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                id="pipeline-follow-up-date"
+                className="field"
+                type="date"
+                style={{ marginBottom: 0, width: "auto" }}
+                value={followUpDate}
+                onChange={e => setFollowUpDate(e.target.value)}
+              />
+              <button
+                className="btn btn-secondary"
+                disabled={!followUpDate}
+                onClick={() => followUpTo(followUpDate)}
+              >
+                {followUpDate ? `Follow up on ${followUpDate}` : "Pick a date first"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showWonModal && (

@@ -63,7 +63,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import { completedPayload, isOpen, doneOnly } from "../../lib/reminders";
 import { PRE_BID, BIDS_SENT, normalizeCategory, nextStage, nextStageLabel, stageNeedsInput } from "../../lib/projectCategories";
 import { normalizeStage, nextPipelineStep, nextPipelineStepLabel, pipelineStepNeedsInput, groupByBid,
-  movedToPostBid, postBidCheckIn, bidGroupOf, AFTER_BID } from "../../lib/pipelineStages";
+  movedToPostBid, postBidCheckIn, bidGroupOf, AFTER_BID, POST_BID } from "../../lib/pipelineStages";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -1622,6 +1622,34 @@ export default function Dashboard() {
   // late for its check-in is work. The second kind never folds away.
   const pipelineIsLate = (p) => !!p.nextCheckIn && diffDays(p.nextCheckIn) <= 0;
 
+  // Following up is the thing to do once a bid is out and waiting --
+  // Post-Bid is where a pipeline entry's own nextCheckIn actually means
+  // something, the same as Bids Sent does for a project. Earlier stages
+  // keep the plain reminder instead.
+  const [followUpPipelineFor, setFollowUpPipelineFor] = useState(null);
+  const [followUpPipelineDate, setFollowUpPipelineDate] = useState("");
+
+  const openFollowUpPipeline = (p) => { setFollowUpPipelineDate(""); setFollowUpPipelineFor(p); };
+
+  const followUpPipelineTo = async (p, to) => {
+    if (!to) return;
+    const date = adjustWeekend(to);
+    await updateDoc(doc(db, "pipeline", p.id), {
+      nextCheckIn: date,
+      activityLog: [...(p.activityLog || []), checkInMoved(p, date, "Followed up")]
+    });
+    setFollowUpPipelineFor(null);
+    setFollowUpPipelineDate("");
+    showToast("Back on " + date);
+    await refreshRecord(p, "pipeline");
+  };
+
+  const followUpPipelineTwoWeeks = (p) => {
+    const next = new Date();
+    next.setDate(next.getDate() + 14);
+    followUpPipelineTo(p, next.toISOString());
+  };
+
   // A bid is out whether it went out as a pipeline entry or as a project
   // filed under Post-Bid/Bids Sent -- same waiting, same months of it --
   // so My Projects folds both, and lets a late one through either way.
@@ -1661,12 +1689,21 @@ export default function Dashboard() {
           <div className="customer-card-right" onClick={(e) => e.stopPropagation()}>
             <div className="card-actions-stack">
               <div className="card-actions-row">
-                <button
-                  className="btn btn-secondary"
-                  onClick={(e) => { e.stopPropagation(); setRemindersFor(p); }}
-                >
-                  Set Reminder
-                </button>
+                {normalizeStage(p.stage) === POST_BID ? (
+                  <button
+                    className="btn btn-secondary"
+                    onClick={(e) => { e.stopPropagation(); openFollowUpPipeline(p); }}
+                  >
+                    Follow Up
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-secondary"
+                    onClick={(e) => { e.stopPropagation(); setRemindersFor(p); }}
+                  >
+                    Set Reminder
+                  </button>
+                )}
                 <button
                   className="btn btn-secondary"
                   onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/pipeline/${p.id}?edit=1`); }}
@@ -3905,6 +3942,42 @@ export default function Dashboard() {
                 onClick={() => followUpTo(followUpFor, followUpDate)}
               >
                 {followUpDate ? `Push to ${followUpDate}` : "Pick a date first"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {followUpPipelineFor && (
+        <div className="modal-overlay" onClick={() => setFollowUpPipelineFor(null)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+            <button className="modal-close" onClick={() => setFollowUpPipelineFor(null)} aria-label="Close">✕</button>
+            <h3 className="modal-title">Follow up on this</h3>
+            <p className="modal-subtitle">
+              {followUpPipelineFor.title} — due {String(formatDate(followUpPipelineFor.nextCheckIn) || "").slice(0, 10) || "no date yet"}.
+            </p>
+
+            <button className="btn btn-primary btn-block" onClick={() => followUpPipelineTwoWeeks(followUpPipelineFor)}>
+              Follow Up in 2 Weeks
+            </button>
+
+            <label className="field-label" style={{ marginTop: 14 }} htmlFor="follow-up-pipeline-date">Or pick your own date</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                id="follow-up-pipeline-date"
+                className="field"
+                type="date"
+                style={{ marginBottom: 0, width: "auto" }}
+                min={toLocalDateKey(new Date())}
+                value={followUpPipelineDate}
+                onChange={e => setFollowUpPipelineDate(e.target.value)}
+              />
+              <button
+                className="btn btn-secondary"
+                disabled={!followUpPipelineDate}
+                onClick={() => followUpPipelineTo(followUpPipelineFor, followUpPipelineDate)}
+              >
+                {followUpPipelineDate ? `Follow up on ${followUpPipelineDate}` : "Pick a date first"}
               </button>
             </div>
           </div>
