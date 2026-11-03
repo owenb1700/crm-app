@@ -383,9 +383,17 @@ export default function Dashboard() {
     return date;
   };
 
+  // A plain "YYYY-MM-DD" string is a local calendar date, not a UTC
+  // instant -- new Date(string) alone reads it as UTC midnight, which
+  // for anyone west of UTC lands several hours before local midnight of
+  // that same day. Compared against the exact current moment, that can
+  // flag a date as overdue hours before it actually is (see
+  // fromLocalDateKey above, which exists for the same reason).
   const getDateValue = (date) => {
     if (!date) return 0;
     if (date?.seconds) return date.seconds * 1000;
+    const key = String(date).slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(key)) return fromLocalDateKey(key).getTime();
     return new Date(date).getTime();
   };
 
