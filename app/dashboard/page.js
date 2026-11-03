@@ -37,7 +37,7 @@ import PipelineMyAlerts from "../components/PipelineMyAlerts";
 import PipelineNotes from "../components/PipelineNotes";
 import MyScorecard from "../components/MyScorecard";
 import ExportDataModal from "../components/ExportDataModal";
-import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, yearsFrom, localDateKey } from "../../lib/closedProjects";
+import { CLOSED_OUTCOME, closeProjectPayload, isClosedWithCheckIn, isCheckInDue, isCheckInComingSoon, yearsFrom, localDateKey } from "../../lib/closedProjects";
 import { ensureTowerModel } from "../../lib/towerModels";
 import MobileNav from "../components/MobileNav";
 import { LeadTimeSummary } from "../components/LeadTimeFields";
@@ -2894,13 +2894,13 @@ export default function Dashboard() {
             ) };
           }),
             ...customers
-              .filter(c => c.ownerId === uid && isClosedWithCheckIn(c) && isCheckInDue(c))
+              .filter(c => c.ownerId === uid && isClosedWithCheckIn(c) && isCheckInComingSoon(c))
               .map(c => ({
                 sortFields: { date: formatDate(c.nextCheckIn), name: c.projectName || c.company, firm: c.company, value: c.projectValue, status: c.category, created: c.createdAt },
                 element: (
                   <div
                     key={`closed-checkin-${c.id}`}
-                    className="customer-card badge-bar-overdue"
+                    className={`customer-card ${isCheckInDue(c) ? "badge-bar-overdue" : "badge-bar-soon"}`}
                     onClick={() => router.push(`/dashboard/project/${c.id}`)}
                     style={{ cursor: "pointer" }}
                   >

@@ -998,6 +998,14 @@ export default function ProjectDetail() {
                   </button>
                 )}
                 {isOwner && <button className="btn btn-secondary" onClick={startEdit}>Edit</button>}
+                {/* Some jobs just die -- lost, shelved, gone quiet -- without
+                    working through every stage between here and Closed.
+                    This asks the same question the normal path to Closed
+                    does (why, and whether to follow up), it just doesn't
+                    require getting there one stage at a time first. */}
+                {isOwner && normalizeCategory(customer.category) !== CLOSED && (
+                  <button className="btn btn-danger" onClick={() => setCloseAsk(true)}>Close Project</button>
+                )}
                 <DeleteRecordButton
                   kind="project"
                   id={projectId}
