@@ -155,6 +155,10 @@ export default function ProjectDetail() {
   // when the project closes, because that is the only moment anyone is
   // thinking about it.
   const [closePlan, setClosePlan] = useState(blankCheckInPlan());
+  // For a job that never reached Under Contract -- the 1/5-year plan
+  // above is about equipment already installed, which doesn't apply yet.
+  // A plain optional date stands in for it instead.
+  const [closeNextDate, setCloseNextDate] = useState("");
   // Everything else the form changed on the way to closing. Pressing Save
   // with the status set to closed used to drop the other edits on the
   // floor: the question came up, the answer wrote only the close, and the
@@ -570,15 +574,21 @@ export default function ProjectDetail() {
 
   // Mirrors confirmClose's own first line, so the button's dull state
   // and the error a forced click would show never disagree.
-  const closeModalInvalid = !!closeProblem(closeWhy) || (wasWon && !!checkInPlanProblem(closePlan));
+  const closeModalInvalid = !!closeProblem(closeWhy) ||
+    (wasWon ? !!checkInPlanProblem(closePlan) : !!lostCheckInProblem(closeNextDate));
 
   const confirmClose = async () => {
-    const problem = closeProblem(closeWhy) || (wasWon && checkInPlanProblem(closePlan));
+    const problem = closeProblem(closeWhy) ||
+      (wasWon ? checkInPlanProblem(closePlan) : lostCheckInProblem(closeNextDate));
     if (problem) return setCloseProblemText(problem);
+    // The plan replaces the one-year-out date closing used to set on its
+    // own with no way to see it coming: the 1/5-year plan for a job that
+    // reached Under Contract, or -- for one that never did -- whatever
+    // date was actually asked for, blank meaning none at all.
+    const plan = wasWon
+      ? checkInPlanPayload(closePlan)
+      : { checkInSchedule: [], checkInEveryMonths: null, nextCheckIn: closeNextDate ? lostCheckIn(closeNextDate) : null };
     const closed = closeProjectPayload(customer.activityLog);
-    // The plan replaces the check-in the close payload sets on its own.
-    // A job nobody wants to go back to shouldn't keep asking.
-    const plan = wasWon ? checkInPlanPayload(closePlan) : { checkInSchedule: [], checkInEveryMonths: null, nextCheckIn: closed.nextCheckIn };
     await updateDoc(doc(db, "customers", projectId), {
       // Whatever else the form changed first, then the close on top of it.
       ...(closePending || {}),
@@ -599,6 +609,7 @@ export default function ProjectDetail() {
     setCloseWhy("");
     setCloseProblemText("");
     setClosePlan(blankCheckInPlan());
+    setCloseNextDate("");
     setClosePending(null);
     setIsEditing(false);
     await loadProject(uid, role);
@@ -1638,6 +1649,49 @@ export default function ProjectDetail() {
                   </select>
                 </div>
                 <p className="private-note-hint">{describeCheckInPlan(closePlan)}</p>
+              </>
+            )}
+
+            {!wasWon && (
+              <>
+                <label className="field-label" htmlFor="close-next-date" style={{ marginTop: 14 }}>
+                  Follow up on (optional)
+                </label>
+                <input
+                  id="close-next-date"
+                  className="field"
+                  type="date"
+                  value={closeNextDate}
+                  onChange={e => { setCloseNextDate(e.target.value); setCloseProblemText(""); }}
+                />
+                <div className="reason-picker">
+                  {LOST_CHECK_BACK.map(opt => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      className={`btn btn-secondary btn-small ${closeNextDate === opt.date() ? "is-picked" : ""}`}
+                      onClick={() => { setCloseNextDate(opt.date()); setCloseProblemText(""); }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                  {closeNextDate && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-small"
+                      onClick={() => { setCloseNextDate(""); setCloseProblemText(""); }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <p className="private-note-hint">
+                  {!closeNextDate
+                    ? "Leave it blank and the job closes quietly."
+                    : lostCheckInProblem(closeNextDate)
+                      ? ""
+                      : `It comes back at you on ${lostCheckIn(closeNextDate)}.`}
+                </p>
               </>
             )}
 
