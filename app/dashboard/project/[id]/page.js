@@ -159,6 +159,11 @@ export default function ProjectDetail() {
   // above is about equipment already installed, which doesn't apply yet.
   // A plain optional date stands in for it instead.
   const [closeNextDate, setCloseNextDate] = useState("");
+  // A quick way to push the next check-in out without opening Edit --
+  // same idea as My Projects' own Follow Up button, just reachable from
+  // the project itself too.
+  const [followUpAsk, setFollowUpAsk] = useState(false);
+  const [followUpDate, setFollowUpDate] = useState("");
   // Everything else the form changed on the way to closing. Pressing Save
   // with the status set to closed used to drop the other edits on the
   // floor: the question came up, the answer wrote only the close, and the
@@ -817,6 +822,29 @@ export default function ProjectDetail() {
     }
   };
 
+  const followUpTo = async (dateKey) => {
+    if (!dateKey) return;
+    const date = lostCheckIn(dateKey);
+    await updateDoc(doc(db, "customers", projectId), {
+      nextCheckIn: date,
+      activityLog: withActivity(customer.activityLog, activityEntry({
+        type: "changed",
+        changes: [`Follow-up moved to ${date}`],
+        by: uid,
+        byName: myName()
+      }))
+    });
+    setFollowUpAsk(false);
+    setFollowUpDate("");
+    await loadProject(uid, role);
+  };
+
+  const followUpTwoWeeks = () => {
+    const next = new Date();
+    next.setDate(next.getDate() + 14);
+    followUpTo(weekdayKey(next));
+  };
+
   // Only the person who wrote a note can remove it, and it's gone for
   // good -- no record of the deletion is kept.
   // Called after RecordNotes has already confirmed.
@@ -1038,6 +1066,9 @@ export default function ProjectDetail() {
                   </button>
                 )}
                 {isOwner && <button className="btn btn-secondary" onClick={startEdit}>Edit</button>}
+                {isOwner && normalizeCategory(customer.category) !== CLOSED && (
+                  <button className="btn btn-secondary" onClick={() => { setFollowUpDate(""); setFollowUpAsk(true); }}>Follow Up</button>
+                )}
                 {/* Some jobs just die -- lost, shelved, gone quiet -- without
                     working through every stage between here and Closed.
                     This asks the same question the normal path to Closed
@@ -1555,6 +1586,41 @@ export default function ProjectDetail() {
 
         </>)}
       </div>
+
+      {followUpAsk && (
+        <div className="modal-overlay" onClick={() => setFollowUpAsk(false)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+            <button className="modal-close" onClick={() => setFollowUpAsk(false)} aria-label="Close">✕</button>
+            <h3 className="modal-title">Follow up on this</h3>
+            <p className="modal-subtitle">
+              {customer.projectName || customer.company} — due {customer.nextCheckIn ? String(customer.nextCheckIn).slice(0, 10) : "no date yet"}.
+            </p>
+
+            <button className="btn btn-primary btn-block" onClick={followUpTwoWeeks}>
+              Follow Up in 2 Weeks
+            </button>
+
+            <label className="field-label" style={{ marginTop: 14 }} htmlFor="project-follow-up-date">Or pick your own date</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                id="project-follow-up-date"
+                className="field"
+                type="date"
+                style={{ marginBottom: 0, width: "auto" }}
+                value={followUpDate}
+                onChange={e => setFollowUpDate(e.target.value)}
+              />
+              <button
+                className="btn btn-secondary"
+                disabled={!followUpDate}
+                onClick={() => followUpTo(followUpDate)}
+              >
+                {followUpDate ? `Follow up on ${followUpDate}` : "Pick a date first"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {convertPipelineAsk && (
         <div className="modal-overlay" onClick={() => { if (!convertingToPipeline) setConvertPipelineAsk(false); }}>
