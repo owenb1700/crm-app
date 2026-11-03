@@ -142,6 +142,10 @@ export default function ProjectDetail() {
   // some are "they went with someone else for now".
   const [lostNextDate, setLostNextDate] = useState("");
   const [lostToFirm, setLostToFirm] = useState("");
+  // Budgeting Only closes the project the same as Lost does, but the
+  // follow-up date isn't optional -- there's nothing lost to leave
+  // alone, just a job that was never imminent to begin with.
+  const [budgetingNextDate, setBudgetingNextDate] = useState("");
   const [bidAnswerProblem, setBidAnswerProblem] = useState("");
   // Set when a save is waiting on "why is this closing?".
   const [closeAsk, setCloseAsk] = useState(false);
@@ -431,34 +435,56 @@ export default function ProjectDetail() {
 
   // Won moves it to Under Contract and says so. Lost closes it, with the
   // reason and -- when it's known -- who it went to.
-  // Won asks nothing extra; Lost mirrors answerBid's own first check.
-  const bidAnswerInvalid = bidOutcome !== "Won" && (!!lostProblem(lostWhy) || !!lostCheckInProblem(lostNextDate));
+  // Won asks nothing extra; Lost mirrors answerBid's own first check;
+  // Budgeting Only requires the one thing it can't do without -- a date
+  // to come back on.
+  const bidAnswerInvalid = bidOutcome === "Lost"
+    ? (!!lostProblem(lostWhy) || !!lostCheckInProblem(lostNextDate))
+    : bidOutcome === "Budgeting Only"
+      ? (!budgetingNextDate || !!lostCheckInProblem(budgetingNextDate))
+      : false;
 
   const answerBid = async () => {
     setBidAnswerProblem("");
     const won = bidOutcome === "Won";
-    if (!won) {
+    const budgeting = bidOutcome === "Budgeting Only";
+    if (bidOutcome === "Lost") {
       const problem = lostProblem(lostWhy) || lostCheckInProblem(lostNextDate);
       if (problem) return setBidAnswerProblem(problem);
     }
+    if (budgeting) {
+      const problem = !budgetingNextDate ? "Choose a follow-up date." : lostCheckInProblem(budgetingNextDate);
+      if (problem) return setBidAnswerProblem(problem);
+    }
     const category = won ? afterWon() : afterLost();
-    const note = won ? wonNote(wonBy.trim()) : lostNote(lostWhy, lostToFirm);
+    const note = won
+      ? wonNote(wonBy.trim())
+      : budgeting
+        ? "Budgeting only — not an imminent job"
+        : lostNote(lostWhy, lostToFirm);
     const payload = {
       // The close payload goes first so the fields below win: it sets a
-      // generic closedOutcome, and a job that was bid and lost should say
-      // Lost, not Closed.
+      // generic closedOutcome, and a job that was bid and lost -- or was
+      // only ever budgeting -- should say so, not just "Closed".
       ...(won ? {} : closeProjectPayload(customer.activityLog)),
       category,
       ...(won
         ? { wonByContractor: wonBy.trim() || null }
-        : {
-            closedOutcome: "Lost",
-            lostReason: lostWhy.trim(),
-            lostTo: lostToFirm.trim() || null,
-            // Overrides the year-out date the close payload sets. A lost
-            // job only comes back if somebody asked it to.
-            nextCheckIn: lostCheckIn(lostNextDate)
-          })
+        : budgeting
+          ? {
+              closedOutcome: "Budgeting Only",
+              // Overrides the year-out date the close payload sets --
+              // required here, never left to the default.
+              nextCheckIn: lostCheckIn(budgetingNextDate)
+            }
+          : {
+              closedOutcome: "Lost",
+              lostReason: lostWhy.trim(),
+              lostTo: lostToFirm.trim() || null,
+              // Overrides the year-out date the close payload sets. A lost
+              // job only comes back if somebody asked it to.
+              nextCheckIn: lostCheckIn(lostNextDate)
+            })
     };
     payload.activityLog = [...(customer.activityLog || []), {
       type: "completed",
@@ -498,6 +524,7 @@ export default function ProjectDetail() {
     setLostWhy("");
     setLostToFirm("");
     setLostNextDate("");
+    setBudgetingNextDate("");
     setBidAnswerProblem("");
     setBidAnswer({ to: choice === "Won" ? afterWon() : afterLost() });
   };
@@ -941,7 +968,9 @@ export default function ProjectDetail() {
           ? "Nothing scheduled — this job has been left alone. Snooze gives it a new date if you change your mind."
           : customer.closedOutcome === "Lost"
             ? "This bid was lost and you asked to look at it again. Log what you find with Update, or move the date."
-            : (customer.checkInSchedule || customer.checkInEveryMonths)
+            : customer.closedOutcome === "Budgeting Only"
+              ? "This was budgeting only, not an imminent job. Follow up to see if it's ready to move forward, then log it with Update."
+              : (customer.checkInSchedule || customer.checkInEveryMonths)
               ? "Check in with the customer, then log it with Update. The next one comes from the plan set when the job closed."
               : "Check in with the customer, then log it with Update to set the next check-in 2 years out, or snooze it."}
       </p>
@@ -1358,6 +1387,7 @@ export default function ProjectDetail() {
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
                     <button className="btn btn-primary" onClick={() => askBidAnswer("Won")}>Project Won</button>
                     <button className="btn btn-danger" onClick={() => askBidAnswer("Lost")}>Project Lost</button>
+                    <button className="btn btn-secondary" onClick={() => askBidAnswer("Budgeting Only")}>Budgeting Only</button>
                   </div>
                 ) : (
                   <p className="private-note-hint">Only {ownerLabel(customer.ownerId)} can answer this bid.</p>
@@ -1640,11 +1670,12 @@ export default function ProjectDetail() {
             <h3 className="modal-title">Did we win it?</h3>
             <p className="modal-subtitle">
               The bid went out on this job. Say what came of it before it moves on —
-              won files it as {UNDER_CONTRACT}, lost closes it.
+              won files it as {UNDER_CONTRACT}, lost closes it, and budgeting only closes it
+              until it&apos;s actually ready to move.
             </p>
 
             <div className="reason-picker">
-              {["Won", "Lost"].map(choice => (
+              {["Won", "Lost", "Budgeting Only"].map(choice => (
                 <button
                   key={choice}
                   type="button"
@@ -1670,6 +1701,42 @@ export default function ProjectDetail() {
                   value={wonBy}
                   onChange={e => setWonBy(e.target.value)}
                 />
+              </>
+            ) : bidOutcome === "Budgeting Only" ? (
+              <>
+                {/* The one case where leaving the date blank isn't an
+                    option -- there's nothing lost to go quiet on, just a
+                    job that was never imminent, so Confirm stays dull
+                    until one's picked. */}
+                <label className="field-label" htmlFor="project-budgeting-next" style={{ marginTop: 12 }}>
+                  Follow up on
+                </label>
+                <input
+                  id="project-budgeting-next"
+                  className={!budgetingNextDate ? "field field-needs-value" : "field"}
+                  type="date"
+                  value={budgetingNextDate}
+                  onChange={e => { setBudgetingNextDate(e.target.value); setBidAnswerProblem(""); }}
+                />
+                <div className="reason-picker">
+                  {LOST_CHECK_BACK.map(opt => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      className={`btn btn-secondary btn-small ${budgetingNextDate === opt.date() ? "is-picked" : ""}`}
+                      onClick={() => { setBudgetingNextDate(opt.date()); setBidAnswerProblem(""); }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="private-note-hint">
+                  {!budgetingNextDate
+                    ? "A follow-up date is required for Budgeting Only."
+                    : lostCheckInProblem(budgetingNextDate)
+                      ? ""
+                      : `Closed until then — it comes back on My Projects a week before ${lostCheckIn(budgetingNextDate)}.`}
+                </p>
               </>
             ) : (
               <>
@@ -1739,7 +1806,11 @@ export default function ProjectDetail() {
             {bidAnswerProblem && <p className="settings-status is-error">⚠ {bidAnswerProblem}</p>}
             <div className="modal-actions">
               <button className="btn btn-primary" disabled={bidAnswerInvalid} onClick={answerBid}>
-                {bidOutcome === "Won" ? `Mark won — ${UNDER_CONTRACT}` : "Mark lost — close it"}
+                {bidOutcome === "Won"
+                  ? `Mark won — ${UNDER_CONTRACT}`
+                  : bidOutcome === "Budgeting Only"
+                    ? "Mark budgeting only — close it"
+                    : "Mark lost — close it"}
               </button>
               <button className="btn btn-secondary" onClick={() => setBidAnswer(null)}>Cancel</button>
             </div>
