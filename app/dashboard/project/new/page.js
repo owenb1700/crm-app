@@ -651,6 +651,17 @@ export default function NewProject() {
                 <input className="field" autoComplete="off" value={row.phone} onChange={e => updateContractorRow(i, "phone", e.target.value)} />
               </div>
               <button className="btn btn-danger" onClick={() => setContractorRows(prev => prev.filter((_, idx) => idx !== i))}>Remove</button>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label className="field-label" htmlFor={`new-project-contractor-notes-${i}`}>Notes on this bidder</label>
+                <textarea
+                  id={`new-project-contractor-notes-${i}`}
+                  className="field"
+                  style={{ width: "100%", height: 50, marginBottom: 0 }}
+                  placeholder="e.g. Called 11/3, says they're still pricing it"
+                  value={row.notes || ""}
+                  onChange={e => updateContractorRow(i, "notes", e.target.value)}
+                />
+              </div>
             </div>
           ))}
           <button className="btn btn-secondary" onClick={addContractorRow}>+ Add Contractor</button>

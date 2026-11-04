@@ -29,7 +29,7 @@ import BuildingSectorSelect from "../../../components/BuildingSectorSelect";
 import WorkTypeSelect from "../../../components/WorkTypeSelect";
 import { LeadTimeFields, LeadTimeSummary, LeadTimeInput } from "../../../components/LeadTimeFields";
 import BidderEditor from "../../../components/BidderEditor";
-import { bidderRowsForEditing, biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson, groupBidders, contactsOf, bidderExportRows, BIDDER_EXPORT_HEADERS } from "../../../../lib/bidders";
+import { bidderRowsForEditing, biddersForStorage, bidderDirectoryEntries, bidderMissingSalesperson, groupBidders, contactsOf, bidderExportRows, BIDDER_EXPORT_HEADERS, blankBidder } from "../../../../lib/bidders";
 import { buildBidSnapshot } from "../../../../lib/bidHistory";
 import PipelineMyAlerts from "../../../components/PipelineMyAlerts";
 import PipelineNotes from "../../../components/PipelineNotes";
@@ -125,6 +125,17 @@ export default function PipelineDetail() {
   // only matters once a bid is actually out and waiting.
   const [followUpAsk, setFollowUpAsk] = useState(false);
   const [followUpDate, setFollowUpDate] = useState("");
+  // Adding one bidder shouldn't mean opening the whole entry for edit --
+  // same form BidderEditor already uses, just for a single new row.
+  const [quickBidderAsk, setQuickBidderAsk] = useState(false);
+  const [quickBidderRows, setQuickBidderRows] = useState([blankBidder()]);
+  const [quickBidderBusy, setQuickBidderBusy] = useState(false);
+  const [quickBidderProblem, setQuickBidderProblem] = useState("");
+  // Jotting a note on a bidder already on the entry -- same idea, no
+  // full edit needed.
+  const [noteBidderCompany, setNoteBidderCompany] = useState(null);
+  const [noteBidderText, setNoteBidderText] = useState("");
+  const [noteBidderBusy, setNoteBidderBusy] = useState(false);
   // Bids Sent: the step between sending a number and hearing anything.
   const [showBidsSentModal, setShowBidsSentModal] = useState(false);
   const [bidsSentDate, setBidsSentDate] = useState("");
@@ -657,6 +668,81 @@ export default function PipelineDetail() {
     const next = new Date();
     next.setDate(next.getDate() + 14);
     followUpTo(weekdayKey(next));
+  };
+
+  const byName = () => (myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown"));
+
+  // Adds whatever was filled into quickBidderRows onto the entry's
+  // existing bidders -- same merge-by-firm-name BidderEditor's own Save
+  // already does, just without touching anything else on the entry.
+  const saveQuickBidder = async () => {
+    const missingSalesperson = bidderMissingSalesperson(quickBidderRows);
+    if (missingSalesperson) {
+      return setQuickBidderProblem(`Select a salesperson for "${missingSalesperson.company || "this bidder"}"`);
+    }
+    const added = biddersForStorage(quickBidderRows);
+    if (!added.length) return setQuickBidderProblem("Pick a firm first.");
+    setQuickBidderBusy(true);
+    setQuickBidderProblem("");
+    try {
+      const merged = biddersForStorage([...(pipeline.biddingCompanies || []), ...added]);
+      await updateDoc(doc(db, "pipeline", pipelineId), {
+        biddingCompanies: merged,
+        activityLog: withActivity(pipeline.activityLog, activityEntry({
+          type: "changed",
+          changes: [`${added.map(b => b.company).join(", ")} added as a bidder`],
+          by: uid,
+          byName: byName()
+        }))
+      });
+      await ensureCompanyAndContactBatch(bidderDirectoryEntries(added, firmTypeOf), { companies, contacts, uid, sector: pipeline.buildingSector });
+
+      const addedFirms = newlyAddedFirms(pipeline, { company: pipeline.company, biddingCompanies: merged });
+      const owners = firmOwnersFor(addedFirms, companies);
+      await Promise.all([...owners.entries()]
+        .filter(([personId]) => personId !== uid)
+        .map(([personId, firmName]) => notifyUsers([personId], {
+          type: "firm_on_entry",
+          message: `${firmName} was added to the pipeline entry "${pipeline.title}"`,
+          link: `/dashboard/pipeline/${pipelineId}`
+        })));
+
+      setQuickBidderAsk(false);
+      setQuickBidderRows([blankBidder()]);
+      await loadPipelineEntry(uid, role);
+    } catch (err) {
+      setQuickBidderProblem(err.message || "Couldn't add that bidder.");
+    } finally {
+      setQuickBidderBusy(false);
+    }
+  };
+
+  const openNoteBidder = (row) => {
+    setNoteBidderCompany(row.company);
+    setNoteBidderText(row.notes || "");
+  };
+
+  const saveNoteBidder = async () => {
+    setNoteBidderBusy(true);
+    try {
+      const updated = (pipeline.biddingCompanies || []).map(b =>
+        sameCompany(b.company, noteBidderCompany) ? { ...b, notes: noteBidderText.trim() || null } : b
+      );
+      await updateDoc(doc(db, "pipeline", pipelineId), {
+        biddingCompanies: updated,
+        activityLog: withActivity(pipeline.activityLog, activityEntry({
+          type: "changed",
+          changes: [`Note updated for ${noteBidderCompany}`],
+          by: uid,
+          byName: byName()
+        }))
+      });
+      setNoteBidderCompany(null);
+      setNoteBidderText("");
+      await loadPipelineEntry(uid, role);
+    } finally {
+      setNoteBidderBusy(false);
+    }
   };
 
   const reopenPipeline = async () => {
@@ -1237,13 +1323,20 @@ export default function PipelineDetail() {
               <div className="project-section detail-span-2">
                 <div className="section-head-row">
                   <h4 className="field-label" style={{ margin: 0 }}>Contractors & Owners Bidding</h4>
-                  {groupBidders(pipeline.biddingCompanies).length > 0 && (
-                    <ExportButtons
-                      label="the bidders on this entry"
-                      buttonText="Export bidders list"
-                      onExport={format => exportBidders(format)}
-                    />
-                  )}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {canEdit && (
+                      <button type="button" className="btn btn-secondary btn-small" onClick={() => { setQuickBidderRows([blankBidder()]); setQuickBidderProblem(""); setQuickBidderAsk(true); }}>
+                        + Add Bidder
+                      </button>
+                    )}
+                    {groupBidders(pipeline.biddingCompanies).length > 0 && (
+                      <ExportButtons
+                        label="the bidders on this entry"
+                        buttonText="Export bidders list"
+                        onExport={format => exportBidders(format)}
+                      />
+                    )}
+                  </div>
                 </div>
                 {(pipeline.biddingCompanies || []).length === 0 && (
                   <p className="private-note-hint">None added yet.</p>
@@ -1260,6 +1353,12 @@ export default function PipelineDetail() {
                         <div>
                           <strong>{row.company || "Unnamed firm"}</strong>
                           <div className="notes-history-date">{firmTypeOf(row.category)}</div>
+                          {row.notes && <div className="private-note-hint" style={{ marginTop: 2, whiteSpace: "pre-wrap" }}>{row.notes}</div>}
+                          {canEdit && (
+                            <button type="button" className="settings-link" style={{ fontSize: 12 }} onClick={() => openNoteBidder(row)}>
+                              {row.notes ? "Edit note" : "+ Add note"}
+                            </button>
+                          )}
                         </div>
                         <div>{row.salespersonId ? ownerLabel(row.salespersonId) : "Not assigned"}</div>
                         <div>
@@ -1402,6 +1501,57 @@ export default function PipelineDetail() {
           <p><strong>{pipeline.title}</strong> moves from {stageMove.from} to {stageMove.to}.</p>
           <p className="private-note-hint">It&apos;s written into the entry&apos;s history, and you can move it back.</p>
         </ConfirmDialog>
+      )}
+
+      {quickBidderAsk && (
+        <div className="modal-overlay" onClick={() => !quickBidderBusy && setQuickBidderAsk(false)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
+            {!quickBidderBusy && (
+              <button className="modal-close" onClick={() => setQuickBidderAsk(false)} aria-label="Close">✕</button>
+            )}
+            <h3 className="modal-title">Add a bidder</h3>
+            <p className="modal-subtitle">Added straight onto the entry -- nothing else about it changes.</p>
+            <BidderEditor
+              idPrefix="quick-bidder"
+              bidders={quickBidderRows}
+              onChange={setQuickBidderRows}
+              companies={companies}
+              contacts={contacts}
+              users={users}
+            />
+            {quickBidderProblem && <p className="settings-status is-error">⚠ {quickBidderProblem}</p>}
+            <div className="modal-actions">
+              <button className="btn btn-primary" disabled={quickBidderBusy} onClick={saveQuickBidder}>
+                {quickBidderBusy ? "Adding…" : "Add"}
+              </button>
+              <button className="btn btn-secondary" disabled={quickBidderBusy} onClick={() => setQuickBidderAsk(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {noteBidderCompany !== null && (
+        <div className="modal-overlay" onClick={() => !noteBidderBusy && setNoteBidderCompany(null)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+            {!noteBidderBusy && (
+              <button className="modal-close" onClick={() => setNoteBidderCompany(null)} aria-label="Close">✕</button>
+            )}
+            <h3 className="modal-title">Note on {noteBidderCompany}</h3>
+            <textarea
+              className="field"
+              style={{ width: "100%", height: 90 }}
+              placeholder="e.g. Called 11/3, says they're still pricing it"
+              value={noteBidderText}
+              onChange={e => setNoteBidderText(e.target.value)}
+            />
+            <div className="modal-actions">
+              <button className="btn btn-primary" disabled={noteBidderBusy} onClick={saveNoteBidder}>
+                {noteBidderBusy ? "Saving…" : "Save"}
+              </button>
+              <button className="btn btn-secondary" disabled={noteBidderBusy} onClick={() => setNoteBidderCompany(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {followUpAsk && (

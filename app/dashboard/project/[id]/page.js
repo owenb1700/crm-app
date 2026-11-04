@@ -175,6 +175,11 @@ export default function ProjectDetail() {
   const [reassignTo, setReassignTo] = useState("");
   const [reassignProblem, setReassignProblem] = useState("");
   const [transferActionBusy, setTransferActionBusy] = useState(false);
+  // Jotting a note on one of the other bidders without opening Edit --
+  // same idea as a pipeline entry's own per-bidder notes.
+  const [noteContractorIndex, setNoteContractorIndex] = useState(null);
+  const [noteContractorText, setNoteContractorText] = useState("");
+  const [noteContractorBusy, setNoteContractorBusy] = useState(false);
   // Everything else the form changed on the way to closing. Pressing Save
   // with the status set to closed used to drop the other edits on the
   // floor: the question came up, the answer wrote only the close, and the
@@ -1004,6 +1009,28 @@ export default function ProjectDetail() {
     }
   };
 
+  const saveNoteContractor = async () => {
+    setNoteContractorBusy(true);
+    try {
+      const existing = customer.otherContractors || [];
+      const updated = existing.map((r, i) => (i === noteContractorIndex ? { ...r, notes: noteContractorText.trim() || null } : r));
+      await updateDoc(doc(db, "customers", projectId), {
+        otherContractors: updated,
+        activityLog: withActivity(customer.activityLog, activityEntry({
+          type: "changed",
+          changes: [`Note updated for ${existing[noteContractorIndex]?.company || "a bidder"}`],
+          by: uid,
+          byName: myName()
+        }))
+      });
+      setNoteContractorIndex(null);
+      setNoteContractorText("");
+      await loadProject(uid, role);
+    } finally {
+      setNoteContractorBusy(false);
+    }
+  };
+
   // Only the person who wrote a note can remove it, and it's gone for
   // good -- no record of the deletion is kept.
   // Called after RecordNotes has already confirmed.
@@ -1457,6 +1484,17 @@ export default function ProjectDetail() {
                   onEmailChange={v => updateContractorRow(i, "email", v)}
                   onPhoneChange={v => updateContractorRow(i, "phone", v)}
                 />
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label className="field-label" htmlFor={`project-detail-contractor-notes-${i}`}>Notes on this bidder</label>
+                  <textarea
+                    id={`project-detail-contractor-notes-${i}`}
+                    className="field"
+                    style={{ width: "100%", height: 50, marginBottom: 0 }}
+                    placeholder="e.g. Called 11/3, says they're still pricing it"
+                    value={row.notes || ""}
+                    onChange={e => updateContractorRow(i, "notes", e.target.value)}
+                  />
+                </div>
                 <button className="btn btn-danger" onClick={() => setContractorRows(prev => prev.filter((_, idx) => idx !== i))}>Remove</button>
               </div>
             ))}
@@ -1670,6 +1708,17 @@ export default function ProjectDetail() {
                     >
                       <div><strong>{row.company || "—"}</strong>{row.contact ? ` — ${row.contact}` : ""}</div>
                       <div className="notes-history-date">{[row.email, formatPhone(row.phone)].filter(Boolean).join(" | ")}</div>
+                      {row.notes && <div className="private-note-hint" style={{ marginTop: 2, whiteSpace: "pre-wrap" }}>{row.notes}</div>}
+                      {(isOwner || isCollaborator) && (
+                        <button
+                          type="button"
+                          className="settings-link"
+                          style={{ fontSize: 12 }}
+                          onClick={e => { e.stopPropagation(); setNoteContractorIndex(i); setNoteContractorText(row.notes || ""); }}
+                        >
+                          {row.notes ? "Edit note" : "+ Add note"}
+                        </button>
+                      )}
                     </div>
                   );
                 })
@@ -1777,6 +1826,30 @@ export default function ProjectDetail() {
 
         </>)}
       </div>
+
+      {noteContractorIndex !== null && (
+        <div className="modal-overlay" onClick={() => !noteContractorBusy && setNoteContractorIndex(null)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+            {!noteContractorBusy && (
+              <button className="modal-close" onClick={() => setNoteContractorIndex(null)} aria-label="Close">✕</button>
+            )}
+            <h3 className="modal-title">Note on {(customer.otherContractors || [])[noteContractorIndex]?.company || "this bidder"}</h3>
+            <textarea
+              className="field"
+              style={{ width: "100%", height: 90 }}
+              placeholder="e.g. Called 11/3, says they're still pricing it"
+              value={noteContractorText}
+              onChange={e => setNoteContractorText(e.target.value)}
+            />
+            <div className="modal-actions">
+              <button className="btn btn-primary" disabled={noteContractorBusy} onClick={saveNoteContractor}>
+                {noteContractorBusy ? "Saving…" : "Save"}
+              </button>
+              <button className="btn btn-secondary" disabled={noteContractorBusy} onClick={() => setNoteContractorIndex(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {transferAsk && (
         <div className="modal-overlay" onClick={() => !transferActionBusy && setTransferAsk(false)}>

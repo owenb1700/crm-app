@@ -103,6 +103,16 @@ export default function BidderEditor({ idPrefix, bidders, onChange, companies, c
                 + Add person
               </button>
             </div>
+
+            <label className="field-label" htmlFor={`${idPrefix}-notes-${bi}`} style={{ marginTop: 8 }}>Notes on this bidder</label>
+            <textarea
+              id={`${idPrefix}-notes-${bi}`}
+              className="field"
+              style={{ width: "100%", height: 50, marginBottom: 0 }}
+              placeholder="e.g. Called 11/3, says they're still pricing it"
+              value={b.notes || ""}
+              onChange={e => updateBidder(bi, { notes: e.target.value })}
+            />
           </div>
         );
       })}
