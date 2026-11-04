@@ -48,6 +48,7 @@ import useUnsavedGuard from "../../../components/useUnsavedGuard";
 import { isTrashed } from "../../../../lib/trash";
 import PhotoGallery from "../../../components/PhotoGallery";
 import CreditSplitEditor from "../../../components/CreditSplitEditor";
+import SalespersonSelect from "../../../components/SalespersonSelect";
 import { describeSplit, normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 import { stateChanges, activityEntry, withActivity, readActivityOutcome } from "../../../../lib/activityLog";
 import { notifyUsers, newSplitMembers } from "../../../../lib/notify";
@@ -164,6 +165,16 @@ export default function ProjectDetail() {
   // the project itself too.
   const [followUpAsk, setFollowUpAsk] = useState(false);
   const [followUpDate, setFollowUpDate] = useState("");
+  // Handing the job to someone else -- the owner asks, the recipient has
+  // to say yes before it actually moves, so it's never a surprise.
+  const [transferAsk, setTransferAsk] = useState(false);
+  const [transferTo, setTransferTo] = useState("");
+  const [transferProblem, setTransferProblem] = useState("");
+  // An admin's own version -- no asking, the project is just moved.
+  const [reassignAsk, setReassignAsk] = useState(false);
+  const [reassignTo, setReassignTo] = useState("");
+  const [reassignProblem, setReassignProblem] = useState("");
+  const [transferActionBusy, setTransferActionBusy] = useState(false);
   // Everything else the form changed on the way to closing. Pressing Save
   // with the status set to closed used to drop the other edits on the
   // floor: the question came up, the answer wrote only the close, and the
@@ -357,6 +368,7 @@ export default function ProjectDetail() {
   }, [projectId]);
 
   const isOwner = customer && customer.ownerId === uid;
+  const isCollaborator = customer && (customer.collaboratorIds || []).includes(uid);
 
   // Arriving from the Edit button on My Projects (/dashboard/project/x?edit=1)
   // opens edit mode straight away, so that button behaves the same as
@@ -369,11 +381,11 @@ export default function ProjectDetail() {
     const wants = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("edit") === "1";
     if (!wants) return;
     askedToEdit.current = true;
-    if (isOwner || role === "admin") startEdit();
+    if (isOwner || isCollaborator || role === "admin") startEdit();
     // Take the flag out of the address bar so a refresh doesn't reopen it.
     router.replace(`/dashboard/project/${projectId}`, { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customer, isOwner, role, isEditing]);
+  }, [customer, isOwner, isCollaborator, role, isEditing]);
 
   // Arriving from the stage button on a card (?advance=1). The card moves
   // the quiet steps itself and sends the ones with a question here, so
@@ -386,12 +398,12 @@ export default function ProjectDetail() {
     if (!wants) return;
     askedToAdvance.current = true;
     router.replace(`/dashboard/project/${projectId}`, { scroll: false });
-    if (isOwner) advanceStage();
+    if (isOwner || isCollaborator) advanceStage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customer, isOwner]);
-  const isCollaborator = customer && (customer.collaboratorIds || []).includes(uid);
+  }, [customer, isOwner, isCollaborator]);
   const canSeeNotes = isOwner || isCollaborator || role === "admin";
   const canEditNotes = isOwner || isCollaborator;
+  const isPendingTransferRecipient = customer && customer.transferPendingTo === uid;
 
   const startEdit = () => {
     setAttemptedSave(false);
@@ -845,6 +857,153 @@ export default function ProjectDetail() {
     followUpTo(weekdayKey(next));
   };
 
+  const nameOf = (id) => {
+    const u = users.find(x => x.id === id);
+    if (!u) return "Someone";
+    return u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email;
+  };
+  const jobTitle = () => customer.projectName || customer.company || "a project";
+
+  const requestTransfer = async () => {
+    if (!transferTo) return setTransferProblem("Pick who to transfer it to.");
+    setTransferActionBusy(true);
+    setTransferProblem("");
+    try {
+      const stamp = new Date().toISOString();
+      await updateDoc(doc(db, "customers", projectId), {
+        transferPendingTo: transferTo,
+        transferPendingBy: uid,
+        transferPendingAt: stamp,
+        activityLog: withActivity(customer.activityLog, activityEntry({
+          type: "changed",
+          changes: [`Transfer requested to ${nameOf(transferTo)}`],
+          by: uid,
+          byName: myName()
+        }))
+      });
+      await notifyUsers([transferTo], {
+        type: "transfer_requested",
+        message: `${myName() || "Someone"} wants to transfer you the project "${jobTitle()}"`,
+        link: `/dashboard/project/${projectId}`
+      });
+      setTransferAsk(false);
+      setTransferTo("");
+      await loadProject(uid, role);
+    } catch (err) {
+      setTransferProblem(err.message || "Couldn't request the transfer.");
+    } finally {
+      setTransferActionBusy(false);
+    }
+  };
+
+  const cancelTransfer = async () => {
+    setTransferActionBusy(true);
+    try {
+      await updateDoc(doc(db, "customers", projectId), {
+        transferPendingTo: null,
+        transferPendingBy: null,
+        transferPendingAt: null,
+        activityLog: withActivity(customer.activityLog, activityEntry({
+          type: "changed",
+          changes: ["Transfer request cancelled"],
+          by: uid,
+          byName: myName()
+        }))
+      });
+      await loadProject(uid, role);
+    } finally {
+      setTransferActionBusy(false);
+    }
+  };
+
+  // The recipient's own two answers. Accepting is the only path that
+  // moves ownerId -- see the Firestore rule, which checks this exact
+  // shape (ownerId plus the three transfer fields, nothing else) before
+  // letting it through.
+  const acceptTransfer = async () => {
+    setTransferActionBusy(true);
+    try {
+      const previousOwner = customer.transferPendingBy;
+      await updateDoc(doc(db, "customers", projectId), {
+        ownerId: uid,
+        transferPendingTo: null,
+        transferPendingBy: null,
+        transferPendingAt: null,
+        activityLog: withActivity(customer.activityLog, activityEntry({
+          type: "changed",
+          changes: [`Transfer accepted by ${myName() || "someone"}`],
+          by: uid,
+          byName: myName()
+        }))
+      });
+      if (previousOwner) {
+        await notifyUsers([previousOwner], {
+          type: "transfer_accepted",
+          message: `${myName() || "Someone"} accepted your transfer of "${jobTitle()}"`,
+          link: `/dashboard/project/${projectId}`
+        });
+      }
+      await loadProject(uid, role);
+    } finally {
+      setTransferActionBusy(false);
+    }
+  };
+
+  const declineTransfer = async () => {
+    setTransferActionBusy(true);
+    try {
+      const previousOwner = customer.transferPendingBy;
+      await updateDoc(doc(db, "customers", projectId), {
+        transferPendingTo: null,
+        transferPendingBy: null,
+        transferPendingAt: null,
+        activityLog: withActivity(customer.activityLog, activityEntry({
+          type: "changed",
+          changes: [`Transfer declined by ${myName() || "someone"}`],
+          by: uid,
+          byName: myName()
+        }))
+      });
+      if (previousOwner) {
+        await notifyUsers([previousOwner], {
+          type: "transfer_declined",
+          message: `${myName() || "Someone"} declined your transfer of "${jobTitle()}"`,
+          link: `/dashboard/project/${projectId}`
+        });
+      }
+      await loadProject(uid, role);
+    } finally {
+      setTransferActionBusy(false);
+    }
+  };
+
+  // An admin's own version: no asking, the project just moves. Full write
+  // access already covers this -- no rule change needed, unlike the
+  // request-and-accept path above.
+  const reassignOwner = async () => {
+    if (!reassignTo) return setReassignProblem("Pick who to reassign it to.");
+    setTransferActionBusy(true);
+    setReassignProblem("");
+    try {
+      await updateDoc(doc(db, "customers", projectId), {
+        ownerId: reassignTo,
+        activityLog: withActivity(customer.activityLog, activityEntry({
+          type: "changed",
+          changes: [`Reassigned from ${nameOf(customer.ownerId)} to ${nameOf(reassignTo)} by ${myName()}`],
+          by: uid,
+          byName: myName()
+        }))
+      });
+      setReassignAsk(false);
+      setReassignTo("");
+      await loadProject(uid, role);
+    } catch (err) {
+      setReassignProblem(err.message || "Couldn't reassign this project.");
+    } finally {
+      setTransferActionBusy(false);
+    }
+  };
+
   // Only the person who wrote a note can remove it, and it's gone for
   // good -- no record of the deletion is kept.
   // Called after RecordNotes has already confirmed.
@@ -1013,7 +1172,7 @@ export default function ProjectDetail() {
               ? "Check in with the customer, then log it with Update. The next one comes from the plan set when the job closed."
               : "Check in with the customer, then log it with Update to set the next check-in 2 years out, or snooze it."}
       </p>
-      {(isOwner || role === "admin") ? (
+      {(isOwner || isCollaborator || role === "admin") ? (
         <ClosedCheckInActions
           project={customer}
           byName={myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : auth.currentUser?.email}
@@ -1058,15 +1217,15 @@ export default function ProjectDetail() {
               </p>
             </div>
 
-            {!isEditing && (isOwner || role === "admin") && (
+            {!isEditing && (isOwner || isCollaborator || role === "admin") && (
               <div className="detail-header-actions">
-                {isOwner && nextStage(customer.category) && (
+                {(isOwner || isCollaborator) && nextStage(customer.category) && (
                   <button className="btn btn-primary" onClick={advanceStage}>
                     {nextStageLabel(customer.category)}
                   </button>
                 )}
-                {isOwner && <button className="btn btn-secondary" onClick={startEdit}>Edit</button>}
-                {isOwner && normalizeCategory(customer.category) !== CLOSED && (
+                {(isOwner || isCollaborator) && <button className="btn btn-secondary" onClick={startEdit}>Edit</button>}
+                {(isOwner || isCollaborator) && normalizeCategory(customer.category) !== CLOSED && (
                   <button className="btn btn-secondary" onClick={() => { setFollowUpDate(""); setFollowUpAsk(true); }}>Follow Up</button>
                 )}
                 {/* Some jobs just die -- lost, shelved, gone quiet -- without
@@ -1074,15 +1233,31 @@ export default function ProjectDetail() {
                     This asks the same question the normal path to Closed
                     does (why, and whether to follow up), it just doesn't
                     require getting there one stage at a time first. */}
-                {isOwner && normalizeCategory(customer.category) !== CLOSED && (
+                {(isOwner || isCollaborator) && normalizeCategory(customer.category) !== CLOSED && (
                   <button className="btn btn-danger" onClick={() => setCloseAsk(true)}>Close Project</button>
                 )}
-                <DeleteRecordButton
-                  kind="project"
-                  id={projectId}
-                  name={customer.projectName || customer.company || "Untitled project"}
-                  onDeleted={() => router.push("/dashboard")}
-                />
+                {/* Ownership itself -- unlike everything else here -- stays
+                    the owner's (or an admin's) call, not a collaborator's:
+                    handing the job to someone else is who-owns-it, not
+                    working on it. */}
+                {isOwner && (
+                  customer.transferPendingTo ? (
+                    <button className="btn btn-secondary" disabled={transferActionBusy} onClick={cancelTransfer}>Cancel Transfer Request</button>
+                  ) : (
+                    <button className="btn btn-secondary" onClick={() => { setTransferTo(""); setTransferProblem(""); setTransferAsk(true); }}>Transfer Ownership</button>
+                  )
+                )}
+                {role === "admin" && (
+                  <button className="btn btn-secondary" onClick={() => { setReassignTo(""); setReassignAsk(true); }}>Reassign Owner</button>
+                )}
+                {(isOwner || role === "admin") && (
+                  <DeleteRecordButton
+                    kind="project"
+                    id={projectId}
+                    name={customer.projectName || customer.company || "Untitled project"}
+                    onDeleted={() => router.push("/dashboard")}
+                  />
+                )}
               </div>
             )}
             {isEditing && editProblem && <p className="settings-status is-error">⚠ {editProblem}</p>}
@@ -1093,6 +1268,22 @@ export default function ProjectDetail() {
               </div>
             )}
           </div>
+
+          {customer.transferPendingTo && (
+            <div className="review-banner" style={{ marginTop: 12 }}>
+              {isPendingTransferRecipient ? (
+                <>
+                  <span>⚠ {nameOf(customer.transferPendingBy)} wants to transfer this project to you.</span>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button type="button" className="btn btn-primary" disabled={transferActionBusy} onClick={acceptTransfer}>Accept</button>
+                    <button type="button" className="btn btn-secondary" disabled={transferActionBusy} onClick={declineTransfer}>Decline</button>
+                  </div>
+                </>
+              ) : (
+                <span>⚠ Transfer requested to {nameOf(customer.transferPendingTo)}, waiting on them to accept.</span>
+              )}
+            </div>
+          )}
 
           {(customer.bidHistory || legacyBid) && !isEditing && (
             <div className="view-tabs" style={{ marginTop: 16, marginBottom: 0 }}>
@@ -1425,14 +1616,14 @@ export default function ProjectDetail() {
                   Bid is in &mdash; waiting to hear.
                   {customer.nextCheckIn ? ` Following up ${String(customer.nextCheckIn).slice(0, 10)}.` : ""}
                 </p>
-                {isOwner ? (
+                {(isOwner || isCollaborator) ? (
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
                     <button className="btn btn-primary" onClick={() => askBidAnswer("Won")}>Project Won</button>
                     <button className="btn btn-danger" onClick={() => askBidAnswer("Lost")}>Project Lost</button>
                     <button className="btn btn-secondary" onClick={() => askBidAnswer("Budgeting Only")}>Budgeting Only</button>
                   </div>
                 ) : (
-                  <p className="private-note-hint">Only {ownerLabel(customer.ownerId)} can answer this bid.</p>
+                  <p className="private-note-hint">Only {ownerLabel(customer.ownerId)} or a collaborator can answer this bid.</p>
                 )}
               </div>
             )}
@@ -1586,6 +1777,62 @@ export default function ProjectDetail() {
 
         </>)}
       </div>
+
+      {transferAsk && (
+        <div className="modal-overlay" onClick={() => !transferActionBusy && setTransferAsk(false)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+            {!transferActionBusy && (
+              <button className="modal-close" onClick={() => setTransferAsk(false)} aria-label="Close">✕</button>
+            )}
+            <h3 className="modal-title">Transfer this project</h3>
+            <p className="modal-subtitle">
+              They&apos;ll get a notification and an email asking them to accept. Nothing changes until they do.
+            </p>
+            <SalespersonSelect
+              id="project-transfer-to"
+              users={users.filter(u => !u.disabled && u.id !== customer.ownerId)}
+              label="Transfer to"
+              value={transferTo}
+              onChange={setTransferTo}
+            />
+            {transferProblem && <p className="settings-status is-error">⚠ {transferProblem}</p>}
+            <div className="modal-actions">
+              <button className="btn btn-primary" disabled={transferActionBusy || !transferTo} onClick={requestTransfer}>
+                {transferActionBusy ? "Sending…" : "Send Transfer Request"}
+              </button>
+              <button className="btn btn-secondary" disabled={transferActionBusy} onClick={() => setTransferAsk(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reassignAsk && (
+        <div className="modal-overlay" onClick={() => !transferActionBusy && setReassignAsk(false)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+            {!transferActionBusy && (
+              <button className="modal-close" onClick={() => setReassignAsk(false)} aria-label="Close">✕</button>
+            )}
+            <h3 className="modal-title">Reassign this project</h3>
+            <p className="modal-subtitle">
+              An admin move -- this happens immediately, no approval needed from either side.
+            </p>
+            <SalespersonSelect
+              id="project-reassign-to"
+              users={users.filter(u => !u.disabled && u.id !== customer.ownerId)}
+              label="Reassign to"
+              value={reassignTo}
+              onChange={setReassignTo}
+            />
+            {reassignProblem && <p className="settings-status is-error">⚠ {reassignProblem}</p>}
+            <div className="modal-actions">
+              <button className="btn btn-primary" disabled={transferActionBusy || !reassignTo} onClick={reassignOwner}>
+                {transferActionBusy ? "Reassigning…" : "Reassign"}
+              </button>
+              <button className="btn btn-secondary" disabled={transferActionBusy} onClick={() => setReassignAsk(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {followUpAsk && (
         <div className="modal-overlay" onClick={() => setFollowUpAsk(false)}>

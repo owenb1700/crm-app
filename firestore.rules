@@ -145,16 +145,38 @@ service cloud.firestore {
       allow delete: if isActive() &&
         (resource.data.ownerId == request.auth.uid || isAdmin());
 
-      // Owner/admin can change anything. A collaborator may ALSO update,
-      // but only to remove themselves from collaboratorIds -- nothing else
-      // about the entry, and they can't touch anyone else's access.
+      // Owner/admin can change anything. An approved collaborator now can
+      // too -- same as working the project in person -- with the one
+      // exception of ownerId, which only moves through the transfer
+      // carve-out below (or by the owner/an admin writing it directly
+      // above), never as a side effect of an ordinary edit.
       allow update: if isActive() && (
         resource.data.ownerId == request.auth.uid ||
         isAdmin() ||
         (
           request.auth.uid in resource.data.get('collaboratorIds', []) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['collaboratorIds']) &&
-          !(request.auth.uid in request.resource.data.get('collaboratorIds', []))
+          request.resource.data.ownerId == resource.data.ownerId
+        ) ||
+        // A pending transfer: only the named recipient can act on it, and
+        // only by accepting (becoming the owner) or declining (clearing
+        // the request) -- nothing else about the project moves in the
+        // same write, so accepting a transfer can't double as a way to
+        // also edit the job.
+        (
+          resource.data.get('transferPendingTo', null) == request.auth.uid &&
+          request.resource.data.get('transferPendingTo', null) == null &&
+          (
+            (
+              request.resource.data.ownerId == request.auth.uid &&
+              request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['ownerId', 'transferPendingTo', 'transferPendingBy', 'transferPendingAt', 'activityLog'])
+            ) ||
+            (
+              request.resource.data.ownerId == resource.data.ownerId &&
+              request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['transferPendingTo', 'transferPendingBy', 'transferPendingAt', 'activityLog'])
+            )
+          )
         ) ||
         // Project Scheduling is the whole company's board, so anyone can
         // put labour against any job -- but ONLY the labour. Every other
