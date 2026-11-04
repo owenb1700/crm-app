@@ -1505,7 +1505,7 @@ export default function PipelineDetail() {
 
       {quickBidderAsk && (
         <div className="modal-overlay" onClick={() => !quickBidderBusy && setQuickBidderAsk(false)}>
-          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
+          <div className="modal-card modal-extra-wide" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
             {!quickBidderBusy && (
               <button className="modal-close" onClick={() => setQuickBidderAsk(false)} aria-label="Close">✕</button>
             )}
