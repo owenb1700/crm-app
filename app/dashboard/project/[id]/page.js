@@ -14,7 +14,8 @@ import {
   collection,
   getDocs,
   query,
-  where
+  where,
+  arrayUnion
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { ensureCompanyAndContactBatch, OWNER_CATEGORY, BLANK_OWNER_ROW, cleanOwnerRows, firmTypeOf } from "../../../../lib/directory";
@@ -175,6 +176,26 @@ export default function ProjectDetail() {
   const [reassignTo, setReassignTo] = useState("");
   const [reassignProblem, setReassignProblem] = useState("");
   const [transferActionBusy, setTransferActionBusy] = useState(false);
+  // The inverse of a collaboration request -- here the owner (or an
+  // existing collaborator) does the asking, and whoever's invited has to
+  // accept before they actually gain access.
+  const [inviteAsk, setInviteAsk] = useState(false);
+  const [inviteTo, setInviteTo] = useState("");
+  const [inviteProblem, setInviteProblem] = useState("");
+  const [inviteActionBusy, setInviteActionBusy] = useState(false);
+  // The less-often-used header actions live behind one "More" menu so the
+  // bar doesn't keep growing a button every time the project gains a new
+  // way to be acted on.
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef(null);
+  useEffect(() => {
+    if (!moreMenuOpen) return undefined;
+    const onPressOutside = (e) => {
+      if (!moreMenuRef.current?.contains(e.target)) setMoreMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPressOutside);
+    return () => document.removeEventListener("pointerdown", onPressOutside);
+  }, [moreMenuOpen]);
   // Jotting a note on one of the other bidders without opening Edit --
   // same idea as a pipeline entry's own per-bidder notes.
   const [noteContractorIndex, setNoteContractorIndex] = useState(null);
@@ -409,6 +430,7 @@ export default function ProjectDetail() {
   const canSeeNotes = isOwner || isCollaborator || role === "admin";
   const canEditNotes = isOwner || isCollaborator;
   const isPendingTransferRecipient = customer && customer.transferPendingTo === uid;
+  const isPendingInviteRecipient = customer && customer.collabInvitePendingTo === uid;
 
   const startEdit = () => {
     setAttemptedSave(false);
@@ -846,7 +868,7 @@ export default function ProjectDetail() {
       nextCheckIn: date,
       activityLog: withActivity(customer.activityLog, activityEntry({
         type: "changed",
-        changes: [`Follow-up moved to ${date}`],
+        changes: [{ text: `Follow-up moved to ${date}` }],
         by: uid,
         byName: myName()
       }))
@@ -881,7 +903,7 @@ export default function ProjectDetail() {
         transferPendingAt: stamp,
         activityLog: withActivity(customer.activityLog, activityEntry({
           type: "changed",
-          changes: [`Transfer requested to ${nameOf(transferTo)}`],
+          changes: [{ text: `Transfer requested to ${nameOf(transferTo)}` }],
           by: uid,
           byName: myName()
         }))
@@ -910,7 +932,7 @@ export default function ProjectDetail() {
         transferPendingAt: null,
         activityLog: withActivity(customer.activityLog, activityEntry({
           type: "changed",
-          changes: ["Transfer request cancelled"],
+          changes: [{ text: "Transfer request cancelled" }],
           by: uid,
           byName: myName()
         }))
@@ -936,7 +958,7 @@ export default function ProjectDetail() {
         transferPendingAt: null,
         activityLog: withActivity(customer.activityLog, activityEntry({
           type: "changed",
-          changes: [`Transfer accepted by ${myName() || "someone"}`],
+          changes: [{ text: `Transfer accepted by ${myName() || "someone"}` }],
           by: uid,
           byName: myName()
         }))
@@ -964,7 +986,7 @@ export default function ProjectDetail() {
         transferPendingAt: null,
         activityLog: withActivity(customer.activityLog, activityEntry({
           type: "changed",
-          changes: [`Transfer declined by ${myName() || "someone"}`],
+          changes: [{ text: `Transfer declined by ${myName() || "someone"}` }],
           by: uid,
           byName: myName()
         }))
@@ -982,6 +1004,119 @@ export default function ProjectDetail() {
     }
   };
 
+  // Sending someone an invite to collaborate -- the mirror image of a
+  // collaboration request, which starts with the person who wants in.
+  // Here the owner (or an existing collaborator, same permission parity
+  // as everything else on this page) does the asking.
+  const inviteCollaborator = async () => {
+    if (!inviteTo) return setInviteProblem("Pick who to invite.");
+    setInviteActionBusy(true);
+    setInviteProblem("");
+    try {
+      const stamp = new Date().toISOString();
+      await updateDoc(doc(db, "customers", projectId), {
+        collabInvitePendingTo: inviteTo,
+        collabInvitePendingBy: uid,
+        collabInvitePendingAt: stamp,
+        activityLog: withActivity(customer.activityLog, activityEntry({
+          type: "changed",
+          changes: [{ text: `Invited ${nameOf(inviteTo)} to collaborate` }],
+          by: uid,
+          byName: myName()
+        }))
+      });
+      await notifyUsers([inviteTo], {
+        type: "collab_invite_sent",
+        message: `${myName() || "Someone"} invited you to collaborate on "${jobTitle()}"`,
+        link: `/dashboard/project/${projectId}`
+      });
+      setInviteAsk(false);
+      setInviteTo("");
+      await loadProject(uid, role);
+    } catch (err) {
+      setInviteProblem(err.message || "Couldn't send the invite.");
+    } finally {
+      setInviteActionBusy(false);
+    }
+  };
+
+  const cancelInvite = async () => {
+    setInviteActionBusy(true);
+    try {
+      await updateDoc(doc(db, "customers", projectId), {
+        collabInvitePendingTo: null,
+        collabInvitePendingBy: null,
+        collabInvitePendingAt: null,
+        activityLog: withActivity(customer.activityLog, activityEntry({
+          type: "changed",
+          changes: [{ text: "Collaboration invite cancelled" }],
+          by: uid,
+          byName: myName()
+        }))
+      });
+      await loadProject(uid, role);
+    } finally {
+      setInviteActionBusy(false);
+    }
+  };
+
+  const acceptInvite = async () => {
+    setInviteActionBusy(true);
+    try {
+      const inviter = customer.collabInvitePendingBy;
+      await updateDoc(doc(db, "customers", projectId), {
+        collaboratorIds: arrayUnion(uid),
+        collabInvitePendingTo: null,
+        collabInvitePendingBy: null,
+        collabInvitePendingAt: null,
+        activityLog: withActivity(customer.activityLog, activityEntry({
+          type: "changed",
+          changes: [{ text: `Collaboration invite accepted by ${myName() || "someone"}` }],
+          by: uid,
+          byName: myName()
+        }))
+      });
+      if (inviter) {
+        await notifyUsers([inviter], {
+          type: "collab_invite_accepted",
+          message: `${myName() || "Someone"} accepted your invite to collaborate on "${jobTitle()}"`,
+          link: `/dashboard/project/${projectId}`
+        });
+      }
+      await loadProject(uid, role);
+    } finally {
+      setInviteActionBusy(false);
+    }
+  };
+
+  const declineInvite = async () => {
+    setInviteActionBusy(true);
+    try {
+      const inviter = customer.collabInvitePendingBy;
+      await updateDoc(doc(db, "customers", projectId), {
+        collabInvitePendingTo: null,
+        collabInvitePendingBy: null,
+        collabInvitePendingAt: null,
+        activityLog: withActivity(customer.activityLog, activityEntry({
+          type: "changed",
+          changes: [{ text: `Collaboration invite declined by ${myName() || "someone"}` }],
+          by: uid,
+          byName: myName()
+        }))
+      });
+      if (inviter) {
+        await notifyUsers([inviter], {
+          type: "collab_invite_declined",
+          message: `${myName() || "Someone"} declined your invite to collaborate on "${jobTitle()}"`,
+          link: `/dashboard/project/${projectId}`
+        });
+      }
+      await loadProject(uid, role);
+    } finally {
+      setInviteActionBusy(false);
+    }
+  };
+
   // An admin's own version: no asking, the project just moves. Full write
   // access already covers this -- no rule change needed, unlike the
   // request-and-accept path above.
@@ -994,7 +1129,7 @@ export default function ProjectDetail() {
         ownerId: reassignTo,
         activityLog: withActivity(customer.activityLog, activityEntry({
           type: "changed",
-          changes: [`Reassigned from ${nameOf(customer.ownerId)} to ${nameOf(reassignTo)} by ${myName()}`],
+          changes: [{ text: `Reassigned from ${nameOf(customer.ownerId)} to ${nameOf(reassignTo)} by ${myName()}` }],
           by: uid,
           byName: myName()
         }))
@@ -1018,7 +1153,7 @@ export default function ProjectDetail() {
         otherContractors: updated,
         activityLog: withActivity(customer.activityLog, activityEntry({
           type: "changed",
-          changes: [`Note updated for ${existing[noteContractorIndex]?.company || "a bidder"}`],
+          changes: [{ text: `Note updated for ${existing[noteContractorIndex]?.company || "a bidder"}` }],
           by: uid,
           byName: myName()
         }))
@@ -1251,39 +1386,71 @@ export default function ProjectDetail() {
                     {nextStageLabel(customer.category)}
                   </button>
                 )}
-                {(isOwner || isCollaborator) && <button className="btn btn-secondary" onClick={startEdit}>Edit</button>}
                 {(isOwner || isCollaborator) && normalizeCategory(customer.category) !== CLOSED && (
                   <button className="btn btn-secondary" onClick={() => { setFollowUpDate(""); setFollowUpAsk(true); }}>Follow Up</button>
                 )}
-                {/* Some jobs just die -- lost, shelved, gone quiet -- without
-                    working through every stage between here and Closed.
-                    This asks the same question the normal path to Closed
-                    does (why, and whether to follow up), it just doesn't
-                    require getting there one stage at a time first. */}
-                {(isOwner || isCollaborator) && normalizeCategory(customer.category) !== CLOSED && (
-                  <button className="btn btn-danger" onClick={() => setCloseAsk(true)}>Close Project</button>
-                )}
-                {/* Ownership itself -- unlike everything else here -- stays
-                    the owner's (or an admin's) call, not a collaborator's:
-                    handing the job to someone else is who-owns-it, not
-                    working on it. */}
-                {isOwner && (
-                  customer.transferPendingTo ? (
-                    <button className="btn btn-secondary" disabled={transferActionBusy} onClick={cancelTransfer}>Cancel Transfer Request</button>
-                  ) : (
-                    <button className="btn btn-secondary" onClick={() => { setTransferTo(""); setTransferProblem(""); setTransferAsk(true); }}>Transfer Ownership</button>
-                  )
-                )}
-                {role === "admin" && (
-                  <button className="btn btn-secondary" onClick={() => { setReassignTo(""); setReassignAsk(true); }}>Reassign Owner</button>
-                )}
-                {(isOwner || role === "admin") && (
-                  <DeleteRecordButton
-                    kind="project"
-                    id={projectId}
-                    name={customer.projectName || customer.company || "Untitled project"}
-                    onDeleted={() => router.push("/dashboard")}
-                  />
+                {(isOwner || isCollaborator) && <button className="btn btn-secondary" onClick={startEdit}>Edit</button>}
+                {/* Everything below here is reached less often than the
+                    three buttons above -- tucked into one menu so the bar
+                    doesn't grow a new button every time the project gains
+                    a new way to be acted on. */}
+                {(isOwner || isCollaborator || role === "admin") && (
+                  <div className="more-actions-menu" ref={moreMenuRef}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      aria-expanded={moreMenuOpen}
+                      onClick={() => setMoreMenuOpen(o => !o)}
+                    >
+                      More ▾
+                    </button>
+                    {moreMenuOpen && (
+                      <div className="tab-dropdown-menu-card more-actions-menu-card" onClick={() => setMoreMenuOpen(false)}>
+                        {/* Some jobs just die -- lost, shelved, gone quiet --
+                            without working through every stage between here
+                            and Closed. This asks the same question the normal
+                            path to Closed does (why, and whether to follow
+                            up), it just doesn't require getting there one
+                            stage at a time first. */}
+                        {(isOwner || isCollaborator) && normalizeCategory(customer.category) !== CLOSED && (
+                          <a className="tab-dropdown-item" onClick={() => setCloseAsk(true)}>Close Project</a>
+                        )}
+                        {/* Ownership itself -- unlike everything else here --
+                            stays the owner's (or an admin's) call, not a
+                            collaborator's: handing the job to someone else is
+                            who-owns-it, not working on it. */}
+                        {isOwner && (
+                          customer.transferPendingTo ? (
+                            <a className="tab-dropdown-item" onClick={cancelTransfer}>Cancel Transfer Request</a>
+                          ) : (
+                            <a className="tab-dropdown-item" onClick={() => { setTransferTo(""); setTransferProblem(""); setTransferAsk(true); }}>Transfer Ownership</a>
+                          )
+                        )}
+                        {/* Bringing someone else on, as opposed to handing
+                            the job over entirely -- open to anyone already
+                            on the project, same as Edit or Follow Up. */}
+                        {(isOwner || isCollaborator) && (
+                          customer.collabInvitePendingTo ? (
+                            <a className="tab-dropdown-item" onClick={cancelInvite}>Cancel Invite</a>
+                          ) : (
+                            <a className="tab-dropdown-item" onClick={() => { setInviteTo(""); setInviteProblem(""); setInviteAsk(true); }}>Invite Collaborator</a>
+                          )
+                        )}
+                        {role === "admin" && (
+                          <a className="tab-dropdown-item" onClick={() => { setReassignTo(""); setReassignAsk(true); }}>Reassign Owner</a>
+                        )}
+                        {(isOwner || role === "admin") && (
+                          <DeleteRecordButton
+                            kind="project"
+                            id={projectId}
+                            name={customer.projectName || customer.company || "Untitled project"}
+                            onDeleted={() => router.push("/dashboard")}
+                            className="tab-dropdown-item tab-dropdown-item-danger"
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -1308,6 +1475,22 @@ export default function ProjectDetail() {
                 </>
               ) : (
                 <span>⚠ Transfer requested to {nameOf(customer.transferPendingTo)}, waiting on them to accept.</span>
+              )}
+            </div>
+          )}
+
+          {customer.collabInvitePendingTo && (
+            <div className="review-banner" style={{ marginTop: 12 }}>
+              {isPendingInviteRecipient ? (
+                <>
+                  <span>⚠ {nameOf(customer.collabInvitePendingBy)} invited you to collaborate on this project.</span>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button type="button" className="btn btn-primary" disabled={inviteActionBusy} onClick={acceptInvite}>Accept</button>
+                    <button type="button" className="btn btn-secondary" disabled={inviteActionBusy} onClick={declineInvite}>Decline</button>
+                  </div>
+                </>
+              ) : (
+                <span>⚠ Invited {nameOf(customer.collabInvitePendingTo)} to collaborate, waiting on them to accept.</span>
               )}
             </div>
           )}
@@ -1598,7 +1781,7 @@ export default function ProjectDetail() {
                         className="link-muted matching-select-link"
                         onClick={() => router.push(`/dashboard/pipeline/${customer.sourcePipelineId || legacyBid.pipelineId}`)}
                       >
-                        the pipeline entry it was won from
+                        View the winning pipeline entry
                       </button>
                     </dd>
                   </>
@@ -1902,6 +2085,34 @@ export default function ProjectDetail() {
                 {transferActionBusy ? "Reassigning…" : "Reassign"}
               </button>
               <button className="btn btn-secondary" disabled={transferActionBusy} onClick={() => setReassignAsk(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {inviteAsk && (
+        <div className="modal-overlay" onClick={() => !inviteActionBusy && setInviteAsk(false)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+            {!inviteActionBusy && (
+              <button className="modal-close" onClick={() => setInviteAsk(false)} aria-label="Close">✕</button>
+            )}
+            <h3 className="modal-title">Invite a collaborator</h3>
+            <p className="modal-subtitle">
+              They&apos;ll get a notification and an email asking them to accept. They won&apos;t see this project until they do.
+            </p>
+            <SalespersonSelect
+              id="project-invite-to"
+              users={users.filter(u => !u.disabled && u.id !== customer.ownerId && !(customer.collaboratorIds || []).includes(u.id))}
+              label="Invite"
+              value={inviteTo}
+              onChange={setInviteTo}
+            />
+            {inviteProblem && <p className="settings-status is-error">⚠ {inviteProblem}</p>}
+            <div className="modal-actions">
+              <button className="btn btn-primary" disabled={inviteActionBusy || !inviteTo} onClick={inviteCollaborator}>
+                {inviteActionBusy ? "Sending…" : "Send Invite"}
+              </button>
+              <button className="btn btn-secondary" disabled={inviteActionBusy} onClick={() => setInviteAsk(false)}>Cancel</button>
             </div>
           </div>
         </div>

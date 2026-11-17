@@ -654,7 +654,7 @@ export default function PipelineDetail() {
       nextCheckIn: date,
       activityLog: withActivity(pipeline.activityLog, activityEntry({
         type: "changed",
-        changes: [`Follow-up moved to ${date}`],
+        changes: [{ text: `Follow-up moved to ${date}` }],
         by: uid,
         byName: myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown")
       }))
@@ -690,7 +690,7 @@ export default function PipelineDetail() {
         biddingCompanies: merged,
         activityLog: withActivity(pipeline.activityLog, activityEntry({
           type: "changed",
-          changes: [`${added.map(b => b.company).join(", ")} added as a bidder`],
+          changes: [{ text: `${added.map(b => b.company).join(", ")} added as a bidder` }],
           by: uid,
           byName: byName()
         }))
@@ -732,7 +732,7 @@ export default function PipelineDetail() {
         biddingCompanies: updated,
         activityLog: withActivity(pipeline.activityLog, activityEntry({
           type: "changed",
-          changes: [`Note updated for ${noteBidderCompany}`],
+          changes: [{ text: `Note updated for ${noteBidderCompany}` }],
           by: uid,
           byName: byName()
         }))

@@ -178,6 +178,27 @@ service cloud.firestore {
             )
           )
         ) ||
+        // A pending collaboration invite: only the named invitee can act
+        // on it, and only by accepting (joining collaboratorIds) or
+        // declining (clearing the invite) -- same shape as the transfer
+        // carve-out above, so accepting can't double as a way to edit the
+        // job too.
+        (
+          resource.data.get('collabInvitePendingTo', null) == request.auth.uid &&
+          request.resource.data.get('collabInvitePendingTo', null) == null &&
+          (
+            (
+              request.auth.uid in request.resource.data.get('collaboratorIds', []) &&
+              request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['collaboratorIds', 'collabInvitePendingTo', 'collabInvitePendingBy', 'collabInvitePendingAt', 'activityLog'])
+            ) ||
+            (
+              !(request.auth.uid in request.resource.data.get('collaboratorIds', [])) &&
+              request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['collabInvitePendingTo', 'collabInvitePendingBy', 'collabInvitePendingAt', 'activityLog'])
+            )
+          )
+        ) ||
         // Project Scheduling is the whole company's board, so anyone can
         // put labour against any job -- but ONLY the labour. Every other
         // field on someone else's project stays theirs, and their private

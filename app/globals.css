@@ -1558,6 +1558,32 @@ a {
   background: #f0f2f6;
 }
 
+.tab-dropdown-item-danger {
+  color: var(--color-danger);
+}
+
+button.tab-dropdown-item {
+  width: 100%;
+  background: none;
+  border: none;
+  font-family: inherit;
+  text-align: left;
+}
+
+.more-actions-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.more-actions-menu-card {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+  z-index: 30;
+  text-align: left;
+}
+
 /* ---------- home calendar ---------- */
 
 .home-layout {
