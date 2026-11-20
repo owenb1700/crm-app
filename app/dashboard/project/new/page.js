@@ -31,6 +31,7 @@ import useLeaveGuard from "../../../components/useLeaveGuard";
 import { PROJECT_CATEGORIES as CATEGORY_OPTIONS } from "../../../../lib/projectCategories";
 import PageLoading from "../../../components/PageLoading";
 import BackButton from "../../../components/BackButton";
+import { dropCurrentFromTrail } from "../../../../lib/navHistory";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
@@ -412,6 +413,10 @@ export default function NewProject() {
         });
       }
 
+      // Once it's saved, this form is done -- Back from the new project
+      // should return to wherever it was opened from, not reopen a blank
+      // Add Project form.
+      dropCurrentFromTrail();
       router.push(`/dashboard/project/${ref.id}`);
     } finally {
       setSaving(false);

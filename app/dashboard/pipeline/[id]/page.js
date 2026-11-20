@@ -57,6 +57,8 @@ import { DID_NOT_BID_REASONS, OTHER, didNotBidReason, didNotBidProblem } from ".
 import { UNDER_CONTRACT } from "../../../../lib/projectCategories";
 import PageLoading from "../../../components/PageLoading";
 import BackButton from "../../../components/BackButton";
+import { rememberIntendedPath } from "../../../../lib/postLoginRedirect";
+import ShareLinkButton from "../../../components/ShareLinkButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -241,6 +243,7 @@ export default function PipelineDetail() {
       if (!user || !loginTimestamp || elapsed > SESSION_LENGTH_MS) {
         clearSession();
         signOut(auth);
+        rememberIntendedPath();
         router.push("/");
         return;
       }
@@ -248,6 +251,7 @@ export default function PipelineDetail() {
       timer = setTimeout(() => {
         clearSession();
         signOut(auth);
+        rememberIntendedPath();
         router.push("/");
       }, SESSION_LENGTH_MS - elapsed);
 
@@ -1108,6 +1112,7 @@ export default function PipelineDetail() {
                   </button>
                 )}
                 <button className="btn btn-secondary" onClick={startEdit}>Edit</button>
+                <ShareLinkButton />
                 {canDelete && (
                   <DeleteRecordButton
                     kind="pipeline"
@@ -1565,7 +1570,12 @@ export default function PipelineDetail() {
               {pipeline.title} — due {pipeline.nextCheckIn ? String(pipeline.nextCheckIn).slice(0, 10) : "no date yet"}.
             </p>
 
-            <button className="btn btn-primary btn-block" onClick={followUpTwoWeeks}>
+            {/* Picking a custom date is a choice away from the 2-week
+                default -- so once one is picked, this button hands the
+                primary color to the one that actually matches what's
+                about to happen, rather than leaving the un-chosen default
+                looking like the one to press. */}
+            <button className={followUpDate ? "btn btn-secondary btn-block" : "btn btn-primary btn-block"} onClick={followUpTwoWeeks}>
               Follow Up in 2 Weeks
             </button>
 
@@ -1580,7 +1590,7 @@ export default function PipelineDetail() {
                 onChange={e => setFollowUpDate(e.target.value)}
               />
               <button
-                className="btn btn-secondary"
+                className={followUpDate ? "btn btn-primary" : "btn btn-secondary"}
                 disabled={!followUpDate}
                 onClick={() => followUpTo(followUpDate)}
               >

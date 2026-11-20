@@ -5,6 +5,7 @@ import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { getDeviceId } from "../lib/deviceId";
+import { takeIntendedPath } from "../lib/postLoginRedirect";
 import { useRouter } from "next/navigation";
 
 // Shop-floor shots (robot arm, CNC, machinery hall) dropped 2026-10-21 --
@@ -64,7 +65,11 @@ export default function Login() {
 
   const finish = () => {
     localStorage.setItem("loginTimestamp", String(Date.now()));
-    router.push("/dashboard");
+    // A shared link that bounced someone here to sign in first lands them
+    // back on the record they were actually sent, not the generic
+    // dashboard -- otherwise the link only works for as long as a
+    // session happens to already be alive.
+    router.push(takeIntendedPath() || "/dashboard");
   };
 
   // Admins on a device that hasn't passed a code in the last 30 days get

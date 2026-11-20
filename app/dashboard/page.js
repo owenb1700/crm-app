@@ -3922,7 +3922,12 @@ export default function Dashboard() {
               {followUpFor.projectName || followUpFor.company} — due {String(formatDate(followUpFor.nextCheckIn) || "").slice(0, 10) || "no date yet"}.
             </p>
 
-            <button className="btn btn-primary btn-block" onClick={() => followUpAWeek(followUpFor)}>
+            {/* Picking a custom date is a choice away from the 1-week
+                default -- so once one is picked, this button hands the
+                primary color to the one that actually matches what's
+                about to happen, rather than leaving the un-chosen default
+                looking like the one to press. */}
+            <button className={followUpDate ? "btn btn-secondary btn-block" : "btn btn-primary btn-block"} onClick={() => followUpAWeek(followUpFor)}>
               Push Out A Week
             </button>
 
@@ -3938,7 +3943,7 @@ export default function Dashboard() {
                 onChange={e => setFollowUpDate(e.target.value)}
               />
               <button
-                className="btn btn-secondary"
+                className={followUpDate ? "btn btn-primary" : "btn btn-secondary"}
                 disabled={!followUpDate}
                 onClick={() => followUpTo(followUpFor, followUpDate)}
               >
@@ -3958,7 +3963,12 @@ export default function Dashboard() {
               {followUpPipelineFor.title} — due {String(formatDate(followUpPipelineFor.nextCheckIn) || "").slice(0, 10) || "no date yet"}.
             </p>
 
-            <button className="btn btn-primary btn-block" onClick={() => followUpPipelineTwoWeeks(followUpPipelineFor)}>
+            {/* Picking a custom date is a choice away from the 2-week
+                default -- so once one is picked, this button hands the
+                primary color to the one that actually matches what's
+                about to happen, rather than leaving the un-chosen default
+                looking like the one to press. */}
+            <button className={followUpPipelineDate ? "btn btn-secondary btn-block" : "btn btn-primary btn-block"} onClick={() => followUpPipelineTwoWeeks(followUpPipelineFor)}>
               Follow Up in 2 Weeks
             </button>
 
@@ -3974,7 +3984,7 @@ export default function Dashboard() {
                 onChange={e => setFollowUpPipelineDate(e.target.value)}
               />
               <button
-                className="btn btn-secondary"
+                className={followUpPipelineDate ? "btn btn-primary" : "btn btn-secondary"}
                 disabled={!followUpPipelineDate}
                 onClick={() => followUpPipelineTo(followUpPipelineFor, followUpPipelineDate)}
               >

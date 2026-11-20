@@ -20,6 +20,8 @@ import ConfirmDialog from "../../../components/ConfirmDialog";
 import useUnsavedGuard from "../../../components/useUnsavedGuard";
 import PageLoading from "../../../components/PageLoading";
 import BackButton from "../../../components/BackButton";
+import { rememberIntendedPath } from "../../../../lib/postLoginRedirect";
+import ShareLinkButton from "../../../components/ShareLinkButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -81,12 +83,14 @@ function PartPageContent() {
       if (!user || !loginTimestamp || elapsed > SESSION_LENGTH_MS) {
         clearSession();
         signOut(auth);
+        rememberIntendedPath();
         router.push("/");
         return;
       }
       timer = setTimeout(() => {
         clearSession();
         signOut(auth);
+        rememberIntendedPath();
         router.push("/");
       }, SESSION_LENGTH_MS - elapsed);
       setUid(user.uid);
@@ -280,6 +284,7 @@ function PartPageContent() {
                   <button className="btn btn-secondary btn-small" onClick={() => setStageMove(CLOSED_STAGE)}>Close</button>
                 )}
                 <button className="btn btn-secondary btn-small" onClick={startEdit}>Edit</button>
+                <ShareLinkButton className="btn btn-secondary btn-small" />
                 {canDelete && <button className="btn btn-secondary btn-small" onClick={() => setConfirmDelete(true)}>Delete</button>}
               </div>
             )}

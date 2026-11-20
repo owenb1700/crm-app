@@ -31,6 +31,7 @@ import useLeaveGuard from "../../../components/useLeaveGuard";
 import { PIPELINE_STAGES as PIPELINE_STAGE_OPTIONS, PRE_BID } from "../../../../lib/pipelineStages";
 import PageLoading from "../../../components/PageLoading";
 import BackButton from "../../../components/BackButton";
+import { dropCurrentFromTrail } from "../../../../lib/navHistory";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -277,7 +278,9 @@ export default function NewPipelineEntry() {
       // Land on the entry that was just made, the way Add Project does.
       // A toast on a list you have to find the row in tells you it worked;
       // the entry itself shows you what was actually saved, and going back
-      // to the list is one click whenever you want it.
+      // to the list is one click whenever you want it -- to the list it
+      // was opened from, not back to this now-blank form.
+      dropCurrentFromTrail();
       router.replace(`/dashboard/pipeline/${ref.id}`);
     } finally {
       setSaving(false);
