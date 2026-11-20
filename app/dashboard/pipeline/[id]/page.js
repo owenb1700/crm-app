@@ -48,6 +48,7 @@ import PhotoGallery from "../../../components/PhotoGallery";
 import { FirmSelect } from "../../../components/DirectoryPickers";
 import { sameCompany } from "../../../../lib/companyMatch";
 import CreditSplitEditor from "../../../components/CreditSplitEditor";
+import SalespersonSelect from "../../../components/SalespersonSelect";
 import { describeSplit, normalizeSplits, splitError, withSplitMembers } from "../../../../lib/splits";
 import Icon from "../../../components/Icon";
 import ConfirmDialog from "../../../components/ConfirmDialog";
@@ -159,6 +160,13 @@ export default function PipelineDetail() {
   const [convertProjectAddress, setConvertProjectAddress] = useState("");
   const [convertData, setConvertData] = useState({});
   const [converting, setConverting] = useState(false);
+  // Who the resulting project belongs to -- blank on purpose every time a
+  // conversion starts, Won or otherwise, rather than quietly carrying over
+  // whoever happened to be on the pipeline entry. Someone has to actually
+  // pick, the same way Transfer/Reassign/Invite already force a pick
+  // rather than assume one.
+  const [convertSalespersonId, setConvertSalespersonId] = useState("");
+  const [convertSplits, setConvertSplits] = useState([]);
 
   const formatPhone = (phone) => {
     if (!phone) return "";
@@ -598,6 +606,9 @@ export default function PipelineDetail() {
     setWonProblem("");
     if (!wonContractor.trim()) return setWonProblem("Select which of the bidders won the job.");
     if (!wonNextDate) return setWonProblem("Pick a next check-in date for the new project.");
+    if (!convertSalespersonId) return setWonProblem("Pick who this project is assigned to.");
+    const splitProblem = splitError(convertSplits);
+    if (splitProblem) return setWonProblem(splitProblem);
 
     setMarkingWon(true);
     try {
@@ -618,7 +629,9 @@ export default function PipelineDetail() {
       await createProjectFromEntry({
         data: convertDataFor(wonContractor.trim()),
         projectAddress: pipeline.projectAddress || "",
-        nextDate: wonNextDate
+        nextDate: wonNextDate,
+        salespersonId: convertSalespersonId,
+        splits: convertSplits
       });
     } catch (err) {
       // The entry is already marked won at this point. Saying so matters:
@@ -780,7 +793,6 @@ export default function PipelineDetail() {
     );
     const winnerContact = contactsOf(winner)[0] || {};
     return {
-      salespersonId: pipeline.salespersonId || pipeline.ownerId || "",
       companyCategory: firmTypeOf(winner?.category),
       company: winner?.company || winnerName,
       contact: winnerContact.name || "",
@@ -795,6 +807,8 @@ export default function PipelineDetail() {
     setConvertData(convertDataFor(wonBy));
     setConvertProjectAddress(pipeline.projectAddress || "");
     setConvertNextDate("");
+    setConvertSalespersonId("");
+    setConvertSplits([]);
     setShowConvertModal(true);
   };
 
@@ -808,13 +822,21 @@ export default function PipelineDetail() {
     if (!convertNextDate) {
       return setConvertProblem("Fill in: Next Check-In Date.");
     }
+    if (!convertSalespersonId) {
+      return setConvertProblem("Pick who this project is assigned to.");
+    }
+    const splitProblem = splitError(convertSplits);
+    if (splitProblem) return setConvertProblem(splitProblem);
+
     setConvertProblem("");
     setConverting(true);
     try {
       await createProjectFromEntry({
         data: convertData,
         projectAddress: convertProjectAddress,
-        nextDate: convertNextDate
+        nextDate: convertNextDate,
+        salespersonId: convertSalespersonId,
+        splits: convertSplits
       });
     } catch (err) {
       setConvertProblem(`Couldn't create the project: ${err.message}`);
@@ -824,7 +846,7 @@ export default function PipelineDetail() {
 
   // Makes the project and ties the entry to it. Throws on failure so each
   // caller can say so in its own dialog.
-  const createProjectFromEntry = async ({ data, projectAddress, nextDate }) => {
+  const createProjectFromEntry = async ({ data, projectAddress, nextDate, salespersonId, splits }) => {
     {
       const now = new Date().toISOString();
       const myName = myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : (auth.currentUser?.email || "Unknown");
@@ -854,9 +876,9 @@ export default function PipelineDetail() {
         nextCheckIn: nextDate,
         lastContact: now.split("T")[0],
         activityLog: [{ type: "converted", outcome: "From won pipeline entry", notes: `Converted by ${myName}`, timestamp: now }],
-        ownerId: data.salespersonId,
-        splits: normalizeSplits(pipeline.splits),
-        collaboratorIds: withSplitMembers([], pipeline.splits, data.salespersonId),
+        ownerId: salespersonId,
+        splits: normalizeSplits(splits),
+        collaboratorIds: withSplitMembers([], splits, salespersonId),
         projectPointPersonId: pipeline.projectPointPersonId || null,
         // The lead time and its dates follow the work across.
         leadTime: pipeline.leadTime || null,
@@ -994,7 +1016,7 @@ export default function PipelineDetail() {
           </p>
           {canEdit && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button className="btn btn-primary" onClick={() => { setWonNextDate(postBidCheckIn()); setShowWonModal(true); }}>Mark Won</button>
+              <button className="btn btn-primary" onClick={() => { setWonNextDate(postBidCheckIn()); setConvertSalespersonId(""); setConvertSplits([]); setShowWonModal(true); }}>Mark Won</button>
               <button className="btn btn-danger" onClick={() => { setDnbChoice(""); setLostReason(""); setLostProblem(""); setLostModalOutcome("Lost"); }}>Mark Lost</button>
               <button className="btn btn-secondary" onClick={() => { setFollowUpDate(""); setFollowUpAsk(true); }}>Follow Up</button>
             </div>
@@ -1630,6 +1652,27 @@ export default function PipelineDetail() {
               </select>
             )}
 
+            <div style={{ marginTop: 16 }}>
+              <SalespersonSelect
+                id="won-assign-to"
+                label="Assign the new project to"
+                users={users.filter(u => !u.disabled)}
+                value={convertSalespersonId}
+                onChange={setConvertSalespersonId}
+              />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Share with someone else too (optional)</label>
+              <CreditSplitEditor
+                idPrefix="won-split"
+                users={users}
+                value={convertSplits}
+                onChange={setConvertSplits}
+                ownerId={convertSalespersonId}
+                ownerLabel="the assignee"
+              />
+            </div>
+
             {/* Only asked when the entry doesn't already carry them --
                 there's no sense making someone retype a lead time they
                 put on at quote time. */}
@@ -1676,7 +1719,7 @@ export default function PipelineDetail() {
             <button
               className="btn btn-primary btn-block"
               style={{ marginTop: 12 }}
-              disabled={!wonContractor || !wonNextDate || markingWon}
+              disabled={!wonContractor || !wonNextDate || !convertSalespersonId || markingWon}
               onClick={confirmMarkWon}
             >
               {markingWon ? "Creating the project…" : "Mark won — make it a project"}
@@ -1783,20 +1826,42 @@ export default function PipelineDetail() {
                   <div className="private-note-hint">{[convertData.email, convertData.phone].filter(Boolean).join(" · ")}</div>
                 )}
               </dd>
-              <dt>Salesperson</dt>
-              <dd>{ownerLabel(convertData.salespersonId) || "—"}</dd>
               <dt>Sector</dt><dd>{convertData.buildingSector || "—"}</dd>
               <dt>Work type</dt><dd>{convertData.workType || "—"}</dd>
               <dt>Address</dt><dd>{convertProjectAddress || "—"}</dd>
             </dl>
 
-            {/* One field. Everything else came off the entry -- the
-                winning bidder is the firm and the contact, the address,
-                sector and work type are the entry's own. Anything thin
-                gets fixed on the project afterwards; asking here just
-                invited someone to type something different from what
-                they had already recorded. */}
+            {/* Who it belongs to isn't something to carry over quietly --
+                picked fresh every time, the same as everything below. */}
             <div>
+              <SalespersonSelect
+                id="convert-assign-to"
+                label="Assign the new project to"
+                users={users.filter(u => !u.disabled)}
+                value={convertSalespersonId}
+                onChange={setConvertSalespersonId}
+              />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="field-label">Share with someone else too (optional)</label>
+              <CreditSplitEditor
+                idPrefix="convert-split"
+                users={users}
+                value={convertSplits}
+                onChange={setConvertSplits}
+                ownerId={convertSalespersonId}
+                ownerLabel="the assignee"
+              />
+            </div>
+
+            {/* The date is the other thing nobody can work out from the
+                entry. Everything else came off the entry -- the winning
+                bidder is the firm and the contact, the address, sector
+                and work type are the entry's own. Anything thin gets
+                fixed on the project afterwards; asking here just invited
+                someone to type something different from what they had
+                already recorded. */}
+            <div style={{ marginTop: 12 }}>
               <label className="field-label" htmlFor="convert-next-date">Next check-in date</label>
               <input id="convert-next-date" className="field" type="date" value={convertNextDate} onChange={e => setConvertNextDate(e.target.value)} />
               <p className="private-note-hint">When it should come back round on your schedule. Everything else is editable on the project.</p>
@@ -1804,7 +1869,7 @@ export default function PipelineDetail() {
 
             {convertProblem && <p className="settings-status is-error">⚠ {convertProblem}</p>}
             <div className="modal-actions">
-              <button className="btn btn-primary" disabled={converting || !convertNextDate} onClick={convertToProject}>{converting ? "Creating…" : "Create Project"}</button>
+              <button className="btn btn-primary" disabled={converting || !convertNextDate || !convertSalespersonId} onClick={convertToProject}>{converting ? "Creating…" : "Create Project"}</button>
               <button className="btn btn-secondary" onClick={() => setShowConvertModal(false)}>Cancel</button>
             </div>
           </div>
