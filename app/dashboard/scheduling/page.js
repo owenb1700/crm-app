@@ -23,6 +23,7 @@ import ConfirmDialog from "../../components/ConfirmDialog";
 import useUnsavedGuard from "../../components/useUnsavedGuard";
 import JobPicker from "../../components/JobPicker";
 import { CREW_COLLECTION, crewNames, crewForStorage, crewError, peopleOn, crewTitles, crewLabel, titleOf } from "../../../lib/crew";
+import BackButton from "../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -307,7 +308,7 @@ function SchedulingPageContent() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn&apos;t load the schedule</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" />
         </div>
       </div>
     );
@@ -325,7 +326,7 @@ function SchedulingPageContent() {
           <h1 className="dashboard-title">Project Scheduling</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>

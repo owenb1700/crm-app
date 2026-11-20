@@ -64,6 +64,7 @@ import { completedPayload, isOpen, doneOnly } from "../../lib/reminders";
 import { PRE_BID, BIDS_SENT, normalizeCategory, nextStage, nextStageLabel, stageNeedsInput } from "../../lib/projectCategories";
 import { normalizeStage, nextPipelineStep, nextPipelineStepLabel, pipelineStepNeedsInput, groupByBid,
   movedToPostBid, postBidCheckIn, bidGroupOf, AFTER_BID, POST_BID } from "../../lib/pipelineStages";
+import PageLoading from "../components/PageLoading";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -2439,7 +2440,7 @@ export default function Dashboard() {
   }
 
   if (!role) {
-    return <div className="dashboard-page">Loading...</div>;
+    return <PageLoading />;
   }
 
   if (needsName) {

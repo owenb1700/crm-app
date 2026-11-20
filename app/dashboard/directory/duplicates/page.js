@@ -13,6 +13,8 @@ import { emailsOf, phonesOf } from "../../../../lib/directoryConflicts";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
 import ConfirmDialog from "../../../components/ConfirmDialog";
+import PageLoading from "../../../components/PageLoading";
+import BackButton from "../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -186,7 +188,7 @@ export default function FindDuplicates() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Admins only</h3>
           <p className="modal-subtitle">Only an admin can find and merge duplicates.</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory")}>Back to Directory</button>
+          <BackButton fallback="/dashboard/directory" fallbackLabel="Directory" />
         </div>
       </div>
     );
@@ -201,7 +203,7 @@ export default function FindDuplicates() {
       </div>
     );
   }
-  if (allowed === null) return <div className="dashboard-page">Loading...</div>;
+  if (allowed === null) return <PageLoading />;
 
   const renderGroup = (group, kind) => {
     const gid = idOfGroup(group, kind);
@@ -318,7 +320,7 @@ export default function FindDuplicates() {
           <h1 className="dashboard-title">Find Duplicates</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory")}>← Back to Directory</button>
+          <BackButton fallback="/dashboard/directory" fallbackLabel="Directory" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>

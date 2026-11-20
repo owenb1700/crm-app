@@ -19,6 +19,8 @@ import MobileNav from "../../components/MobileNav";
 import ViewTabs from "../../components/ViewTabs";
 import { withoutTrashed } from "../../../lib/trash";
 import { performanceByManufacturer, describeVariance } from "../../../lib/leadTimePerformance";
+import PageLoading from "../../components/PageLoading";
+import BackButton from "../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -564,7 +566,7 @@ function AnalyticsPageContent() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load analytics</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" />
         </div>
       </div>
     );
@@ -576,7 +578,7 @@ function AnalyticsPageContent() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">No access to Analytics</h3>
           <p className="modal-subtitle">Estimating Analytics is available to the Estimating Department and admins. Ask an admin to turn it on for your account.</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" />
         </div>
       </div>
     );
@@ -593,7 +595,7 @@ function AnalyticsPageContent() {
         <h1 className="dashboard-title">{title}</h1>
       </div>
       <div className="dashboard-header-actions">
-        <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
+        <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" arrow />
         <DashboardHeader uid={uid} />
       </div>
     </div>
@@ -909,7 +911,7 @@ function AnalyticsPageContent() {
 
 export default function AnalyticsPage() {
   return (
-    <Suspense fallback={<div className="dashboard-page">Loading...</div>}>
+    <Suspense fallback={<PageLoading />}>
       <AnalyticsPageContent />
     </Suspense>
   );

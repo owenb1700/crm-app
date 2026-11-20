@@ -18,6 +18,8 @@ import RecordNotes from "../../../components/RecordNotes";
 import PartMyAlerts from "../../../components/PartMyAlerts";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import useUnsavedGuard from "../../../components/useUnsavedGuard";
+import PageLoading from "../../../components/PageLoading";
+import BackButton from "../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -223,7 +225,7 @@ function PartPageContent() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn&apos;t load this parts request</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/parts")}>Back to Parts</button>
+          <BackButton fallback="/dashboard/parts" fallbackLabel="Parts" />
         </div>
       </div>
     );
@@ -234,12 +236,12 @@ function PartPageContent() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Parts request not found</h3>
           <p className="modal-subtitle">It may have been deleted.</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/parts")}>Back to Parts</button>
+          <BackButton fallback="/dashboard/parts" fallbackLabel="Parts" />
         </div>
       </div>
     );
   }
-  if (!loaded || !part) return <div className="dashboard-page">Loading...</div>;
+  if (!loaded || !part) return <PageLoading />;
 
   const canDelete = part.ownerId === uid || role === "admin";
   const history = [...(part.log || [])].reverse();
@@ -256,7 +258,7 @@ function PartPageContent() {
           </div>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/parts")}>← Back to Parts</button>
+          <BackButton fallback="/dashboard/parts" fallbackLabel="Parts" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>
@@ -395,7 +397,7 @@ function PartPageContent() {
 
 export default function PartPage() {
   return (
-    <Suspense fallback={<div className="dashboard-page">Loading...</div>}>
+    <Suspense fallback={<PageLoading />}>
       <PartPageContent />
     </Suspense>
   );

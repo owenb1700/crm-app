@@ -1,11 +1,15 @@
 :root {
-  --color-bg: #f4f6f9;
+  /* Everything here is pulled toward the navy in the header (#0d1424) so
+     the page reads as one palette rather than a dark bar sitting on top of
+     a separate grey app: the greys are cool rather than neutral, and the
+     blue is deepened off the default-bright end of the spectrum. */
+  --color-bg: #eef1f6;
   --color-surface: #ffffff;
-  --color-border: #e2e6ec;
-  --color-text: #1a2233;
-  --color-text-muted: #6b7280;
-  --color-primary: #2f5bea;
-  --color-primary-hover: #2447c0;
+  --color-border: #dce1ea;
+  --color-text: #121a2b;
+  --color-text-muted: #64708a;
+  --color-primary: #2b4bbd;
+  --color-primary-hover: #223d9c;
   --color-danger: #e0433a;
   --color-danger-bg: #fdecea;
   --color-warning: #f1c40f;
@@ -27,7 +31,9 @@
      8 - 2 = 6 above) so it can never land on a neighbour. */
   --shadow-card-hover: 0 2px 8px rgba(16, 24, 40, 0.13);
   --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.18);
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  /* Inter, loaded by next/font in layout.js. The system stack stays behind
+     it as the fallback for the moment before the webfont lands. */
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 * {
@@ -166,6 +172,9 @@ a {
   border-radius: var(--radius);
   border: 1px solid transparent;
   cursor: pointer;
+  /* A link wearing .btn is still a link, and would otherwise come with an
+     underline through the middle of the button. */
+  text-decoration: none;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.05s ease;
 }
 
@@ -5206,4 +5215,72 @@ textarea.field-needs-value:focus {
   .new-entry-actions .btn {
     flex: 1;
   }
+}
+
+/* ---------- whole-page loading ---------- */
+
+.page-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.page-loading-spinner {
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: var(--radius-pill);
+  animation: page-loading-spin 0.7s linear infinite;
+}
+
+@keyframes page-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* A spinner that can't spin still has to read as "working", so it keeps
+   the two-tone ring and just stops moving. */
+@media (prefers-reduced-motion: reduce) {
+  .page-loading-spinner {
+    animation: none;
+  }
+}
+
+/* ---------- 404 ---------- */
+
+.not-found-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+}
+
+.not-found-card {
+  max-width: 420px;
+  text-align: center;
+}
+
+.not-found-logo {
+  height: 34px;
+  width: auto;
+  margin-bottom: 18px;
+  /* The mark is drawn for the navy header, so it needs inverting to sit
+     on a white card. */
+  filter: invert(1);
+  opacity: 0.85;
+}
+
+.not-found-title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 650;
+  color: var(--color-text);
+}
+
+.not-found-text {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
 }

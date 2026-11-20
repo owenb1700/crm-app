@@ -16,6 +16,8 @@ import MobileNav from "../../../components/MobileNav";
 import ExportButtons from "../../../components/ExportButtons";
 import SortPicker from "../../../components/SortPicker";
 import { sortRows } from "../../../../lib/sorting";
+import PageLoading from "../../../components/PageLoading";
+import BackButton from "../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -131,7 +133,7 @@ function AddressesPageContent() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn&apos;t load addresses</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory")}>Back to Directory</button>
+          <BackButton fallback="/dashboard/directory" fallbackLabel="Directory" />
         </div>
       </div>
     );
@@ -146,7 +148,7 @@ function AddressesPageContent() {
           <h1 className="dashboard-title">Project Addresses</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory")}>← Back to Directory</button>
+          <BackButton fallback="/dashboard/directory" fallbackLabel="Directory" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>
@@ -269,7 +271,7 @@ function AddressesPageContent() {
 
 export default function AddressesPage() {
   return (
-    <Suspense fallback={<div className="dashboard-page">Loading...</div>}>
+    <Suspense fallback={<PageLoading />}>
       <AddressesPageContent />
     </Suspense>
   );

@@ -9,6 +9,8 @@ import { PRODUCT_TYPES, PRODUCT_MANUFACTURERS } from "../../../../../lib/product
 import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
+import PageLoading from "../../../../components/PageLoading";
+import BackButton from "../../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -158,7 +160,7 @@ export default function ProductDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load this product</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/products")}>Back to Product Options</button>
+          <BackButton fallback="/dashboard/directory/products" fallbackLabel="Product Options" />
         </div>
       </div>
     );
@@ -169,14 +171,14 @@ export default function ProductDetail() {
       <div className="dashboard-page">
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Product not found</h3>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/products")}>Back to Product Options</button>
+          <BackButton fallback="/dashboard/directory/products" fallbackLabel="Product Options" />
         </div>
       </div>
     );
   }
 
   if (!product || !role) {
-    return <div className="dashboard-page">Loading...</div>;
+    return <PageLoading />;
   }
 
   return (
@@ -188,7 +190,7 @@ export default function ProductDetail() {
           <h1 className="dashboard-title">Product</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/products")}>← Back to Product Options</button>
+          <BackButton fallback="/dashboard/directory/products" fallbackLabel="Product Options" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>

@@ -29,6 +29,8 @@ import { normalizeSplits, splitError, withSplitMembers } from "../../../../lib/s
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import useLeaveGuard from "../../../components/useLeaveGuard";
 import { PROJECT_CATEGORIES as CATEGORY_OPTIONS } from "../../../../lib/projectCategories";
+import PageLoading from "../../../components/PageLoading";
+import BackButton from "../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 // Parts moved to their own tab (/dashboard/parts), so they're no longer
@@ -422,14 +424,14 @@ export default function NewProject() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load this page</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" />
         </div>
       </div>
     );
   }
 
   if (!loaded) {
-    return <div className="dashboard-page">Loading...</div>;
+    return <PageLoading />;
   }
 
   return (

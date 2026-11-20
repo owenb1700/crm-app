@@ -19,6 +19,8 @@ import { withoutTrashed } from "../../../lib/trash";
 import { claimCompany } from "../../../lib/directory";
 import { sameCompany, findSimilarCompanies, groupSimilarCompanies, groupSimilarPeople, groupIdOf } from "../../../lib/companyMatch";
 import { companyConflicts, personConflicts } from "../../../lib/directoryConflicts";
+import PageLoading from "../../components/PageLoading";
+import BackButton from "../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const PAGE_SIZE = 50;
@@ -252,14 +254,14 @@ function DirectoryPageContent() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load the directory</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" />
         </div>
       </div>
     );
   }
 
   if (!loaded) {
-    return <div className="dashboard-page">Loading...</div>;
+    return <PageLoading />;
   }
 
   const title = categoryFilter === "all" ? "All Companies" : (CATEGORY_TITLES[categoryFilter] || categoryFilter);
@@ -273,7 +275,7 @@ function DirectoryPageContent() {
           <h1 className="dashboard-title">Directory — {title}</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>
@@ -427,7 +429,7 @@ function DirectoryPageContent() {
 
 export default function DirectoryPage() {
   return (
-    <Suspense fallback={<div className="dashboard-page">Loading...</div>}>
+    <Suspense fallback={<PageLoading />}>
       <DirectoryPageContent />
     </Suspense>
   );

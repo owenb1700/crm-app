@@ -17,6 +17,8 @@ import MobileNav from "../../components/MobileNav";
 import { withoutTrashed } from "../../../lib/trash";
 import Icon from "../../components/Icon";
 import { normalizeStage } from "../../../lib/pipelineStages";
+import PageLoading from "../../components/PageLoading";
+import BackButton from "../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -196,14 +198,14 @@ function SearchPageContent() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load search results</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" />
         </div>
       </div>
     );
   }
 
   if (!loaded) {
-    return <div className="dashboard-page">Loading...</div>;
+    return <PageLoading />;
   }
 
   const Section = ({ title, items, render }) => items.length === 0 ? null : (
@@ -222,7 +224,7 @@ function SearchPageContent() {
           <h1 className="dashboard-title">Search</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>
@@ -411,7 +413,7 @@ function SearchPageContent() {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="dashboard-page">Loading...</div>}>
+    <Suspense fallback={<PageLoading />}>
       <SearchPageContent />
     </Suspense>
   );

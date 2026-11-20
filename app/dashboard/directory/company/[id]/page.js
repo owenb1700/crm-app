@@ -32,6 +32,8 @@ import { sortRows } from "../../../../../lib/sorting";
 import SortableHeader from "../../../../components/SortableHeader";
 import { addressKey } from "../../../../../lib/addresses";
 import { withDollar } from "../../../../../lib/analytics";
+import PageLoading from "../../../../components/PageLoading";
+import BackButton from "../../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -496,7 +498,7 @@ export default function CompanyDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load this company</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" />
         </div>
       </div>
     );
@@ -523,14 +525,14 @@ export default function CompanyDetail() {
       <div className="dashboard-page">
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Company not found</h3>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory")}>Back to Directory</button>
+          <BackButton fallback="/dashboard/directory" fallbackLabel="Directory" />
         </div>
       </div>
     );
   }
 
   if (!company) {
-    return <div className="dashboard-page">Loading...</div>;
+    return <PageLoading />;
   }
 
   return (
@@ -542,7 +544,7 @@ export default function CompanyDetail() {
           <h1 className="dashboard-title">{company.category || "Company"}</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory")}>← Back to Directory</button>
+          <BackButton fallback="/dashboard/directory" fallbackLabel="Directory" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>

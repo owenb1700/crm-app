@@ -15,6 +15,8 @@ import { withDollar } from "../../../../../lib/analytics";
 import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
+import PageLoading from "../../../../components/PageLoading";
+import BackButton from "../../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -184,7 +186,7 @@ function PersonPageContent() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn&apos;t load this person</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory")}>Back to Directory</button>
+          <BackButton fallback="/dashboard/directory" fallbackLabel="Directory" />
         </div>
       </div>
     );
@@ -195,12 +197,12 @@ function PersonPageContent() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Person not found</h3>
           <p className="modal-subtitle">They may have been deleted or merged into someone else.</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory")}>Back to Directory</button>
+          <BackButton fallback="/dashboard/directory" fallbackLabel="Directory" />
         </div>
       </div>
     );
   }
-  if (!loaded || !person) return <div className="dashboard-page">Loading...</div>;
+  if (!loaded || !person) return <PageLoading />;
 
   const emails = valuesOf(person, "emails", "email");
   const phones = valuesOf(person, "phones", "phone");
@@ -351,7 +353,7 @@ function PersonPageContent() {
 
 export default function PersonPage() {
   return (
-    <Suspense fallback={<div className="dashboard-page">Loading...</div>}>
+    <Suspense fallback={<PageLoading />}>
       <PersonPageContent />
     </Suspense>
   );

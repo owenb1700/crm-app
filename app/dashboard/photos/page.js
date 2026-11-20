@@ -9,6 +9,8 @@ import { isTrashed } from "../../../lib/trash";
 import PhotoGallery from "../../components/PhotoGallery";
 import DashboardHeader from "../../components/DashboardHeader";
 import MobileNav from "../../components/MobileNav";
+import PageLoading from "../../components/PageLoading";
+import BackButton from "../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -87,7 +89,7 @@ function PhotoGalleryPageContent() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn&apos;t load these photos</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" />
         </div>
       </div>
     );
@@ -102,12 +104,12 @@ function PhotoGalleryPageContent() {
               ? `This ${kind === "pipeline" ? "pipeline entry" : "project"} may have been deleted.`
               : "This link doesn't say whose photos to show. Open the project or pipeline entry and use its Photos link."}
           </p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" />
         </div>
       </div>
     );
   }
-  if (!record || !profile) return <div className="dashboard-page">Loading...</div>;
+  if (!record || !profile) return <PageLoading />;
 
   const isOwner = record.ownerId === uid;
   const isAdmin = profile.role === "admin";
@@ -150,7 +152,7 @@ function PhotoGalleryPageContent() {
 
 export default function PhotoGalleryPage() {
   return (
-    <Suspense fallback={<div className="dashboard-page">Loading...</div>}>
+    <Suspense fallback={<PageLoading />}>
       <PhotoGalleryPageContent />
     </Suspense>
   );

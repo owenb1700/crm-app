@@ -14,6 +14,8 @@ import ExportButtons from "../../../components/ExportButtons";
 import DashboardHeader from "../../../components/DashboardHeader";
 import MobileNav from "../../../components/MobileNav";
 import { normalizeCategory } from "../../../../lib/projectCategories";
+import PageLoading from "../../../components/PageLoading";
+import BackButton from "../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const STATUS_LABEL = { won: "Won", lost: "Lost", dnb: "Did Not Bid", open: "Open" };
@@ -90,17 +92,12 @@ function AnalyticsDetailsContent() {
     return u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email;
   };
 
-  const backToAnalytics = () => {
-    const f = searchParams.get("f");
-    router.push(`/dashboard/analytics${f ? `?f=${f}` : ""}`);
-  };
-
   if (allowed === false) {
     return (
       <div className="dashboard-page">
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">No access to Analytics</h3>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" />
         </div>
       </div>
     );
@@ -111,12 +108,12 @@ function AnalyticsDetailsContent() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn&apos;t load these records</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={backToAnalytics}>Back to Analytics</button>
+          <BackButton fallback="/dashboard/analytics" fallbackLabel="Analytics" />
         </div>
       </div>
     );
   }
-  if (!loaded) return <div className="dashboard-page">Loading...</div>;
+  if (!loaded) return <PageLoading />;
 
   // A tile can hold pipeline entries, projects, or both; each record carries
   // which it is so one table can list them together.
@@ -204,7 +201,7 @@ function AnalyticsDetailsContent() {
           <h1 className="dashboard-title">{metric.label}</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={backToAnalytics}>← Back to Analytics</button>
+          <BackButton fallback="/dashboard/analytics" fallbackLabel="Analytics" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>
@@ -256,7 +253,7 @@ function AnalyticsDetailsContent() {
 
 export default function AnalyticsDetailsPage() {
   return (
-    <Suspense fallback={<div className="dashboard-page">Loading...</div>}>
+    <Suspense fallback={<PageLoading />}>
       <AnalyticsDetailsContent />
     </Suspense>
   );

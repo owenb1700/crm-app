@@ -58,6 +58,8 @@ import ConfirmDialog from "../../../components/ConfirmDialog";
 import { manufacturerForType } from "../../../../lib/learned";
 import Suggested from "../../../components/Suggested";
 import { PROJECT_CATEGORIES as CATEGORY_OPTIONS, BIDS_SENT, stageIndex, UNDER_CONTRACT, CLOSED, nextStage, nextStageLabel, normalizeCategory, needsOutcome, afterWon, afterLost, wonNote, lostNote, lostProblem, closeProblem, closeNote } from "../../../../lib/projectCategories";
+import PageLoading from "../../../components/PageLoading";
+import BackButton from "../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -80,7 +82,6 @@ const monthsFrom = (months) => {
 
 const BLANK_EQUIPMENT_ROW = { type: "", manufacturer: "", model: "", serial: "", yearInstalled: "" };
 
-const BACK_TARGETS = { personal: "My Projects", team: "Team page", pastProjects: "Past Projects" };
 
 // The shared helper returns [] when a record has no equipment at all --
 // fine for display, but the edit form always wants at least one row to
@@ -245,16 +246,6 @@ export default function ProjectDetail() {
       ? [...(editData.companyCategory === "Contractor" ? [original] : []), { ...BLANK_OWNER_ROW }]
       : [...prev, { ...BLANK_OWNER_ROW }]));
   };
-
-  // "?from=team" / "?from=pastProjects" is added by the list that opened
-  // this project, so Back returns to the tab you were actually on.
-  const [openedFrom] = useState(() => {
-    if (typeof window === "undefined") return "personal";
-    const from = new URLSearchParams(window.location.search).get("from");
-    return BACK_TARGETS[from] ? from : "personal";
-  });
-  const backLabel = BACK_TARGETS[openedFrom];
-  const goBack = () => router.push(`/dashboard#${openedFrom}`);
 
   const formatPhone = (phone) => {
     if (!phone) return "";
@@ -1249,7 +1240,7 @@ export default function ProjectDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load this project</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={goBack}>Back to {backLabel}</button>
+          <BackButton />
         </div>
       </div>
     );
@@ -1265,14 +1256,14 @@ export default function ProjectDetail() {
               ? "It was deleted. Its owner (or an admin) can revive it from Trash in User Settings within 30 days."
               : "This project may have been deleted."}
           </p>
-          <button className="btn btn-secondary" onClick={goBack}>Back to {backLabel}</button>
+          <BackButton />
         </div>
       </div>
     );
   }
 
   if (!customer || !role) {
-    return <div className="dashboard-page">Loading...</div>;
+    return <PageLoading />;
   }
 
   const displayEquipment = equipmentRowsFrom(customer);
@@ -1355,7 +1346,7 @@ export default function ProjectDetail() {
           <h1 className="dashboard-title">Project Details</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={goBack}>← Back to {backLabel}</button>
+          <BackButton arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>

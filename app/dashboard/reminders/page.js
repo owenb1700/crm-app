@@ -15,6 +15,8 @@ import SortPicker from "../../components/SortPicker";
 import { sortRows } from "../../../lib/sorting";
 import { completedPayload, openOnly, doneOnly, describeDone } from "../../../lib/reminders";
 import Icon from "../../components/Icon";
+import PageLoading from "../../components/PageLoading";
+import BackButton from "../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -242,12 +244,12 @@ export default function RemindersPage() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn&apos;t load your reminders</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" />
         </div>
       </div>
     );
   }
-  if (!loaded) return <div className="dashboard-page">Loading...</div>;
+  if (!loaded) return <PageLoading />;
 
   const today = localDateKey(new Date());
   const REMINDER_SORTS = {
@@ -320,7 +322,7 @@ export default function RemindersPage() {
         </div>
         <div className="dashboard-header-actions">
           <SortPicker id="reminders-sort" options={REMINDER_SORTS} sort={sort} onChange={setSort} />
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>

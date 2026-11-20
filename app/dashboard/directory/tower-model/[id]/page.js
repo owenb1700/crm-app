@@ -11,6 +11,8 @@ import MobileNav from "../../../../components/MobileNav";
 import { withoutTrashed } from "../../../../../lib/trash";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
 import { normalizeStage } from "../../../../../lib/pipelineStages";
+import PageLoading from "../../../../components/PageLoading";
+import BackButton from "../../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -184,7 +186,7 @@ export default function TowerModelDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load this tower model</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.back()}>Back</button>
+          <BackButton fallback="/dashboard/directory" fallbackLabel="Directory" />
         </div>
       </div>
     );
@@ -195,14 +197,14 @@ export default function TowerModelDetail() {
       <div className="dashboard-page">
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Tower model not found</h3>
-          <button className="btn btn-secondary" onClick={() => router.back()}>Back</button>
+          <BackButton fallback="/dashboard/directory" fallbackLabel="Directory" />
         </div>
       </div>
     );
   }
 
   if (!towerModel) {
-    return <div className="dashboard-page">Loading...</div>;
+    return <PageLoading />;
   }
 
   const displayName = [towerModel.manufacturer, towerModel.model].filter(Boolean).join(" — ") || "Unnamed Model";
@@ -216,7 +218,7 @@ export default function TowerModelDetail() {
           <h1 className="dashboard-title">Tower Model</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.back()}>← Back</button>
+          <BackButton fallback="/dashboard/directory" fallbackLabel="Directory" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>

@@ -55,6 +55,8 @@ import ExportButtons from "../../../components/ExportButtons";
 import { downloadTable, csvDateStamp } from "../../../../lib/csv";
 import { DID_NOT_BID_REASONS, OTHER, didNotBidReason, didNotBidProblem } from "../../../../lib/notBidding";
 import { UNDER_CONTRACT } from "../../../../lib/projectCategories";
+import PageLoading from "../../../components/PageLoading";
+import BackButton from "../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -896,7 +898,7 @@ export default function PipelineDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load this entry</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#pipeline")}>Back to Pipeline</button>
+          <BackButton fallback="/dashboard#pipeline" fallbackLabel="Pipeline" />
         </div>
       </div>
     );
@@ -912,14 +914,14 @@ export default function PipelineDetail() {
               ? "It was deleted. Its owner (or an admin) can revive it from Trash in User Settings within 30 days."
               : "It may have been deleted."}
           </p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#pipeline")}>Back to Pipeline</button>
+          <BackButton fallback="/dashboard#pipeline" fallbackLabel="Pipeline" />
         </div>
       </div>
     );
   }
 
   if (!pipeline || !role) {
-    return <div className="dashboard-page">Loading...</div>;
+    return <PageLoading />;
   }
 
   // Firms for "who won it": everything in the Directory plus any bidder on
@@ -1041,7 +1043,7 @@ export default function PipelineDetail() {
           <h1 className="dashboard-title">Pipeline Entry</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#pipeline")}>← Back to Pipeline</button>
+          <BackButton fallback="/dashboard#pipeline" fallbackLabel="Pipeline" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>

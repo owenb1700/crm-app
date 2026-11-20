@@ -12,6 +12,8 @@ import SortPicker from "../../../components/SortPicker";
 import { sortRows } from "../../../../lib/sorting";
 import { downloadTable, csvDateStamp } from "../../../../lib/csv";
 import MobileNav from "../../../components/MobileNav";
+import PageLoading from "../../../components/PageLoading";
+import BackButton from "../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -235,14 +237,14 @@ export default function ProductsPage() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load product options</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" />
         </div>
       </div>
     );
   }
 
   if (!loaded) {
-    return <div className="dashboard-page">Loading...</div>;
+    return <PageLoading />;
   }
 
   return (
@@ -254,7 +256,7 @@ export default function ProductsPage() {
           <h1 className="dashboard-title">Directory — Product Options</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard#personal")}>← Back to My Projects</button>
+          <BackButton fallback="/dashboard#personal" fallbackLabel="My Projects" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>

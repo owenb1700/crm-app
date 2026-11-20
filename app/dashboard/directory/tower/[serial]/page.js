@@ -12,6 +12,8 @@ import MobileNav from "../../../../components/MobileNav";
 import { isTrashed } from "../../../../../lib/trash";
 import { normalizeCategory } from "../../../../../lib/projectCategories";
 import { normalizeStage } from "../../../../../lib/pipelineStages";
+import PageLoading from "../../../../components/PageLoading";
+import BackButton from "../../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 
@@ -126,14 +128,14 @@ export default function TowerDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn't load this tower</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/towers")}>Back to Installed Towers</button>
+          <BackButton fallback="/dashboard/directory/towers" fallbackLabel="Installed Towers" />
         </div>
       </div>
     );
   }
 
   if (!loaded) {
-    return <div className="dashboard-page">Loading...</div>;
+    return <PageLoading />;
   }
 
   if (projects.length === 0 && pipelineJobs.length === 0) {
@@ -142,7 +144,7 @@ export default function TowerDetail() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Tower not found</h3>
           <p className="modal-subtitle">No work is on file for serial number "{serial}".</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/towers")}>Back to Installed Towers</button>
+          <BackButton fallback="/dashboard/directory/towers" fallbackLabel="Installed Towers" />
         </div>
       </div>
     );
@@ -192,7 +194,7 @@ export default function TowerDetail() {
           <h1 className="dashboard-title">Tower</h1>
         </div>
         <div className="dashboard-header-actions">
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/towers")}>← Back to Installed Towers</button>
+          <BackButton fallback="/dashboard/directory/towers" fallbackLabel="Installed Towers" arrow />
           <DashboardHeader uid={uid} />
         </div>
       </div>

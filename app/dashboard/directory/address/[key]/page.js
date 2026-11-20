@@ -16,6 +16,8 @@ import { downloadTable, csvDateStamp } from "../../../../../lib/csv";
 import DashboardHeader from "../../../../components/DashboardHeader";
 import MobileNav from "../../../../components/MobileNav";
 import ExportButtons from "../../../../components/ExportButtons";
+import PageLoading from "../../../../components/PageLoading";
+import BackButton from "../../../../components/BackButton";
 
 const SESSION_LENGTH_MS = 10 * 60 * 60 * 1000;
 const clearSession = () => localStorage.removeItem("loginTimestamp");
@@ -136,12 +138,12 @@ function AddressPageContent() {
         <div className="admin-card" style={{ maxWidth: 480 }}>
           <h3 className="modal-title">Couldn&apos;t load this address</h3>
           <p className="modal-subtitle">{loadError}</p>
-          <button className="btn btn-secondary" onClick={() => router.push("/dashboard/directory/addresses")}>Back to Project Addresses</button>
+          <BackButton fallback="/dashboard/directory/addresses" fallbackLabel="Project Addresses" />
         </div>
       </div>
     );
   }
-  if (!loaded) return <div className="dashboard-page">Loading...</div>;
+  if (!loaded) return <PageLoading />;
 
   return (
     <div className="dashboard-page">
@@ -238,7 +240,7 @@ function AddressPageContent() {
 
 export default function AddressPage() {
   return (
-    <Suspense fallback={<div className="dashboard-page">Loading...</div>}>
+    <Suspense fallback={<PageLoading />}>
       <AddressPageContent />
     </Suspense>
   );
